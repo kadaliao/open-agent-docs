@@ -95,3 +95,71 @@ eng.normalize(key, input) -> value                    // 用户输入 / 粘贴�
 - 公式编辑器：带属性、函数补全和实时报错。
 - 嵌入：页面里单独一行库的网址（`/p/<库 id>`，可带 `?view=<视图>`）显示成可交互的内嵌视图（embed 的解析结果 `kind = "database"`）。
 - 数据先从 IndexedDB 出，再 `rows?since=` 增量；本地改动先显示（乐观），失败回滚。
+
+## 引擎实现说明
+
+`crates/oad-db` 和 `packages/db-wasm`（@oad/db）按上面的约定做，约定没说清的这样定（改这里先和两边对一下）：
+
+**字段**
+- 关联 `relation: { db_id, mirror_of? }`（也认 `db`）；指向自己写自己的 id 或 `"self"`。汇总 `rollup: { relation, prop, fn }`（`prop` 也认 `target`）：`relation` 是这个库的关联属性 key（存的或反向的都行）。
+- 数字属性可以有 `precision`（固定几位小数）；日期属性可以有 `date_format`：`iso`（默认，2026-11-15 14:00）| `zh`（2026年11月15日）| `slash` | `relative`（今天 / 明天…）。
+- 视图里查询用到的：`filter`、`sorts: [{ prop, dir: "asc" | "desc" }]`（也认 `desc: true`、旧的 `sort`）、`group_by`、`sub_group_by`、`group_date` / `sub_group_date`（日期怎么分组：day | week | month（默认）| year | relative）、
+  `hide_empty_groups`、`totals: { key: fn }`、`search`（临时的）、`limit` / `offset`。别的字段（hidden、widths…）引擎不管。`prop` 都是 key，也认名字（Agent 用）。
+
+**值**
+- 名称存在 `props[名称属性的 key]`。日期 `{ start, end?, time? }`：`start` / `end` 是当地时间、不带时区的 `2026-11-15` 或 `2026-11-15T14:00`，写到几点时 `time: true`；给的值带 `Z` / `+08:00` 的换成引擎时区的当地时间。
+  `created_at` / `updated_at` 是毫秒时间戳；自动编号读行的 `unique_id`。勾选没勾 = 不存（规范化 false 返回 null）。
+- **百分比按 Notion**：数字格式 `percent` 显示时乘 100（0.5 → 50%），输入“50%”规范化成 0.5；汇总、底部汇总的 `percent_*` 算出 0–1，汇总没设格式时自动按百分比显示。（旧版存的是 0–100。）
+- 显示：货币不是整数时两位小数（¥2.50、¥1,200）；勾选是“是”/“”；人没在人员表里的显示 id；关联对方库没加载时显示 id。
+- 规范化：WASM 的 `normalize` 不新加选项（没有的选项抛错，网页先改表结构再写）；Rust 的 `normalize_with(.., create = true)` / `normalize_row` 把要新加的选项放在 `new_options` 里，由服务器写回表结构。
+  新选项的 id 由属性 key + 名字算出来（`o` + 4 位十六进制，撞了往后挪），颜色按个数轮换。人按 `setPeople` 给的名字认（不分大小写），`user:` / `agent:` / `bot:` 开头的 id 直接认。关联写行 id、`#id` 或对方行的名称（对方库加载了才核对）。
+- 改类型（`Engine::convert`）：同类的原样留着；多选变单选留第一个；别的先变成显示的文字再按新类型认（单选、多选新加选项），认不出清空。
+
+**增量改动 `apply`**：`row` 整行换掉（同步来的）；`props`（也认 `set`）只改给了的格子，null / "" / [] 是清空；`deleted` 删行；没有的行 id 是加一行（排在最后）。返回改了的行，再加上关联自己时通过关联连着它们的行（它们的汇总、反向关联变了）。
+
+**查询结果**多一个 `total`（符合条件的总行数，`ids` 是 limit / offset 那一段）。分组：
+- 单选、状态、多选把所有选项按顺序列出来（没有行的也在，`count: 0`，除非 `hide_empty_groups`）；勾选是 `key: "true" / "false"`（“已勾选 / 未勾选”）；空值的组 `key: ""`、名字“无<属性名>”，排最后。
+- 多选、人员、关联：一行落在它的每个值的组里。日期按 `group_date` 分段（key 如 `2026-11`、`2026-W47`、`today`）；数字按值；文字按原文。
+- `sub_group_by` 的子分组在每组的 `groups` 里；视图有 `totals` 时每组也有 `totals`。底部汇总的属性或算法不认识时跳过（视图里留着的旧设置不报错）。
+
+**筛选**
+- 条件按类型：文字 eq / neq / contains / not_contains / starts_with / ends_with / gt… / empty / not_empty（不分大小写）；数字、编号 eq / neq / gt / gte / lt / lte（编号写 `T-12` 也认）；
+  单选、状态 eq / neq（值可以是列表，任一命中），状态还有 `in_group`（todo / doing / done，或 未开始 / 进行中 / 已完成）；多选、人员、关联、文件 contains / not_contains（eq / neq 同义：任一命中）；
+  勾选 checked / unchecked / eq；日期 eq / neq / gt / gte / lt / lte / is_within；公式、汇总按算出来的值的类型比。也认 is、before、after、包含 这些别名和旧的 `{ prop, op, value }`、直接给条件数组（= 且）。
+- 日期按天比。日期范围：`eq` 是“这一天在范围里”，`is_within` 是“有重叠”，`gt` / `lt` 比开始那天。值可以写 today / tomorrow / yesterday / one_week_ago / one_week_from_now / one_month_ago / one_month_from_now（也认 今天 明天…）或具体日期；
+  `is_within` 写 today、this_week（周一到周日）、this_month、this_year、past_week / past_month / past_year、next_week / next_month / next_year、past_N_days / next_N_days。
+- 要值的条件没填值时不筛（UI 里刚加的条件）。属性、选项、人、条件写错报错（中文，列出能写的）。
+
+**排序**：空的总在最后（升降序都是）；文字自然顺序（任务2 在 任务10 前），按码位，不按拼音；单选、状态按选项顺序；多选、人员、关联按显示的文字；勾选 未勾 < 勾了（不算空）；公式、汇总类型不一样时数 < 日期 < 文字 < 真假。值一样的保持原来的顺序。
+
+**公式**
+- 属性按名字引用（不分大小写、两边空格不算）；改名时服务器用 `formula::rename_prop` 改公式里的 `prop("旧名")`。也认全角的括号、逗号、冒号、问号、`×` `÷` `≠` `≥` `≤`，`=` 当 `==`。
+- 解析错误带位置：`checkFormula` 的 `at` 是 UTF-16 下标（和 JS 字符串一致），错误信息开头是“公式第 n 个字”。给了 `key` 还查用没用到自己、成没成环。表结构里写错、成环的公式 / 汇总（包括跨库成环）值是空的，`schemaErrors()` 列出来。
+- 算的时候出错（除以 0、类型不对、日期加数）这一格是空的。空值的规则同旧版：空 + 1 是空，`空 > 2` 是 false，文字和别的相加是拼起来。算出来的列表存成文字的列表（最多 200 个），文字最多 5000 字。
+- 函数：旧版的全部，加上 Notion 2 的方法写法、`let` / `lets`、`[列表]`、`map / filter / find / findIndex / some / every`（`current`、`index`）、first / last / at / sort / reverse / unique / flat、split / repeat / startsWith / endsWith / padStart / padEnd、
+  mod / sign / exp / ln / log10 / log2 / cbrt / pi / e / median、dateRange / dateStart / dateEnd / week / minute / timestamp / fromTimestamp（时间戳都是毫秒）。`day()` 是几号（同旧版），`weekday()` 周一 1 … 周日 7。
+  `dateBetween` 两个方向对称（旧版日期 1 早于日期 2 时按月算会差一）。
+- 缓存：公式、汇总、反向关联按行缓存；`apply` 只清改了的行，和读到主库别的行的列（关联自己的汇总、反向关联…）整列；`loadRelated` / `setSchema` 全清；用了 now() / today() 的公式到了下一分钟重算。
+  跨库（汇总套汇总）最多 6 层。
+- 汇总、底部汇总里“空”是 null、""、[]、false（**0 不算空**，旧版的汇总把 0 也当空）。
+
+**WASM 接口**：约定里的方法都有，另外：`DbEngine.create(schema, opts?)` 的 `opts` 是 `{ id?（主库 id，关联自己时要）, now?（固定时钟，测试用）, tz?, people? }`；`createSync`（已经 init 过时）、`setPeople`、`setClock`、
+`displayRow(rowId)`（一行每格的文字）、`schemaErrors()`。不固定时钟时每次调用前取浏览器的时间和时区。`computed` 除了公式、汇总、反向关联（对方行 id），也给创建 / 编辑时间（`{ start, time }`）、创建 / 编辑人、自动编号。
+出错抛 `Error`（中文信息）。进出 WASM 都是 JSON 字符串：1 万行从网络来本来就是 JSON 文字，交给 Rust 解析一次最快，serde-wasm-bindgen 逐个字段过边界慢得多；
+所以 `loadRows` / `loadRelated` / `apply` / `setSchema` / `query` 也可以直接给 JSON 字符串（fetch 的原文），省一次 `JSON.stringify`。默认导出是 wasm-bindgen 的 `init`。
+
+**服务器用**：`Engine` 是 `Send`、不是 `Sync`（缓存用 RefCell），放进 Mutex。时钟默认是系统时间、UTC，服务器按工作区时区 `set_clock`。`api::JsonEngine` 是 WASM 用的那一层，测试拿它和 WASM 对照（`packages/db-wasm/test/golden.json`，由 `cargo test -p oad-db --test golden` 生成）。
+
+**性能**（Apple M2，机器同时在编别的；1 万行 × 20 列，筛选（且 + 或 + 日期范围）+ 两列排序 + 按状态分组）：
+
+| | Rust release | WASM（Node，含 JSON 来回） |
+| --- | --- | --- |
+| 加载 1 万行（3.5MB JSON） | 30ms | 90ms |
+| 筛选 + 排序 + 分组 | 2.3ms | 3.0ms |
+| 再加子分组 + 5 列汇总 | 8ms | 12ms |
+| 按公式筛选排序：第一次 / 有缓存 | 10ms / 0.5ms | 14ms / 0.5ms |
+| 改一格 + 重新查 | 1.3ms | 0.5ms |
+
+（`cargo test -p oad-db --release --test bench -- --ignored --nocapture`、`node packages/db-wasm/test/bench.mjs`。）
+
+**还没做**：中文按拼音排序；行内格式的文字；按状态组（todo / doing / done）分组、数字按区间分组；正则（test / match）、formatNumber、link / style 这些 Notion 函数；按钮（不存值，服务器管）。
