@@ -301,3 +301,38 @@ fn crafted_version_is_rejected() {
     assert!(p.fork_at(&p.version(), 7).is_ok());
     assert!(p.fork_at(&snap(vec![(42, clock)], vec![]), 7).is_ok());
 }
+
+#[test]
+fn block_authors_and_insert_before() {
+    let d = doc_with_ids("第一段\n\n第二段\n");
+    let server = PageDoc::from_node(100, &d);
+    let id = d.content[0].attr_str("id").unwrap().to_string();
+    // 另一个人在第一段里打了更多的字
+    let other = PageDoc::from_update(200, &server.encode_state()).unwrap();
+    let sv = other.state_vector();
+    other
+        .replace_block(
+            &id,
+            &parse("第一段，后面是另一个人写的很长的一句话").content,
+        )
+        .unwrap();
+    server
+        .apply_update(&other.encode_diff(&sv).unwrap())
+        .unwrap();
+    let a = server.block_authors(&id).unwrap();
+    assert_eq!(a.get(&100), Some(&3));
+    assert!(a[&200] > 3, "{a:?}");
+    assert!(server.block_authors("nope").is_none());
+    assert_eq!(server.clock(200), other.clock(200));
+    assert_eq!(
+        oad_doc::version_clock(&server.version(), 200),
+        Some(server.clock(200))
+    );
+    // 插到前面
+    let second = server.top_ids()[1].clone();
+    let ids = server
+        .insert_before(&second, &parse("插在第二段前面").content)
+        .unwrap();
+    assert_eq!(server.top_ids()[1], ids[0]);
+    assert_eq!(server.to_node().content[2].plain_text(), "第二段");
+}

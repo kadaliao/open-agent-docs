@@ -39,10 +39,11 @@ pub fn routes() -> Router<AppState> {
             get(get_block).put(put_block).delete(delete_block),
         )
         .route("/sync/{page_id}", get(sync::handler))
+        .merge(crate::collab::routes())
         .fallback(|| async { ApiError::not_found("没有这个接口") })
 }
 
-type ApiResult<T> = Result<T, ApiError>;
+pub(crate) type ApiResult<T> = Result<T, ApiError>;
 
 /// `?token=` 的值。
 pub fn query_token(query: Option<&str>) -> Option<&str> {
@@ -58,7 +59,7 @@ pub async fn authenticate(state: &AppState, parts: &Parts) -> ApiResult<Option<P
         headers: &parts.headers,
         query_token: query_token(parts.uri.query()),
     };
-    Ok(state.core.auth.authenticate(&req).await?)
+    Ok(state.core.authenticate(&req).await?)
 }
 
 /// 登录了的调用者。
@@ -88,7 +89,7 @@ impl<T: DeserializeOwned, S: Send + Sync> FromRequest<S> for Body<T> {
 }
 
 /// 区分“没给”（None）和“给了 null”（Some(None)）。
-fn double<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+pub(crate) fn double<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     d: D,
 ) -> Result<Option<Option<T>>, D::Error> {
     Option::<T>::deserialize(d).map(Some)
@@ -406,21 +407,23 @@ async fn events(
 ) -> ApiResult<Sse<impl Stream<Item = Result<SseEvent, Infallible>>>> {
     s.core.require(&ws, &p, false).await?;
     let rx = s.core.events.subscribe();
-    let stream = futures_util::stream::unfold((rx, ws), |(mut rx, ws)| async move {
+    let me = p.user_id.clone();
+    let stream = futures_util::stream::unfold((rx, ws, me), |(mut rx, ws, me)| async move {
         loop {
             match rx.recv().await {
-                Ok(ev) if ev.page.workspace_id == ws => {
+                // 人的通知只推给本人
+                Ok(ev) if ev.workspace_id == ws && ev.user_id.as_ref().is_none_or(|u| *u == me) => {
                     let e = SseEvent::default()
-                        .event(ev.kind.as_str())
-                        .json_data(&ev.page)
+                        .event(ev.name)
+                        .json_data(&ev.data)
                         .unwrap_or_default();
-                    return Some((Ok(e), (rx, ws)));
+                    return Some((Ok(e), (rx, ws, me)));
                 }
                 Ok(_) => continue,
                 // 落下了事件：让网页重新拉列表
                 Err(RecvError::Lagged(_)) => {
                     let e = SseEvent::default().event("resync").data("{}");
-                    return Some((Ok(e), (rx, ws)));
+                    return Some((Ok(e), (rx, ws, me)));
                 }
                 Err(RecvError::Closed) => return None,
             }

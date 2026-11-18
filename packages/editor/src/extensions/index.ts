@@ -7,6 +7,8 @@ import type { Awareness } from 'y-protocols/awareness'
 import { schemaExtensions } from '../schema'
 import { t } from '../strings'
 import { AgentPresence } from './agent-presence'
+import { BlockAuthor, type AuthorInfo } from './block-author'
+import { Comments } from './comments'
 import { OadCaret, OadCollaboration } from './collaboration'
 import { LiveBlock } from './live-block'
 import { OadPlaceholder } from './placeholder'
@@ -24,6 +26,11 @@ export interface EditorExtensionOptions {
   field?: string
   awareness?: Awareness | null
   user?: OadUser
+  // 评论：点了正文里有评论的文字
+  onOpenThreads?: (ids: string[]) => void
+  // 块作者：client id → 人 / Agent
+  authors?: () => Record<string, AuthorInfo>
+  onUnknownAuthor?: (clientId: string) => void
 }
 
 function caret(user: { name: string; color: string; kind?: string }) {
@@ -47,6 +54,12 @@ export function editorExtensions(o: EditorExtensionOptions): AnyExtension[] {
     OadPlaceholder.configure({ empty: () => t('emptyPlaceholder'), line: () => t('placeholder') }),
     SlashCommands,
     LiveBlock,
+    Comments.configure({ onOpen: (ids) => o.onOpenThreads?.(ids) }),
+    BlockAuthor.configure({
+      authors: () => o.authors?.() ?? {},
+      onUnknown: (c) => o.onUnknownAuthor?.(c),
+      label: (a) => (a.kind === 'agent' ? '✦ ' : '') + a.name,
+    }),
     OadCollaboration.configure({ fragment: o.ydoc.getXmlFragment(o.field ?? 'default') }),
   ]
   if (o.awareness) {

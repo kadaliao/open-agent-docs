@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 use futures_util::{SinkExt, StreamExt};
 use oad_core::storage::sqlite::Sqlite;
-use oad_core::{AuthConfig, Core, HubConfig, Node, PageDoc};
+use oad_core::{AuthConfig, Core, HubConfig, Node, NotifyConfig, PageDoc};
 use oad_server::{AppState, ServerConfig};
 use serde_json::Value;
 use std::net::SocketAddr;
@@ -45,8 +45,18 @@ impl Server {
         hub: HubConfig,
         cfg: ServerConfig,
     ) -> Server {
+        Self::start_full(dir, auth, hub, cfg, NotifyConfig::default()).await
+    }
+
+    pub async fn start_full(
+        dir: &Path,
+        auth: AuthConfig,
+        hub: HubConfig,
+        cfg: ServerConfig,
+        notify: NotifyConfig,
+    ) -> Server {
         let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
-        let core = Core::open(storage, auth, hub).await.unwrap();
+        let core = Core::open_with(storage, auth, hub, notify).await.unwrap();
         let app = oad_server::router(AppState::new(core.clone(), cfg))
             .into_make_service_with_connect_info::<SocketAddr>();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -73,6 +83,10 @@ impl Server {
 
     pub fn ws(&self, page: &str) -> String {
         format!("ws://{}/api/v1/sync/{}", self.addr, page)
+    }
+
+    pub fn mcp(&self) -> String {
+        format!("http://{}/mcp", self.addr)
     }
 
     pub fn ws_id(&self) -> String {
@@ -319,4 +333,74 @@ impl Drop for YClient {
 /// 第 i 个顶层块的编号。
 pub fn block_id(doc: &Node, i: usize) -> String {
     doc.content[i].attr_str("id").unwrap().to_string()
+}
+
+/// 建一个 Agent（调用者要能管 Agent），返回 (编号, token, webhook_secret)。
+pub async fn make_agent(
+    req: reqwest::RequestBuilder,
+    name: &str,
+    scope: &str,
+    webhook: Option<&str>,
+) -> (String, String, String) {
+    let body = serde_json::json!({
+        "name": name, "scope": scope, "about": format!("{name} 的说明"), "webhook": webhook
+    });
+    let (st, v) = json(req.json(&body)).await;
+    assert_eq!(st, 201, "{v}");
+    (
+        v["agent"]["id"].as_str().unwrap().to_string(),
+        v["token"].as_str().unwrap().to_string(),
+        v["webhook_secret"].as_str().unwrap().to_string(),
+    )
+}
+
+pub type Mcp = rmcp::service::RunningService<rmcp::RoleClient, rmcp::model::ClientConfig>;
+
+/// 连上 MCP（rmcp 的客户端，Streamable HTTP）。
+pub async fn mcp_client(
+    s: &Server,
+    token: &str,
+) -> Result<Mcp, Box<rmcp::service::ClientInitializeError>> {
+    use rmcp::ServiceExt;
+    use rmcp::transport::StreamableHttpClientTransport;
+    use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let transport = StreamableHttpClientTransport::with_client(
+        client,
+        StreamableHttpClientTransportConfig::with_uri(s.mcp()).auth_header(token.to_string()),
+    );
+    rmcp::model::ClientConfig::default()
+        .serve(transport)
+        .await
+        .map_err(Box::new)
+}
+
+/// 调一个工具，返回 (文字, 是不是出错)。
+pub async fn call(c: &Mcp, tool: &str, args: Value) -> (String, bool) {
+    let args = args.as_object().cloned().unwrap_or_default();
+    let r = c
+        .call_tool(rmcp::model::CallToolRequestParams::new(tool.to_string()).with_arguments(args))
+        .await
+        .unwrap();
+    let v = serde_json::to_value(&r).unwrap();
+    let text = v["content"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["text"].as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    (text, r.is_error == Some(true))
+}
+
+/// 文字里 "key: 值" 的值（到空白或括号、逗号为止）。
+pub fn field(text: &str, key: &str) -> String {
+    let i = text
+        .find(&format!("{key}: "))
+        .unwrap_or_else(|| panic!("找不到 {key}：{text}"));
+    text[i + key.len() + 2..]
+        .split(|c: char| c.is_whitespace() || "，,）)".contains(c))
+        .next()
+        .unwrap()
+        .to_string()
 }

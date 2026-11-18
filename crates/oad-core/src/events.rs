@@ -26,10 +26,15 @@ impl EventKind {
     }
 }
 
+/// 工作区里的一条实时事件。
 #[derive(Clone, Debug)]
 pub struct Event {
-    pub kind: EventKind,
-    pub page: Page,
+    pub workspace_id: String,
+    /// 事件名：page.created、comment.created、notification ……
+    pub name: &'static str,
+    pub data: serde_json::Value,
+    /// 只发给这个用户（人的通知）；None = 工作区里的人都能收。
+    pub user_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -46,8 +51,16 @@ impl Default for Events {
 }
 
 impl Events {
-    pub fn emit(&self, kind: EventKind, page: Page) {
-        let _ = self.tx.send(Event { kind, page });
+    pub fn emit(&self, ev: Event) {
+        let _ = self.tx.send(ev);
+    }
+    pub fn page(&self, kind: EventKind, page: Page) {
+        self.emit(Event {
+            workspace_id: page.workspace_id.clone(),
+            name: kind.as_str(),
+            data: serde_json::to_value(&page).unwrap_or_default(),
+            user_id: None,
+        });
     }
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
         self.tx.subscribe()

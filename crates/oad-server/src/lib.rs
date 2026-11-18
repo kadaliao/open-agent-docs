@@ -1,5 +1,6 @@
 //! HTTP 层：`router(state)` 返回 axum Router，别的 Rust 服务可以直接挂进去。接口见 docs/phase1-contract.md。
 mod api;
+mod collab;
 mod error;
 mod guard;
 mod limit;
@@ -65,11 +66,12 @@ impl AppState {
     }
 }
 
-/// 全部路由：`/api/v1/...` 和网页。登录限流按 IP 算，要用
+/// 全部路由：`/api/v1/...`、`/mcp`（MCP，Agent token）和网页。登录限流按 IP 算，要用
 /// `into_make_service_with_connect_info::<SocketAddr>()` 起服务（没有就只按邮箱算）。
 pub fn router(state: AppState) -> Router {
     Router::new()
         .nest("/api/v1", api::routes())
+        .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -82,6 +84,7 @@ pub fn router(state: AppState) -> Router {
 pub fn api_router(state: AppState) -> Router {
     Router::new()
         .nest("/api/v1", api::routes())
+        .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             guard::check,

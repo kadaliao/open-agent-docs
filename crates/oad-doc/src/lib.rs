@@ -10,7 +10,7 @@ mod ids;
 
 pub use ids::{assign_ids, is_block, new_id};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// 新插入的节点：去掉带来的编号，全部重新分配。编号 8 位随机（62^8 ≈ 2×10^14 种），不和整页比对。
 fn fresh(nodes: &[Node]) -> Vec<Node> {
@@ -44,6 +44,12 @@ pub fn server_client_id() -> u64 {
     const LO: u64 = 1 << 32;
     const HI: u64 = 1 << 53;
     LO + rand::random::<u64>() % (HI - LO)
+}
+
+/// 版本（[`PageDoc::version`]）里某个 client 的时钟；版本格式不对返回 None。
+pub fn version_clock(version: &[u8], client: u64) -> Option<u32> {
+    let snap = Snapshot::decode_v1(version).ok()?;
+    Some(snap.state_map.get(&ClientID::new(client)))
 }
 
 /// 是不是服务器段的 client id。
@@ -264,6 +270,67 @@ impl PageDoc {
             .iter()
             .filter_map(|n| n.attr_str("id").map(str::to_string))
             .collect())
+    }
+
+    /// 在编号为 before 的块前面插入（同一层）。
+    pub fn insert_before(&self, before: &str, nodes: &[Node]) -> Result<Vec<String>> {
+        let nodes = fresh(nodes);
+        let mut txn = self.doc.transact_mut();
+        let (parent, idx, _) =
+            edit::find(&txn, &self.frag, before).ok_or_else(|| Error::NoBlock(before.into()))?;
+        parent.write(&mut txn, idx, &nodes);
+        Ok(nodes
+            .iter()
+            .filter_map(|n| n.attr_str("id").map(str::to_string))
+            .collect())
+    }
+
+    /// 顶层块的编号，按顺序。
+    pub fn top_ids(&self) -> Vec<String> {
+        let txn = self.doc.transact();
+        yrs::XmlFragment::children(&self.frag, &txn)
+            .filter_map(|c| match c {
+                yrs::XmlOut::Element(el) => edit::id_of(&txn, &el),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// 编号为 id 的块里现存的文字，按写它的 client id 数字数（算“这段是谁写的”）。
+    pub fn block_authors(&self, id: &str) -> Option<HashMap<u64, usize>> {
+        let mut txn = self.doc.transact_mut();
+        let (_, _, el) = edit::find(&txn, &self.frag, id)?;
+        let mut texts = Vec::new();
+        fn walk<T: ReadTxn, F: yrs::XmlFragment>(txn: &T, p: &F, out: &mut Vec<yrs::XmlTextRef>) {
+            for c in p.children(txn) {
+                match c {
+                    yrs::XmlOut::Element(el) => walk(txn, &el, out),
+                    yrs::XmlOut::Text(t) => out.push(t),
+                    yrs::XmlOut::Fragment(_) => {}
+                }
+            }
+        }
+        walk(&txn, &el, &mut texts);
+        // 和空快照比：现存的每段字都是“新增”，带着写它的 id
+        let now = txn.snapshot();
+        let empty = Snapshot::default();
+        let mut count: HashMap<u64, usize> = HashMap::new();
+        for t in texts {
+            for d in t.diff_range(&mut txn, Some(&now), Some(&empty), |c| c.id.client.get()) {
+                if let (Some(client), yrs::Out::Any(yrs::Any::String(s))) = (d.ychange, &d.insert) {
+                    *count.entry(client).or_default() += s.chars().count();
+                }
+            }
+        }
+        Some(count)
+    }
+
+    /// 这份文档里某个 client 的时钟（写过多少个单位）。
+    pub fn clock(&self, client: u64) -> u32 {
+        self.doc
+            .transact()
+            .state_vector()
+            .get(&ClientID::new(client))
     }
 
     /// 加到最后。

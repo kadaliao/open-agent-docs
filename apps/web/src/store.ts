@@ -124,14 +124,43 @@ export class PageStore {
         /* 忽略 */
       }
     })
+    // 评论和通知：交给订阅的人（评论栏、收件箱）
+    for (const type of ['comment.created', 'comment.updated', 'comment.deleted', 'thread.updated', 'notification']) {
+      es.addEventListener(type, (e) => {
+        let data: any = null
+        try {
+          data = JSON.parse((e as MessageEvent).data)
+        } catch {
+          /* 忽略 */
+        }
+        this.bus.get(type)?.forEach((f) => f(data))
+      })
+    }
     // 服务器说落下了事件，或者断线重连了：重新拉一遍
-    es.addEventListener('resync', () => this.load().catch(() => {}))
+    es.addEventListener('resync', () => {
+      this.load().catch(() => {})
+      this.bus.get('resync')?.forEach((f) => f(null))
+    })
     let opened = false
     es.addEventListener('open', () => {
-      if (opened) this.load().catch(() => {})
+      if (opened) {
+        this.load().catch(() => {})
+        this.bus.get('resync')?.forEach((f) => f(null))
+      }
       opened = true
     })
     this.es = es
+  }
+
+  private bus = new Map<string, Set<(data: any) => void>>()
+  /** 订阅工作区 SSE 里的评论 / 通知事件；'resync' = 可能落下了，自己重新拉 */
+  on(type: string, f: (data: any) => void) {
+    let set = this.bus.get(type)
+    if (!set) this.bus.set(type, (set = new Set()))
+    set.add(f)
+    return () => {
+      set!.delete(f)
+    }
   }
 
   close() {

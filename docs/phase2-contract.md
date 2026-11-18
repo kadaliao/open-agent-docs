@@ -113,3 +113,50 @@ Agent 写正文时，服务器在这一页的 awareness 里替它放 `{ user: { 
   附上 Claude Code 接入命令 `claude mcp add --transport http oad <服务器地址>/mcp --header "Authorization: Bearer <token>"` 和通用的 MCP JSON；重发 token、撤销、改 webhook。
 - **收件箱**：右上角铃铛，未读数；点开列出通知，点一条跳到那页那串评论。
 - **作者**：鼠标停在一段左边时显示写这段的人 / Agent（用 `/pages/{id}/authors` + 块里文字的 client id）。可以先做简单版：只显示块的主要作者。
+
+## 实际格式（服务器实现，网页按这个对）
+
+时间都是毫秒时间戳。作者 / 谁一律是 `{ kind: "user" | "agent", id, name }`（下面记作 *who*）。
+
+**Agent**
+
+- agent = `{ id, workspace_id, name, about, scope, webhook, created_by, created_at, last_used_at, revoked_at }`（不含 token、webhook_secret）。
+- `GET /workspaces/{ws}/agents` → `{ agents: [agent + { pending, webhook_error }] }`：`pending` = 没处理的通知数，`webhook_error` = 最近一次投递失败的原因（如 `"HTTP 503"`，送到后清掉）。工作区成员都能看。
+- `POST /workspaces/{ws}/agents` → 201 `{ agent, token, webhook_secret }`；名字重复 409；名字 1–40 字，不能有空白和 `@ [ ] ( ) < > 引号 逗号`。
+  webhook 只能 http(s)，默认拒绝内网地址（400）。
+- `PATCH /agents/{id}` → agent（`webhook: null` 或 `""` 清掉）；`DELETE /agents/{id}` → 200 撤销后的 agent；token / webhook-secret 见上。
+- `GET /workspaces/{ws}/members` → `{ members: [{ user: { id, name, email }, role }], agents: [同上] }`（@ 选人用；`members` 只有人，只读的也能看）。
+- Agent token 在三种登录方式下都能用；`Bearer oad_...` 不对时 401，不会退回到 cookie / 本机用户。
+
+**作者**：服务器替人 / Agent 写正文（HTTP、MCP）时，每个写入者在每次页面加载里有自己的 client id（在一份副本上改再合并），记进 doc_clients；
+`GET /pages/{id}/authors` → `{ clients: { "<client_id>": who } }`。一个 client id 只属于一个人；同一个人可以有多个 client id。
+
+**评论**
+
+- thread = `{ id, page_id, anchor: { block_id, start, end, quote } | null, created_by: who, created_at, resolved_at, resolved_by: who | null, comments: [comment] }`；
+  comment = `{ id, thread_id, author: who, body, created_at, edited_at, deleted_at }`（删掉的 `body` 是 `""`，`deleted_at` 有值，仍在列表里占位）。
+- `GET /pages/{id}/comments?resolved=` 不给时是 `false`（没解决的）。
+- `POST /pages/{id}/comments` → 201 thread；`POST /threads/{id}/comments` → 201 comment；`PATCH /comments/{id}` → comment；
+  `DELETE /comments/{id}` → 204（自己的，或工作区 owner）；`PATCH /threads/{id}` → thread。写评论、解决要有写权限（viewer、read 的 Agent 只能看）。
+- SSE `comment.created` / `comment.updated` / `comment.deleted` / `thread.updated` 的数据都是 `{ page_id, thread_id, comment_id, thread }`（`thread` 是整串最新的样子，网页直接替换）。
+
+**Agent 的通知**
+
+- 每条 = 上面的 JSON（`id`、`agent`、`type: "comment"`、`page`、`thread_id`、`comment`、`block_id`、`quote`、`prompt`、`created_at`）。`page.url` 用 `OAD_PUBLIC_URL` 拼，没配时是 `/p/<id>`。
+- 游标：给了 `after`（或 `Last-Event-ID`）就是编号大于它的（不管处理没处理）；都不给就是还没处理的。
+- `GET /agent/notifications` → `{ notifications: [...] }`；`POST /agent/notifications/ack` → `{ acked: <条数> }`；人的身份调这些回 403。
+- SSE 每条：`id: <编号>`、`event: notification`、`data: <JSON>`。
+- webhook 重试间隔从第一次失败算起：10 秒、1 分钟、5 分钟、30 分钟，共投 5 次。投递不跟随重定向，超时 10 秒。
+
+**人的通知（收件箱）**
+
+- item = `{ id, workspace_id, type: "mention" | "reply" | "resolved", data, created_at, read_at }`；
+  mention / reply 的 `data` = `{ type, page: { id, title }, thread_id, comment: { id, author: who, body }, block_id, quote }`，
+  resolved 的 `data` = `{ page: { id, title }, thread_id, block_id, quote, by: who }`。
+- `GET /me/notifications?after=&limit=` → `{ notifications: [item], unread }`，新的在前，`after` 往旧的翻（编号小于它的）。
+- `POST /me/notifications/read` → `{ read: <条数> }`。工作区 SSE 的 `notification` 事件数据就是 item，只推给本人。
+- 人的通知也保留 30 天。
+
+**MCP 工具的参数细节**：`edit_page` / `rewrite_page` 的 `base` 可以不给（按当前内容改，不推荐）；块编号带不带 `⟦⟧` 都行；
+`update_page` 的 `parent_id: "root"` 移到最外层、`after: "first"` 放最前、`icon: ""` 清掉图标；`my_notifications(after)` 会把编号 ≤ after 的标成已处理。
+写完的工具（create_page、edit_page、rewrite_page）结果里带新的 `base`，接着改用它。

@@ -68,6 +68,7 @@ export const zh = {
   highlight: '高亮',
   link: '链接',
   mathInline: '行内公式',
+  comment: '评论',
   // 表格
   addRowAbove: '上方插入行',
   addRowBelow: '下方插入行',

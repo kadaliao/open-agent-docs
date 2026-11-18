@@ -7,7 +7,7 @@ const notify = () => routeListeners.forEach((l) => l())
 window.addEventListener('popstate', notify)
 
 export function navigate(path: string, replace = false) {
-  if (location.pathname === path) return
+  if (location.pathname + location.search === path) return
   if (replace) history.replaceState(null, '', path)
   else history.pushState(null, '', path)
   notify()
@@ -19,12 +19,14 @@ export function usePath() {
       routeListeners.add(l)
       return () => routeListeners.delete(l)
     },
-    () => location.pathname,
+    () => location.pathname + location.search,
   )
 }
 
 export const pagePath = (id: string) => `/p/${id}`
-export const pageIdOf = (path: string) => /^\/p\/([^/]+)/.exec(path)?.[1] ?? null
+export const pageIdOf = (path: string) => /^\/p\/([^/?#]+)/.exec(path)?.[1] ?? null
+export const threadOf = (path: string) => /[?&]thread=([^&#]+)/.exec(path)?.[1] ?? null
+export const threadPath = (page: string, thread: string) => `/p/${page}?thread=${thread}`
 
 // ---------- 主题 ----------
 export type Theme = 'system' | 'light' | 'dark'
@@ -110,5 +112,34 @@ export async function clearLocalData() {
     )
   } catch {
     /* 老浏览器没有 databases() */
+  }
+}
+
+const rtf = typeof Intl !== 'undefined' ? new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' }) : null
+/** “3 分钟前”“昨天”这种 */
+export function ago(ms: number | null | undefined): string {
+  if (!ms) return ''
+  const s = (ms - Date.now()) / 1000
+  const abs = Math.abs(s)
+  if (!rtf) return new Date(ms).toLocaleString()
+  if (abs < 45) return rtf.format(0, 'second')
+  if (abs < 3600) return rtf.format(Math.round(s / 60), 'minute')
+  if (abs < 86400) return rtf.format(Math.round(s / 3600), 'hour')
+  if (abs < 86400 * 30) return rtf.format(Math.round(s / 86400), 'day')
+  return new Date(ms).toLocaleDateString()
+}
+
+export async function copyText(s: string) {
+  try {
+    await navigator.clipboard.writeText(s)
+    return true
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = s
+    document.body.append(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
   }
 }

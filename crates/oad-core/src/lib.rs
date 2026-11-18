@@ -1,25 +1,32 @@
 //! 领域逻辑：页面树、正文（CRDT）、登录、事件。不含 HTTP，HTTP 在 oad-server。
 //!
 //! 可替换的部分是 trait：[`Storage`]（首版 SQLite）、[`AuthProvider`]（内置账号 / 可信请求头 / 不登录）。
+pub mod agents;
 pub mod auth;
+pub mod comments;
 mod error;
 pub mod events;
 pub mod hub;
 pub mod ids;
 pub mod model;
+pub mod notify;
 pub mod position;
+pub mod ssrf;
 pub mod storage;
 pub mod tree;
 
 pub use auth::{AuthMode, AuthProvider, AuthRequest};
+pub use comments::{Anchor, AuthorRef, CommentView, NotifySpec, ThreadView};
 pub use error::{Error, Result};
 pub use events::{Event, EventKind, Events};
 pub use hub::{DocHub, HubConfig, Writer};
 pub use model::*;
+pub use notify::{Notifier, NotifyConfig};
 pub use oad_doc::{Node, PageDoc};
 pub use storage::Storage;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub const DEFAULT_WORKSPACE: &str = "默认工作区";
 const LOCAL_USER_EMAIL: &str = "local@localhost";
@@ -54,8 +61,12 @@ pub struct Core {
     pub auth: Arc<dyn AuthProvider>,
     /// 默认工作区（新用户加进这里）。
     pub default_workspace: Workspace,
+    /// 通知：存、投 webhook、叫醒等着的。
+    pub notes: Arc<Notifier>,
     /// 关机信号：SSE、WebSocket 等长连接看到它就结束，HTTP 服务才能停下来。
     shutdown: tokio::sync::watch::Sender<bool>,
+    /// Agent 最后一次记使用时间的时刻（少写库）。
+    touched: Mutex<HashMap<String, i64>>,
 }
 
 /// 页面属性的修改。`Option<Option<_>>`：外层 None = 不改，Some(None) = 清空。
@@ -75,6 +86,16 @@ impl Core {
         storage: Arc<dyn Storage>,
         auth: AuthConfig,
         hub: HubConfig,
+    ) -> Result<Arc<Core>> {
+        Self::open_with(storage, auth, hub, NotifyConfig::default()).await
+    }
+
+    /// 同 [`Core::open`]，带通知的配置。会起一个后台任务投 webhook、清旧通知，关机时停。
+    pub async fn open_with(
+        storage: Arc<dyn Storage>,
+        auth: AuthConfig,
+        hub: HubConfig,
+        notify: NotifyConfig,
     ) -> Result<Arc<Core>> {
         let default_workspace = match storage.workspaces().await?.into_iter().next() {
             Some(w) => w,
@@ -109,14 +130,19 @@ impl Core {
             }
         };
         let events = Events::default();
-        Ok(Arc::new(Core {
+        let notes = Notifier::new(storage.clone(), events.clone(), notify);
+        let core = Arc::new(Core {
             hub: DocHub::new(storage.clone(), events.clone(), hub),
             storage,
             events,
             auth: provider,
             default_workspace,
+            notes: notes.clone(),
             shutdown: tokio::sync::watch::channel(false).0,
-        }))
+            touched: Mutex::new(HashMap::new()),
+        });
+        tokio::spawn(notes.run(Box::pin(core.on_shutdown())));
+        Ok(core)
     }
 
     /// 建内置账号用户（带密码），加进默认工作区。
@@ -232,7 +258,7 @@ impl Core {
                 initial_state: doc.encode_state(),
             })
             .await?;
-        self.events.emit(EventKind::Created, page.clone());
+        self.events.page(EventKind::Created, page.clone());
         Ok(page)
     }
 
@@ -244,7 +270,7 @@ impl Core {
         }
         if patch.icon.is_some() {
             page = self.storage.update_page(id, None, patch.icon).await?;
-            self.events.emit(EventKind::Updated, page.clone());
+            self.events.page(EventKind::Updated, page.clone());
         }
         if patch.parent_id.is_some() || patch.after.is_some() {
             let parent = patch.parent_id.unwrap_or_else(|| page.parent_id.clone());
@@ -254,7 +280,7 @@ impl Core {
                 Some(Some(a)) => Placement::After(a),
             };
             page = self.storage.move_page(id, parent, place).await?;
-            self.events.emit(EventKind::Moved, page.clone());
+            self.events.page(EventKind::Moved, page.clone());
         }
         match self.storage.page(id).await? {
             Some(p) => Ok(p),
@@ -266,7 +292,7 @@ impl Core {
         self.page_for(id, who, true).await?;
         let gone = self.storage.delete_page(id).await?;
         for p in &gone {
-            self.events.emit(EventKind::Deleted, p.clone());
+            self.events.page(EventKind::Deleted, p.clone());
         }
         Ok(gone)
     }
@@ -292,13 +318,17 @@ impl Core {
             block: None,
         };
         self.hub
-            .edit(id, Some(w), move |d| {
-                on_version(d, base.as_deref(), |d| {
-                    d.set_content(&doc);
-                    Ok(())
-                })
+            .edit(id, Some(w), base, move |d| {
+                d.set_content(&doc);
+                Ok(())
             })
             .await
+    }
+
+    /// 当前版本（写完之后给 Agent 接着改用）。
+    pub async fn version(&self, id: &str, who: &Principal) -> Result<Vec<u8>> {
+        self.page_for(id, who, false).await?;
+        self.hub.read(id, |d| d.version()).await
     }
 
     /// 一块和当前版本。
@@ -334,9 +364,7 @@ impl Core {
             block: Some(b.clone()),
         };
         self.hub
-            .edit(id, Some(w), move |d| {
-                on_version(d, base.as_deref(), |d| Ok(d.replace_block(&b, &nodes)?))
-            })
+            .edit(id, Some(w), base, move |d| Ok(d.replace_block(&b, &nodes)?))
             .await
     }
 
@@ -354,7 +382,7 @@ impl Core {
             block: after.clone(),
         };
         self.hub
-            .edit(id, Some(w), move |d| match after {
+            .edit(id, Some(w), None, move |d| match after {
                 Some(a) => Ok(d.insert_after(Some(&a), &nodes)?),
                 None => Ok(d.append(&nodes)),
             })
@@ -369,8 +397,89 @@ impl Core {
             block: Some(b.clone()),
         };
         self.hub
-            .edit(id, Some(w), move |d| Ok(d.delete_block(&b)?))
+            .edit(id, Some(w), None, move |d| Ok(d.delete_block(&b)?))
             .await
+    }
+
+    /// 按块改，ops 依次执行、一次事务（一个出错就都不改）。返回每一步涉及的块编号。
+    pub async fn edit_blocks(
+        &self,
+        id: &str,
+        who: &Principal,
+        base: Option<Vec<u8>>,
+        ops: Vec<BlockOp>,
+    ) -> Result<Vec<Vec<String>>> {
+        self.page_for(id, who, true).await?;
+        if ops.is_empty() {
+            return Err(Error::BadRequest("ops 是空的".into()));
+        }
+        let w = Writer {
+            principal: who.clone(),
+            block: ops.iter().find_map(|o| o.block().map(str::to_string)),
+        };
+        self.hub
+            .edit(id, Some(w), base, move |d| {
+                let md = |m: &str| oad_markdown::parse(m).content;
+                let mut out = Vec::new();
+                for (i, op) in ops.iter().enumerate() {
+                    let r = match op {
+                        BlockOp::Replace { block, markdown } => {
+                            d.replace_block(block, &md(markdown))
+                        }
+                        BlockOp::InsertAfter { block, markdown } => {
+                            d.insert_after(Some(block), &md(markdown))
+                        }
+                        BlockOp::InsertBefore { block, markdown } => {
+                            d.insert_before(block, &md(markdown))
+                        }
+                        BlockOp::Append { markdown } => Ok(d.append(&md(markdown))),
+                        BlockOp::Delete { block } => {
+                            d.delete_block(block).map(|_| vec![block.clone()])
+                        }
+                    };
+                    out.push(r.map_err(|e| match Error::from(e) {
+                        Error::NotFound(m) => Error::NotFound(format!("第 {} 步：{m}", i + 1)),
+                        e => e,
+                    })?);
+                }
+                Ok(out)
+            })
+            .await
+    }
+
+    /// 找页面：标题和正文的子串（不分大小写），返回页面和命中的片段。第 5 阶段换成全文索引。
+    pub async fn search(
+        &self,
+        workspace_id: &str,
+        who: &Principal,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<(Page, String)>> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() {
+            return Err(Error::BadRequest("要给搜索词".into()));
+        }
+        let mut pages = self.list_pages(workspace_id, who).await?;
+        pages.sort_by_key(|p| std::cmp::Reverse(p.updated_at));
+        let mut hits = Vec::new();
+        for p in pages {
+            if hits.len() >= limit {
+                break;
+            }
+            let text = self
+                .hub
+                .peek(&p.id, |d| d.to_node().plain_text())
+                .await
+                .unwrap_or_default();
+            let lower = text.to_lowercase();
+            if let Some(i) = lower.find(&q) {
+                hits.push((p, snippet(&text, &lower, i, q.len())));
+            } else if p.title.to_lowercase().contains(&q) {
+                let s: String = text.chars().take(80).collect();
+                hits.push((p, s));
+            }
+        }
+        Ok(hits)
     }
 
     /// 关机：先通知长连接结束，再把所有打开的页面存好。
@@ -388,20 +497,47 @@ impl Core {
     }
 }
 
-/// 在 base 版本上执行 f（没给 base 就直接在当前文档上）：在那个版本的副本上改，再把改动合并回来。
-fn on_version<R>(
-    d: &PageDoc,
-    base: Option<&[u8]>,
-    f: impl FnOnce(&PageDoc) -> Result<R>,
-) -> Result<R> {
-    let Some(base) = base else {
-        return f(d);
-    };
-    let fork = d
-        .fork_at(base, oad_doc::server_client_id())
-        .map_err(|e| Error::BadRequest(format!("base 版本不对：{e}")))?;
-    let sv = fork.state_vector();
-    let r = f(&fork)?;
-    d.apply_update(&fork.encode_diff(&sv)?)?;
-    Ok(r)
+/// edit_blocks 的一步。
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlockOp {
+    Replace { block: String, markdown: String },
+    InsertAfter { block: String, markdown: String },
+    InsertBefore { block: String, markdown: String },
+    Append { markdown: String },
+    Delete { block: String },
+}
+
+impl BlockOp {
+    pub fn block(&self) -> Option<&str> {
+        match self {
+            BlockOp::Replace { block, .. }
+            | BlockOp::InsertAfter { block, .. }
+            | BlockOp::InsertBefore { block, .. }
+            | BlockOp::Delete { block } => Some(block),
+            BlockOp::Append { .. } => None,
+        }
+    }
+}
+
+/// 命中位置前后各取一些字。lower 是 text 的小写，i、len 是在 lower 里的字节位置。
+fn snippet(text: &str, lower: &str, i: usize, len: usize) -> String {
+    // 小写后字节位置可能和原文不一样（少数字符），对不上就从原文开头取
+    if lower.len() != text.len() || !text.is_char_boundary(i) || !text.is_char_boundary(i + len) {
+        return text.chars().take(80).collect();
+    }
+    let before: String = text[..i]
+        .chars()
+        .rev()
+        .take(30)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let after: String = text[i + len..].chars().take(50).collect();
+    format!(
+        "{}{before}{}{after}…",
+        if before.len() < i { "…" } else { "" },
+        &text[i..i + len]
+    )
+    .replace('\n', " ")
 }

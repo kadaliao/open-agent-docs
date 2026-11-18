@@ -7,7 +7,7 @@ use axum::extract::{Path, State};
 use axum::http::request::Parts;
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
-use oad_core::Role;
+use oad_core::{Principal, Role};
 use yrs::sync::Message;
 use yrs::updates::encoder::Encode;
 
@@ -25,7 +25,7 @@ pub async fn handler(
             .core
             .page_for(&page_id, &p, false)
             .await
-            .map(|(_, role)| role)
+            .map(|(_, role)| (role, p))
             .map_err(|e| e.code().to_string()),
         Ok(None) => Err("unauthorized".to_string()),
         Err(e) => Err(e.code.to_string()),
@@ -34,8 +34,13 @@ pub async fn handler(
         .on_upgrade(move |socket| serve(socket, s, page_id, access))
 }
 
-async fn serve(mut socket: WebSocket, s: AppState, page_id: String, access: Result<Role, String>) {
-    let role = match access {
+async fn serve(
+    mut socket: WebSocket,
+    s: AppState,
+    page_id: String,
+    access: Result<(Role, Principal), String>,
+) {
+    let (role, who) = match access {
         Ok(r) => r,
         Err(reason) => {
             let msg = Message::Auth(Some(reason)).encode_v1();
@@ -44,7 +49,7 @@ async fn serve(mut socket: WebSocket, s: AppState, page_id: String, access: Resu
             return;
         }
     };
-    let conn = match s.core.hub.join(&page_id, !role.can_write()).await {
+    let conn = match s.core.hub.join(&page_id, !role.can_write(), who).await {
         Ok(c) => c,
         Err(e) => {
             tracing::warn!(page = %page_id, "加入同步失败：{e}");

@@ -1073,3 +1073,64 @@
     animation: none;
   }
 }
+
+/* ---------- 评论底色 ---------- */
+:root {
+  --oad-comment: rgba(255, 196, 0, 0.22);
+  --oad-comment-line: rgba(214, 158, 0, 0.75);
+  --oad-comment-active: rgba(255, 196, 0, 0.45);
+}
+:root[data-theme='dark'] {
+  --oad-comment: rgba(250, 204, 21, 0.16);
+  --oad-comment-line: rgba(250, 204, 21, 0.55);
+  --oad-comment-active: rgba(250, 204, 21, 0.32);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --oad-comment: rgba(250, 204, 21, 0.16);
+    --oad-comment-line: rgba(250, 204, 21, 0.55);
+    --oad-comment-active: rgba(250, 204, 21, 0.32);
+  }
+}
+.oad-prose .oad-comment {
+  background: var(--oad-comment);
+  border-bottom: 2px solid var(--oad-comment-line);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.oad-prose .oad-comment.is-active {
+  background: var(--oad-comment-active);
+}
+
+/* ---------- 块作者（鼠标停在一块上时左边显示） ---------- */
+.oad-block-author {
+  position: absolute;
+  right: calc(100% + 14px);
+  max-width: 132px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--oad-bg-2);
+  color: var(--oad-fg-3);
+  font: 500 11.5px/1.6 var(--oad-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  margin-top: 4px;
+  animation: oad-pop 0.12s ease-out;
+}
+.oad-block-author[data-kind='agent'] {
+  color: var(--oad-important);
+  background: var(--oad-important-bg);
+}
+.oad-block-author[hidden] {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .oad-block-author {
+    right: auto;
+    left: 0;
+    transform: translateY(-100%);
+    margin-top: -2px;
+  }
+}

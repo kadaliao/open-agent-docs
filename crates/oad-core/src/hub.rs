@@ -9,7 +9,7 @@
 //! - 处理命令时 panic 不会让 actor 退出：接住后把已经确认过的改动照常广播、存盘。
 //! - 存盘失败会退避重试，数据一直留在存盘任务的队列里，直到写进去。
 use crate::events::{EventKind, Events};
-use crate::model::Principal;
+use crate::model::{Principal, PrincipalKind};
 use crate::storage::Storage;
 use crate::{Error, Result};
 use bytes::Bytes;
@@ -74,6 +74,7 @@ enum Cmd {
     Join {
         conn: u64,
         readonly: bool,
+        who: Principal,
         out: mpsc::Sender<Bytes>,
         ready: oneshot::Sender<()>,
     },
@@ -222,7 +223,8 @@ impl DocHub {
     }
 
     /// 加入同步。连上后 actor 先发 step1 和当前 awareness。调用方要先确认页面存在、有权限。
-    pub async fn join(&self, page_id: &str, readonly: bool) -> Result<Conn> {
+    /// 这个连接发来的增量里新出现的 client id 记到 who 名下。
+    pub async fn join(&self, page_id: &str, readonly: bool, who: Principal) -> Result<Conn> {
         let conn = self.inner.next.fetch_add(1, Ordering::Relaxed);
         let (out, rx) = mpsc::channel(self.inner.cfg.conn_buffer);
         let (ready, wait) = oneshot::channel();
@@ -231,6 +233,7 @@ impl DocHub {
             Cmd::Join {
                 conn,
                 readonly,
+                who,
                 out,
                 ready,
             },
@@ -248,6 +251,34 @@ impl DocHub {
         })
     }
 
+    /// 读正文，但页面没打开时不为它起 actor：直接从库里读一份临时的（搜索这种要扫很多页的用）。
+    pub async fn peek<R: Send + 'static>(
+        &self,
+        page_id: &str,
+        f: impl FnOnce(&PageDoc) -> R + Send + 'static,
+    ) -> Result<R> {
+        let loaded = self
+            .docs()
+            .as_ref()
+            .is_some_and(|d| d.contains_key(page_id));
+        if loaded {
+            return self.read(page_id, f).await;
+        }
+        let log = self.inner.storage.load_doc(page_id).await?;
+        tokio::task::spawn_blocking(move || {
+            let d = PageDoc::new(1);
+            if let Some(s) = &log.snapshot {
+                d.apply_update(s)?;
+            }
+            for u in &log.updates {
+                d.apply_update(u)?;
+            }
+            Ok(f(&d))
+        })
+        .await
+        .map_err(|e| Error::Internal(e.to_string()))?
+    }
+
     /// 读正文。
     pub async fn read<R: Send + 'static>(
         &self,
@@ -257,18 +288,26 @@ impl DocHub {
         self.call(page_id, move |a| f(&a.doc)).await
     }
 
-    /// 服务器 / Agent 改正文：一次 CRDT 事务，连着的网页马上收到。
+    /// 服务器 / Agent 改正文，连着的网页马上收到。
+    ///
+    /// 有写入者时在一份副本上用它自己的 client id 改（记到它名下），改完一次合并回来：f 中途出错就什么都不改。
+    /// 给了 base（读的时候拿到的版本）就从那个版本开始改，这期间别人写的不会被当成要删的。
     pub async fn edit<R: Send + 'static>(
         &self,
         page_id: &str,
         writer: Option<Writer>,
+        base: Option<Vec<u8>>,
         f: impl FnOnce(&PageDoc) -> Result<R> + Send + 'static,
     ) -> Result<R> {
         self.call(page_id, move |a| {
-            if let Some(w) = &writer {
-                a.presence(w);
-            }
-            let r = f(&a.doc);
+            let r = match &writer {
+                Some(w) => {
+                    a.presence(w);
+                    a.edit_as(&w.principal, base.as_deref(), f)
+                }
+                None if base.is_some() => Err(Error::BadRequest("base 要和写入者一起给".into())),
+                None => f(&a.doc),
+            };
             a.after();
             r
         })
@@ -324,6 +363,7 @@ impl DocHub {
 
 enum Persist {
     Append(Vec<u8>),
+    Clients(Vec<(u64, PrincipalKind, String)>),
     Title(String),
     Compact(Vec<u8>),
     Barrier(oneshot::Sender<()>),
@@ -372,11 +412,14 @@ async fn persister(
                 })
                 .await;
                 if let Some(page) = r {
-                    events.emit(EventKind::Updated, page);
+                    events.page(EventKind::Updated, page);
                 }
             }
             Persist::Compact(s) => {
                 retry(id, "压缩", || st.compact(id, s.clone())).await;
+            }
+            Persist::Clients(cs) => {
+                retry(id, "记作者", || st.add_doc_clients(id, cs.clone())).await;
             }
             Persist::Barrier(done) => {
                 let _ = done.send(());
@@ -388,6 +431,7 @@ async fn persister(
 struct ConnState {
     out: mpsc::Sender<Bytes>,
     readonly: bool,
+    who: Principal,
     /// 这个连接带来的 awareness client id，断开时替它清掉。
     clients: HashSet<u64>,
     /// 最近一分钟回过的 step1，和上一次的 state vector（重复的不再算差量）。
@@ -417,6 +461,10 @@ pub struct Actor {
     title: String,
     persist: mpsc::UnboundedSender<Persist>,
     presence: HashMap<String, Presence>,
+    /// 已经记过作者的 client id。
+    known: HashSet<u64>,
+    /// 每个 HTTP 写入者在这次加载里用的 client id。
+    writers: HashMap<String, u64>,
     last_active: Instant,
     cfg: HubConfig,
 }
@@ -457,6 +505,13 @@ impl Actor {
             return Err(Error::NotFound(format!("页面 {page_id} 不存在")));
         };
         let log = inner.storage.load_doc(page_id).await?;
+        let known = inner
+            .storage
+            .doc_clients(page_id)
+            .await?
+            .into_iter()
+            .map(|c| c.0)
+            .collect();
         let doc = PageDoc::new(oad_doc::server_client_id());
         if let Some(s) = &log.snapshot {
             doc.apply_update(s)?;
@@ -490,6 +545,8 @@ impl Actor {
             persist,
             presence: HashMap::new(),
             last_active: Instant::now(),
+            known,
+            writers: HashMap::new(),
             cfg: inner.cfg.clone(),
         })
     }
@@ -535,12 +592,65 @@ impl Actor {
         }
     }
 
-    fn join(&mut self, conn: u64, readonly: bool, out: mpsc::Sender<Bytes>) {
+    /// 新出现的 client id 记到 who 名下（已经记过的不改）。
+    fn record(&mut self, clients: impl IntoIterator<Item = u64>, who: &Principal) {
+        let new: Vec<_> = clients
+            .into_iter()
+            .filter(|c| self.known.insert(*c))
+            .map(|c| (c, who.kind, who.user_id.clone()))
+            .collect();
+        if !new.is_empty() {
+            let _ = self.persist.send(Persist::Clients(new));
+        }
+    }
+
+    /// 写入者这次用哪个 client id：同一次加载里沿用同一个；从旧版本改、而它在那之后又写过时换一个新的，
+    /// 不然副本里会从旧时钟接着编号，和已有的撞上。
+    fn writer_client(&mut self, who: &Principal, base: Option<&[u8]>) -> u64 {
+        let cid = *self
+            .writers
+            .entry(who.user_id.clone())
+            .or_insert_with(oad_doc::server_client_id);
+        let stale = base
+            .is_some_and(|b| oad_doc::version_clock(b, cid).unwrap_or(0) != self.doc.clock(cid));
+        if !stale {
+            return cid;
+        }
+        let fresh = oad_doc::server_client_id();
+        self.writers.insert(who.user_id.clone(), fresh);
+        fresh
+    }
+
+    fn edit_as<R>(
+        &mut self,
+        who: &Principal,
+        base: Option<&[u8]>,
+        f: impl FnOnce(&PageDoc) -> Result<R>,
+    ) -> Result<R> {
+        let cid = self.writer_client(who, base);
+        let version = match base {
+            Some(b) => b.to_vec(),
+            None => self.doc.version(),
+        };
+        let fork = self
+            .doc
+            .fork_at(&version, cid)
+            .map_err(|e| Error::BadRequest(format!("base 版本不对：{e}")))?;
+        let sv = fork.state_vector();
+        let r = f(&fork)?;
+        let diff = fork.encode_diff(&sv)?;
+        self.doc.apply_update(&diff)?;
+        self.record([cid], who);
+        Ok(r)
+    }
+
+    fn join(&mut self, conn: u64, readonly: bool, who: Principal, out: mpsc::Sender<Bytes>) {
         self.conns.insert(
             conn,
             ConnState {
                 out,
                 readonly,
+                who,
                 clients: HashSet::new(),
                 step1: VecDeque::new(),
                 last_sv: None,
@@ -556,7 +666,8 @@ impl Actor {
     }
 
     fn on_message(&mut self, conn: u64, data: &[u8]) {
-        let Some(readonly) = self.conns.get(&conn).map(|c| c.readonly) else {
+        let Some((readonly, who)) = self.conns.get(&conn).map(|c| (c.readonly, c.who.clone()))
+        else {
             return;
         };
         let mut dec = DecoderV1::new(Cursor::new(data));
@@ -584,9 +695,18 @@ impl Actor {
                     if readonly {
                         continue; // 只读：丢掉，不断开
                     }
+                    // 时钟变大的 client 就是这次写字的人
+                    let before = self.doc.ydoc().transact().state_vector();
                     if let Err(e) = self.doc.apply_update_from(&u, conn) {
                         warn!(page = %self.page_id, conn, "客户端增量合并失败：{e}");
                     }
+                    let after = self.doc.ydoc().transact().state_vector();
+                    let grown: Vec<u64> = after
+                        .iter()
+                        .filter(|(c, k)| before.get(c) < **k)
+                        .map(|(c, _)| c.get())
+                        .collect();
+                    self.record(grown, &who);
                 }
                 Ok(Message::Awareness(u)) => {
                     if let Some(c) = self.conns.get_mut(&conn) {
@@ -760,10 +880,11 @@ impl Actor {
             Cmd::Join {
                 conn,
                 readonly,
+                who,
                 out,
                 ready,
             } => {
-                self.join(conn, readonly, out);
+                self.join(conn, readonly, who, out);
                 let _ = ready.send(());
             }
             Cmd::Leave { conn } => self.drop_conn(conn),

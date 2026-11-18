@@ -1,7 +1,7 @@
 //! open-agent-docs：一个二进制，网页打在里面。
 use clap::{Parser, Subcommand, ValueEnum};
 use oad_core::storage::sqlite::Sqlite;
-use oad_core::{AuthConfig, Core, HubConfig, Role};
+use oad_core::{AuthConfig, Core, HubConfig, NotifyConfig, Role};
 use oad_server::{AppState, ServerConfig};
 use std::io::BufRead;
 use std::net::SocketAddr;
@@ -118,7 +118,16 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
         },
         AuthArg::None => AuthConfig::None,
     };
-    let core = Core::open(storage, auth.clone(), HubConfig::default())
+    let notify = NotifyConfig {
+        public_url: a.public_url.clone(),
+        allow_private: std::env::var("OAD_WEBHOOK_ALLOW_PRIVATE")
+            .is_ok_and(|v| v == "1" || v == "true"),
+        ..NotifyConfig::default()
+    };
+    if notify.allow_private {
+        warn!("OAD_WEBHOOK_ALLOW_PRIVATE：webhook 可以投到内网地址（只在本机开发时用）");
+    }
+    let core = Core::open_with(storage, auth.clone(), HubConfig::default(), notify)
         .await
         .map_err(|e| e.to_string())?;
     if matches!(auth, AuthConfig::Local) {

@@ -1,11 +1,25 @@
 // 一页：标题 + 正文。本地优先：先从 IndexedDB 读出上次的内容马上显示，再连 WebSocket 和服务器同步。
-import { OadEditor, OadTitle, focusStart, type Editor, type OadTitleHandle, type OadUser } from '@oad/editor'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  OadEditor,
+  OadTitle,
+  focusStart,
+  scrollToThread,
+  setCommentThreads,
+  type AuthorInfo,
+  type CommentAnchor,
+  type Editor,
+  type OadTitleHandle,
+  type OadUser,
+} from '@oad/editor'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebsocketProvider } from 'y-websocket'
-import { api, ApiError, type Me } from './api'
+import { api, ApiError, threadAnchor, type Me } from './api'
+import { CommentsPanel, usePageComments } from './comments/CommentsPanel'
+import { Inbox } from './Inbox'
+import { usePeople } from './people'
 import { closePage, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
-import { colorFor, initials, navigate, pagePath } from './lib'
+import { colorFor, initials, navigate, pagePath, threadOf, usePath } from './lib'
 import { readSnapshot, saveSnapshot, takeSnapshot } from './snapshot'
 import { usePages, type PageStore } from './store'
 import { t } from './strings'
@@ -33,6 +47,59 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
   const titleRef = useRef<OadTitleHandle>(null)
 
   const saveRef = useRef<() => void>(() => {})
+
+  // ---- 评论 ----
+  const { threads, reload: reloadThreads } = usePageComments(pageId, store)
+  const wantThread = threadOf(usePath())
+  const [panel, setPanel] = useState(!!wantThread)
+  const [active, setActive] = useState<string | null>(wantThread)
+  const [draft, setDraft] = useState<CommentAnchor | null>(null)
+  // 地址里带 ?thread=（收件箱点进来的）：打开评论栏、高亮那串、滚过去
+  useEffect(() => {
+    if (!wantThread) return
+    setPanel(true)
+    setActive(wantThread)
+  }, [wantThread])
+  useEffect(() => {
+    if (!editor || !ready) return
+    const marks = threads.map((th) => ({ id: th.id, anchor: threadAnchor(th), resolved: !!th.resolved_at }))
+    // 正在写的新评论也画上底色
+    if (draft) marks.push({ id: '__draft', anchor: draft, resolved: false })
+    setCommentThreads(editor, marks, draft ? '__draft' : active)
+  }, [editor, ready, threads, active, draft])
+  const scrolled = useRef<string | null>(null)
+  useEffect(() => {
+    if (!editor || !ready || !wantThread || scrolled.current === wantThread) return
+    if (threads.some((x) => x.id === wantThread) && scrollToThread(editor, wantThread)) scrolled.current = wantThread
+  }, [editor, ready, threads, wantThread])
+
+  // ---- 块作者 ----
+  const [authors, setAuthors] = useState<Record<string, AuthorInfo>>({})
+  const asked = useRef(new Set<string>())
+  const lastAuthors = useRef(0)
+  // 新出现的 client id 才去拉，同一个最多问一次；没有具体的就最多一秒一次
+  const loadAuthors = useCallback(
+    (client?: string) => {
+      if (client) {
+        if (asked.current.has(client)) return
+        asked.current.add(client)
+      } else if (Date.now() - lastAuthors.current < 1000) return
+      lastAuthors.current = Date.now()
+      api.authors(pageId).then((r) => setAuthors(r.clients ?? {}), () => {})
+    },
+    [pageId],
+  )
+  // 自己这个标签页的 client id 不用问服务器
+  const allAuthors = useMemo(
+    () => (conn ? { ...authors, [String(conn.ydoc.clientID)]: { kind: 'user', id: me.user.id, name: me.user.name } } : authors),
+    [authors, conn, me.user.id, me.user.name],
+  )
+  useEffect(() => {
+    if (ready) loadAuthors()
+  }, [ready, loadAuthors])
+
+  const people = usePeople(store.ws, me, authors, threads)
+  const openCount = threads.filter((x) => !x.resolved_at).length
 
   useEffect(() => {
     const c = takeConn(pageId)
@@ -124,8 +191,14 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
         <div className="topbar-right">
           {conn && <Presence provider={conn.provider} />}
           <StatusPill status={status} readOnly={!editable} />
+          <button className={'topbar-btn' + (panel ? ' is-on' : '')} onClick={() => setPanel((v) => !v)} aria-pressed={panel}>
+            {t('comments')}
+            {openCount > 0 && <span className="topbar-count">{openCount}</span>}
+          </button>
+          <Inbox store={store} />
         </div>
       </header>
+      <div className="page-body">
       <div className="page-scroll">
         <article className="doc">
           {conn && canMount && (
@@ -150,12 +223,54 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
                   editorRef.current = e
                   setEditor(e)
                 }}
+                onComment={
+                  editable
+                    ? (a) => {
+                        setDraft(a)
+                        setActive(null)
+                        setPanel(true)
+                      }
+                    : undefined
+                }
+                onOpenThreads={(ids) => {
+                  const id = ids.find((x) => x !== '__draft')
+                  if (!id) return
+                  setPanel(true)
+                  setDraft(null)
+                  setActive(id)
+                }}
+                authors={allAuthors}
+                onUnknownAuthor={loadAuthors}
               />
             </div>
           )}
           {!(ready && canMount) &&
             (snapshot ? <SnapshotView snapshot={snapshot} onPainted={() => setCanMount(true)} /> : <DocSkeleton />)}
         </article>
+      </div>
+      {panel && (
+        <CommentsPanel
+          pageId={pageId}
+          me={me}
+          editor={ready ? editor : null}
+          threads={threads}
+          reload={reloadThreads}
+          active={active}
+          setActive={setActive}
+          draft={draft}
+          setDraft={setDraft}
+          candidates={people.candidates}
+          nameOf={people.nameOf}
+          canWrite={editable}
+          docVersion={0}
+          onClose={() => {
+            setPanel(false)
+            setDraft(null)
+            setActive(null)
+            if (wantThread) navigate(pagePath(pageId), true)
+          }}
+        />
+      )}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { api, ApiError, type AuthMode, type Me } from './api'
 import { SidebarIcon } from './icons'
 import { Login } from './Login'
@@ -23,6 +23,9 @@ function usePageView() {
   }, [m])
   return m?.default ?? null
 }
+
+// 设置页不在打开页面的关键路径上，用 lazy 就行
+const AgentsPage = lazy(() => import('./AgentsPage'))
 
 const ME_KEY = 'oad:me'
 const LAST_KEY = 'oad:last-page'
@@ -174,6 +177,18 @@ function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: (
           ) : (
             <div className="page-skeleton" />
           )
+        ) : path.startsWith('/settings') ? (
+          <Suspense fallback={<div className="page-skeleton" />}>
+            <AgentsPage
+              store={store}
+              canManage={canWrite}
+              sidebarCollapsed={collapsed}
+              onExpandSidebar={() => {
+                setCollapsed(false)
+                storageSet('oad:sidebar-collapsed', false)
+              }}
+            />
+          </Suspense>
         ) : (
           <Home store={store} canWrite={canWrite} collapsed={collapsed} onExpand={() => setCollapsed(false)} />
         )}

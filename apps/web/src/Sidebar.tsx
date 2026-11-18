@@ -150,6 +150,12 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
         )}
       </nav>
 
+      <button className={'side-link' + (currentId === null && location.pathname.startsWith('/settings') ? ' is-active' : '')} onClick={() => navigate('/settings/agents')}>
+        <span className="side-new-plus" aria-hidden>
+          ✦
+        </span>
+        {t('agents')}
+      </button>
       <div className="side-foot">
         <div className="me" title={me.user.email ?? undefined}>
           <span className="avatar" style={{ background: colorFor(me.user.id) }}>

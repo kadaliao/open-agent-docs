@@ -2,10 +2,12 @@
 import type { Editor } from '@tiptap/core'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import { Selection, TextSelection } from '@tiptap/pm/state'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
 import { editorExtensions, type OadUser } from './extensions'
+import type { AuthorInfo } from './extensions/block-author'
+import { selectionToAnchor, type CommentAnchor } from './extensions/comments'
 import type { SlashStorage } from './extensions/slash'
 import { findCell } from './schema/tables'
 import { BubbleToolbar } from './ui/BubbleToolbar'
@@ -30,12 +32,32 @@ export interface OadEditorProps {
   autofocus?: boolean
   className?: string
   onReady?: (editor: Editor) => void
+  // 给了才在格式菜单里出现“评论”：选中文字 → 锚点
+  onComment?: (anchor: CommentAnchor) => void
+  // 点了正文里有评论的文字
+  onOpenThreads?: (ids: string[]) => void
+  // 块作者对照表（服务器 /pages/{id}/authors 的 clients）
+  authors?: Record<string, AuthorInfo>
+  onUnknownAuthor?: (clientId: string) => void
 }
 
-export function OadEditor({ ydoc, provider, user, field = 'default', editable = true, autofocus = false, className, onReady }: OadEditorProps) {
+export function OadEditor(props: OadEditorProps) {
+  const { ydoc, provider, user, field = 'default', editable = true, autofocus = false, className, onReady } = props
   const awareness = provider?.awareness ?? null
+  // 回调和作者表放 ref 里，变了不用重建编辑器
+  const live = useRef(props)
+  live.current = props
   const extensions = useMemo(
-    () => editorExtensions({ ydoc, field, awareness, user }),
+    () =>
+      editorExtensions({
+        ydoc,
+        field,
+        awareness,
+        user,
+        onOpenThreads: (ids) => live.current.onOpenThreads?.(ids),
+        authors: () => live.current.authors ?? {},
+        onUnknownAuthor: (c) => live.current.onUnknownAuthor?.(c),
+      }),
     // user 变了走 updateUser，不重建编辑器
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ydoc, field, awareness],
@@ -108,7 +130,20 @@ export function OadEditor({ ydoc, provider, user, field = 'default', editable = 
       <EditorContent editor={editor} />
       <div className="oad-editor-tail" onMouseDown={onTail} />
       <SlashMenu editor={editor} />
-      <BubbleToolbar editor={editor} />
+      <BubbleToolbar
+        editor={editor}
+        onComment={
+          props.onComment
+            ? () => {
+                const a = selectionToAnchor(editor)
+                if (!a) return
+                // 选区收到结尾，格式菜单收起；正在写的这段由宿主用草稿高亮
+                editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, editor.state.selection.to)))
+                live.current.onComment?.(a)
+              }
+            : undefined
+        }
+      />
       {prompt && <UrlPrompt state={prompt} onClose={() => setPrompt(null)} />}
       {inTable && (
         <Suspense fallback={null}>

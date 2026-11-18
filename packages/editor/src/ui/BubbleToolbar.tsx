@@ -15,7 +15,7 @@ const MARKS: { mark: string; label: keyof EditorStrings; glyph: React.ReactNode;
   { mark: 'highlight', label: 'highlight', glyph: <span className="oad-glyph-hl">A</span>, key: '⌘⇧H' },
 ]
 
-export function BubbleToolbar({ editor }: { editor: Editor }) {
+export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment?: () => void }) {
   const [link, setLink] = useState<string | null>(null)
   const s = useEditorState({
     editor,
@@ -105,6 +105,14 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
           >
             {t('link')}
           </button>
+          {onComment && (
+            <>
+              <span className="oad-bubble-sep" />
+              <button type="button" className="oad-bubble-btn oad-bubble-wide" title={t('comment')} onMouseDown={(e) => e.preventDefault()} onClick={onComment}>
+                {t('comment')}
+              </button>
+            </>
+          )}
           <button type="button" className="oad-bubble-btn" title={t('mathInline')} onMouseDown={(e) => e.preventDefault()} onClick={toMath}>
             <span style={{ fontFamily: 'KaTeX_Math, Georgia, serif', fontStyle: 'italic' }}>√x</span>
           </button>
