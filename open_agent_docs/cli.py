@@ -13,8 +13,8 @@ import sys
 
 
 def _env(args):
-    if getattr(args, "data", None):
-        os.environ["OAD_DATA_DIR"] = args.data
+    if data := getattr(args, "sub_data", None) or getattr(args, "data", None):
+        os.environ["OAD_DATA_DIR"] = data
     if getattr(args, "public_url", None):
         os.environ["OAD_PUBLIC_URL"] = args.public_url
 
@@ -27,6 +27,7 @@ def main(argv=None):
     s.add_argument("--host", default=os.environ.get("OAD_HOST", "127.0.0.1"))
     s.add_argument("--port", type=int, default=int(os.environ.get("OAD_PORT", "8790")))
     s.add_argument("--public-url", help="public address, e.g. https://docs.example.com (for links sent to agents)")
+    s.add_argument("--data", dest="sub_data", help="data directory")
     sub.add_parser("password", help="change the web login password")
     ag = sub.add_parser("agent", help="manage agents").add_subparsers(dest="action")
     a = ag.add_parser("add")

@@ -6,7 +6,6 @@
 - 页面正文用 ![说明](/api/media/编号) 引用。分享出去的页面经 /api/shared/<token>/media/<编号> 看（只给正文里引用着的）。
 - 没有页面（现在的、历史版本、回收站）引用的放一天后清掉：刚传上来、还没写进页面的不能删。
 """
-import asyncio
 import hashlib
 import posixpath
 import re
@@ -172,17 +171,3 @@ def gc():
     if old:
         conn.executemany("delete from media where id=?", [(x,) for x in old])
         conn.commit()
-
-
-async def gc_loop():
-    from . import library
-    while True:
-        try:
-            library.purge_trash()   # 回收站里放了 30 天的先清掉，它们引用的图片接着就能清
-            gc()
-        except Exception as e:
-            print(f"清理图片出错：{e}", flush=True)
-        await asyncio.sleep(86400)
-
-
-# ---------- 消息里的附件 ----------

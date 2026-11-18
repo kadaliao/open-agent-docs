@@ -65,8 +65,8 @@ def load(pid: int) -> tuple[dict | None, list[dict]]:
 
 
 def _rebuild(p: dict, old: list[dict] | None, hs: list[str]) -> list[dict]:
-    """按指纹把旧的段编号对到现在的段上。从来没有过编号的旧页面：整页都算建它的 Bot 写的。"""
-    who = (f"bot:{p['bot_id']}" if p.get("bot_id") else "") if old is None else ""
+    """按指纹把旧的段编号对到现在的段上。从来没有过编号的旧页面：整页都算建它的那个写的。"""
+    who = _maker(p) if old is None else ""
     old = old or []
     taken: set = set()
     out = []
@@ -84,13 +84,18 @@ def _rebuild(p: dict, old: list[dict] | None, hs: list[str]) -> list[dict]:
     return out
 
 
+def _maker(p: dict) -> str:
+    """建页面的：Agent、OSA 的 Bot（导进来的页面），都不是就不知道。"""
+    return f"agent:{p['agent_id']}" if p.get("agent_id") else f"bot:{p['bot_id']}" if p.get("bot_id") else ""
+
+
 def last_by(pid: int) -> str:
     """最后一次改这个页面的是谁（没有历史的旧页面：建它的 Bot）。"""
     r = conn.execute("select by from page_versions where page_id=? and label != 'base' order by id desc limit 1", (pid,)).fetchone()
     if r:
         return r[0] or ""
     p = library.get_page(pid, False)
-    return f"bot:{p['bot_id']}" if p and p.get("bot_id") else ""
+    return _maker(p) if p else ""
 
 
 def public(b: dict) -> dict:
@@ -385,7 +390,7 @@ def _baseline(p: dict):
     r = conn.execute("select title, content, block_meta, updated, props from pages where id=?", (p["id"],)).fetchone()
     if r:
         conn.execute("insert into page_versions(page_id, version, title, content, meta, by, ts_start, ts, label, props) values(?,?,?,?,?,?,?,?,?,?)",
-                     (p["id"], p["version"], r[0], r[1], r[2], f"bot:{p['bot_id']}" if p.get("bot_id") else "", r[3], r[3], "base", r[4]))
+                     (p["id"], p["version"], r[0], r[1], r[2], _maker(p), r[3], r[3], "base", r[4]))
 
 
 def _snapshot(pid: int, version: int, title: str, content: str, meta, by: str, label: str, now: float):

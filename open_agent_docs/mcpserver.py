@@ -429,7 +429,7 @@ async def upload_image(data_base64: Annotated[str, Field(description="图片内�
 
 
 @_tool("看有没有用户在页面上要你处理的评论（@ 了你、评论了你写的段、回复了你说过话的评论串）。"
-       "默认只列还没处理的，列出来就算处理过了（mark_done=false 只看不标）。有宿主替你收通知的话一般用不上。", read_only=True)
+       "默认只列还没处理的，列出来就算处理过了（mark_done=false 只看不标）。有宿主替你收通知的话一般用不上。", read_only=False)
 async def my_notifications(ctx: Context,
                            include_done: Annotated[bool, Field(description="也列出已经处理过的（最近 20 条）")] = False,
                            mark_done: Annotated[bool, Field(description="列出来的标成处理过了，默认 true")] = True) -> str:

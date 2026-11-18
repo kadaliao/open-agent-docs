@@ -6,8 +6,10 @@ import asyncio
 import json
 import os
 import shutil
+import struct
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 import httpx
@@ -95,6 +97,16 @@ def make_agent():
             agents.revoke(aid)
         except LookupError:
             pass
+
+
+def png(w: int, h: int, rgb: tuple) -> bytes:
+    """一张纯色的小 PNG（测试图片用）。"""
+    raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+
+    def chunk(t: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + t + data + struct.pack(">I", zlib.crc32(t + data) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
 async def settle(timeout: float = 5):
