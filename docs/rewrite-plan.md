@@ -28,7 +28,7 @@
 rust-embed（前端打进二进制）、reqwest（链接解析、webhook）。
 
 **文档用 CRDT**。人和多个 Agent 同时写不冲突，网页上实时看到 Agent 在写哪一段，离线编辑、按人撤销、版本回溯都靠它。
-Loro 和 Yrs 二选一，第 0 阶段比完再定（见 `spikes/crdt/`）。块编号是文档节点上稳定的 `id` 属性；
+**用 Yjs（浏览器，Tiptap Collaboration / y-prosemirror）+ Yrs（服务器）**，比较见 `spikes/crdt/README.md`。块编号是文档节点上稳定的 `id` 属性；
 Agent 改某一段 = 服务器把它给的 Markdown 转成节点，作为一次 CRDT 事务写进去，连着的网页马上看到。
 
 **数据库的行属性存 SQL 表**（要查询、建索引），每个格子按最后写入为准，另记操作日志供历史回看；行的正文是 CRDT 文档。
@@ -95,4 +95,7 @@ legacy/          Python 版
 
 ## 第 0 阶段结论
 
-（做完填在这里）
+- **CRDT：Yjs + Yrs**（`spikes/crdt/`）。两边正确性都过了（人和 Agent 同时改同一段，字都留得住；JS 和 Rust 合并结果一致），
+  决定性的是打字延迟：1000 段时 Yjs 每键 p95 3ms、Loro 15ms；10000 段时 Yjs 8.7ms、Loro 70ms。打开、服务器读、快照大小也是 Yjs 好。
+- 链接解析：见 `spikes/unfurl/`。
+- 旧版基线：见 `docs/baseline.md`。
