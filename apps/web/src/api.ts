@@ -1,3 +1,4 @@
+import { getLocale } from './i18n'
 // 和服务器的 HTTP 接口（docs/phase1-contract.md）。
 export const API = '/api/v1'
 
@@ -14,8 +15,8 @@ export interface Page {
 }
 
 export interface Me {
-  user: { id: string; name: string; email?: string | null; kind?: string }
-  workspaces: { id: string; name: string; role: 'viewer' | 'editor' | 'owner' }[]
+  user: { id: string; name: string; email?: string | null; kind?: string; avatar?: string | null; locale?: string | null }
+  workspaces: { id: string; name: string; icon?: string | null; role: 'viewer' | 'editor' | 'admin' | 'owner' }[]
 }
 
 export type AuthMode = 'local' | 'header' | 'none'
@@ -113,7 +114,8 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   const r = await fetch(API + path, {
     method,
     credentials: 'same-origin',
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    // 服务器给人看的错误信息按界面语言
+    headers: { 'accept-language': getLocale() === 'en' ? 'en' : 'zh-CN', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!r.ok) {
@@ -190,6 +192,125 @@ export const api = {
   deleteView: (id: string, view: string) => req<unknown>('DELETE', `/databases/${id}/views/${view}`),
   pressButton: (id: string, row: string, key: string) => req<unknown>('POST', `/databases/${id}/button/${row}/${key}`),
   markRead: (b: { ids: (number | string)[] } | { all: true }) => req<unknown>('POST', '/me/notifications/read', b),
+
+  // 第 5 阶段（docs/phase5-contract.md）
+  search: (ws: string, q: string, limit = 20, kind: 'page' | 'row' | 'all' = 'all') =>
+    req<{ results: SearchHit[] }>('GET', `/workspaces/${ws}/search?q=${encodeURIComponent(q)}&limit=${limit}&kind=${kind}`).then((r) => r.results ?? []),
+  versions: (page: string) => req<{ versions: Version[] } | Version[]>('GET', `/pages/${page}/versions`).then((r) => (Array.isArray(r) ? r : r.versions ?? [])),
+  version: (page: string, v: string) => req<{ doc: unknown; markdown: string }>('GET', `/pages/${page}/versions/${v}`),
+  versionDiff: (page: string, v: string, to = 'current') => req<VersionDiff>('GET', `/pages/${page}/versions/${v}/diff?to=${to}`),
+  restoreVersion: (page: string, v: string) => req<unknown>('POST', `/pages/${page}/versions/${v}/restore`),
+  saveVersion: (page: string, label: string) => req<Version>('POST', `/pages/${page}/versions`, { label }),
+  dbHistory: (db: string, q: { row?: string; prop?: string } = {}) =>
+    req<{ items: DbHistoryItem[] } | DbHistoryItem[]>('GET', `/databases/${db}/history${q.row || q.prop ? '?' + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]) : ''}`).then((r) =>
+      Array.isArray(r) ? r : r.items ?? [],
+    ),
+  dbUndo: (db: string, seq: number) => req<unknown>('POST', `/databases/${db}/history/undo`, { seq }),
+  trash: (ws: string) => req<{ items: TrashItem[] } | TrashItem[]>('GET', `/workspaces/${ws}/trash`).then((r) => (Array.isArray(r) ? r : r.items ?? [])),
+  restoreTrash: (id: string) => req<{ page?: Page } | Page>('POST', `/trash/${id}/restore`),
+  purgeTrash: (id: string) => req<unknown>('DELETE', `/trash/${id}`),
+  getShare: (page: string) =>
+    req<Share>('GET', `/pages/${page}/share`).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }),
+  createShare: (page: string, b: { include_children?: boolean; indexable?: boolean }) => req<Share>('POST', `/pages/${page}/share`, b),
+  revokeShare: (page: string) => req<unknown>('DELETE', `/pages/${page}/share`),
+  invites: (ws: string) => req<{ invites: Invite[] } | Invite[]>('GET', `/workspaces/${ws}/invites`).then((r) => (Array.isArray(r) ? r : r.invites ?? [])),
+  createInvite: (ws: string, b: { role: string; expires_in?: number | null }) => req<Invite>('POST', `/workspaces/${ws}/invites`, b),
+  deleteInvite: (ws: string, token: string) => req<unknown>('DELETE', `/workspaces/${ws}/invites/${token}`),
+  inviteInfo: (token: string) => req<InviteInfo>('GET', `/invites/${token}`),
+  acceptInvite: (token: string) => req<Me>('POST', `/invites/${token}/accept`),
+  signup: (b: { email: string; password: string; name: string; invite?: string }) => req<Me>('POST', '/auth/signup', b),
+  patchMember: (ws: string, user: string, role: string) => req<unknown>('PATCH', `/workspaces/${ws}/members/${user}`, { role }),
+  removeMember: (ws: string, user: string) => req<unknown>('DELETE', `/workspaces/${ws}/members/${user}`),
+  patchWorkspace: (ws: string, b: { name?: string; icon?: string | null }) => req<{ id: string; name: string; icon?: string | null }>('PATCH', `/workspaces/${ws}`, b),
+  patchMe: (b: { name?: string; avatar?: string | null; locale?: string | null }) => req<Me | Me['user']>('PATCH', '/me', b),
+  changePassword: (current: string, next: string) => req<unknown>('POST', '/me/password', { current, new: next }),
+}
+
+export interface SearchHit {
+  page_id: string
+  block_id?: string | null
+  title: string
+  /** 命中的片段，命中的词用 <mark> 包着（别的都转义过） */
+  snippet?: string
+  kind: 'page' | 'row' | 'database' | string
+  score?: number
+  updated_at?: number
+  icon?: string | null
+}
+
+export interface Version {
+  id: string
+  created_at: number
+  kind: 'auto' | 'agent' | 'restore' | 'manual' | string
+  label?: string | null
+  authors?: Person[]
+}
+
+export interface DiffBlock {
+  op: 'same' | 'added' | 'removed' | 'changed'
+  id?: string | null
+  type?: string
+  /** 那一版 / 现在的 Markdown */
+  before?: string | null
+  after?: string | null
+  by?: Person[]
+}
+export interface VersionDiff {
+  blocks: DiffBlock[]
+}
+
+export interface DbHistoryItem {
+  seq: number
+  kind: 'cell' | 'schema' | 'row' | string
+  row_id?: string | null
+  row_title?: string | null
+  prop?: string | null
+  prop_name?: string | null
+  old?: unknown
+  new?: unknown
+  /** 给人看的说明（表结构改动） */
+  summary?: string | null
+  by?: Person | string | null
+  at: number
+  undone?: boolean
+}
+
+export interface TrashItem {
+  id: string
+  title: string
+  icon?: string | null
+  kind?: 'page' | 'database' | 'row' | string
+  deleted_at: number
+  deleted_by?: Person | string | null
+  parent_title?: string | null
+}
+
+export interface Share {
+  url: string
+  token?: string
+  include_children?: boolean
+  indexable?: boolean
+  created_at?: number
+}
+
+export interface Invite {
+  token: string
+  url: string
+  role: string
+  expires_at?: number | null
+  created_at?: number
+  uses?: number
+}
+
+export interface InviteInfo {
+  workspace: { id: string; name: string; icon?: string | null }
+  role: string
+  invited_by?: { name: string } | null
+  expires_at?: number | null
+  signup?: boolean
 }
 
 /** 评论串的锚点，两种字段写法都认 */

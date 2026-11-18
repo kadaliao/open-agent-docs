@@ -155,7 +155,7 @@ function videoFacade(o: {
     'div',
     { class: 'c-card c-video c-video-' + o.brand },
     frame,
-    h('div', { class: 'c-video-foot' }, h('span', { class: 'c-video-brand' }, o.brand === 'youtube' ? 'YouTube' : o.brand === 'bilibili' ? '哔哩哔哩' : o.brand), o.stats ? h('span', { class: 'c-video-stats' }, o.stats) : null, ext(o.url, 'c-open', ico('external'), t('openOriginal'))),
+    h('div', { class: 'c-video-foot' }, h('span', { class: 'c-video-brand' }, o.brand === 'youtube' ? 'YouTube' : o.brand === 'bilibili' ? (/^zh/i.test(document.documentElement.lang) ? '哔哩哔哩' : 'Bilibili') : o.brand), o.stats ? h('span', { class: 'c-video-stats' }, o.stats) : null, ext(o.url, 'c-open', ico('external'), t('openOriginal'))),
   )
   return [
     card,

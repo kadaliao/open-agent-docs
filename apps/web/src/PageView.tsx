@@ -1,5 +1,6 @@
 // 一页：标题 + 正文。本地优先：先从 IndexedDB 读出上次的内容马上显示，再连 WebSocket 和服务器同步。
 import {
+  setEditorLocale,
   OadEditor,
   OadTitle,
   flashBlock,
@@ -14,14 +15,15 @@ import {
 } from '@oad/editor'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebsocketProvider } from 'y-websocket'
-import { api, ApiError, threadAnchor, type Me, type Page } from './api'
+import { api, ApiError, threadAnchor, type Me, type Page, type Version } from './api'
 import { CommentsPanel, usePageComments } from './comments/CommentsPanel'
 import { Inbox } from './Inbox'
+import { getLocale, onLocale, useLocale } from './i18n'
 import { mediaServices, type DbHost } from './media'
 import { usePeople } from './people'
 import { closePage, dropPreopened, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
-import { colorFor, initials, navigate, pagePath, threadOf, usePath } from './lib'
+import { colorFor, initials, navigate, onCommand, pagePath, threadOf, usePath } from './lib'
 import { readSnapshot, saveSnapshot, takeSnapshot } from './snapshot'
 import { usePages, type PageStore } from './store'
 import { t } from './strings'
@@ -33,6 +35,39 @@ interface Props {
   canWrite: boolean
   sidebarCollapsed: boolean
   onExpandSidebar: () => void
+}
+
+// 编辑器的界面文字跟着界面语言
+setEditorLocale(getLocale())
+onLocale(() => setEditorLocale(getLocale()))
+
+// 页面历史、分享的代码单独一个包，第一次打开时才下载
+type ToolsModule = typeof import('./history/History')
+let toolsModule: ToolsModule | null = null
+let toolsLoading: Promise<ToolsModule> | null = null
+const loadTools = () => (toolsLoading ??= import('./history/History').then((m) => (toolsModule = m)))
+function useTools(want: boolean) {
+  const [, force] = useState(0)
+  useEffect(() => {
+    if (want && !toolsModule) loadTools().then(() => force((x) => x + 1))
+  }, [want])
+  return want ? toolsModule : null
+}
+
+/** 顶栏的“分享”按钮和弹窗（文档页、库页都有） */
+function ShareButton({ pageId, canWrite }: { pageId: string; canWrite: boolean }) {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  const tools = useTools(!!anchor)
+  useEffect(() => onCommand((c) => c === 'share' && btn.current && setAnchor(btn.current.getBoundingClientRect())), [])
+  return (
+    <>
+      <button ref={btn} className={'topbar-btn' + (anchor ? ' is-on' : '')} onClick={(e) => setAnchor(anchor ? null : e.currentTarget.getBoundingClientRect())} aria-expanded={!!anchor} data-tool="share">
+        {t('share')}
+      </button>
+      {anchor && tools && <tools.ShareDialog pageId={pageId} canWrite={canWrite} anchor={anchor} onClose={() => setAnchor(null)} />}
+    </>
+  )
 }
 
 // 数据库的代码单独一个包：打开库、行页面、页面里有内嵌库时才下载
@@ -73,6 +108,7 @@ function DatabasePage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandS
         )}
         <Breadcrumb store={store} pageId={pageId} />
         <div className="topbar-right">
+          <ShareButton pageId={pageId} canWrite={canWrite} />
           <Inbox store={store} />
         </div>
       </header>
@@ -101,7 +137,27 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
   // ---- 评论 ----
   const { threads, reload: reloadThreads } = usePageComments(pageId, store)
   const wantThread = threadOf(usePath())
+  // 换了语言：编辑器里的占位文字重画
+  const locale = useLocale()
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('oadLocale', locale))
+  }, [locale, editor])
   const [panel, setPanel] = useState(!!wantThread)
+  // 页面历史：右侧版本列表 + 正文位置的对比
+  const [hist, setHist] = useState(false)
+  const [version, setVersion] = useState<Version | null>(null)
+  const [histKey, setHistKey] = useState(0)
+  const [toast, setToast] = useState<string | null>(null)
+  const tools = useTools(hist)
+  useEffect(
+    () =>
+      onCommand((c) => {
+        if (c !== 'history') return
+        setHist(true)
+        setPanel(false)
+      }),
+    [],
+  )
   const [active, setActive] = useState<string | null>(wantThread)
   const [draft, setDraft] = useState<CommentAnchor | null>(null)
   // 地址里带 ?thread=（收件箱点进来的）：打开评论栏、高亮那串、滚过去
@@ -286,7 +342,32 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
         <div className="topbar-right">
           {conn && <Presence provider={conn.provider} />}
           <StatusPill status={status} readOnly={!editable} />
-          <button className={'topbar-btn' + (panel ? ' is-on' : '')} onClick={() => setPanel((v) => !v)} aria-pressed={panel}>
+          <ShareButton pageId={pageId} canWrite={editable} />
+          <button
+            className={'topbar-btn topbar-icon' + (hist ? ' is-on' : '')}
+            onClick={() => {
+              setHist((v) => !v)
+              setVersion(null)
+              setPanel(false)
+            }}
+            aria-pressed={hist}
+            title={t('historyTitle')}
+            aria-label={t('historyTitle')}
+            data-tool="history"
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden>
+              <path fill="currentColor" d="M13 3a9 9 0 1 1-8.5 12h2.1A7 7 0 1 0 6 9.3L8.7 12H2V5.3l2.6 2.6A9 9 0 0 1 13 3zm-1 4h2v5.2l3.4 2-1 1.7-4.4-2.6z" />
+            </svg>
+          </button>
+          <button
+            className={'topbar-btn' + (panel ? ' is-on' : '')}
+            onClick={() => {
+              setPanel((v) => !v)
+              setHist(false)
+              setVersion(null)
+            }}
+            aria-pressed={panel}
+          >
             {t('comments')}
             {openCount > 0 && <span className="topbar-count">{openCount}</span>}
           </button>
@@ -345,6 +426,26 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
             (snapshot ? <SnapshotView snapshot={snapshot} onPainted={() => setCanMount(true)} /> : <DocSkeleton />)}
         </article>
       </div>
+      {hist && version && tools && (
+        <tools.VersionView
+          pageId={pageId}
+          version={version}
+          canWrite={editable}
+          onClose={() => setVersion(null)}
+          onRestored={() => {
+            setVersion(null)
+            setHistKey((k) => k + 1)
+            setToast(t('restoredOk'))
+            setTimeout(() => setToast(null), 2000)
+          }}
+        />
+      )}
+      {hist && tools && <tools.HistoryPanel key={histKey} pageId={pageId} canWrite={editable} selected={version?.id ?? null} onSelect={setVersion} onClose={() => (setHist(false), setVersion(null))} />}
+      {toast && (
+        <div className="page-toast" role="status">
+          {toast}
+        </div>
+      )}
       {panel && (
         <CommentsPanel
           pageId={pageId}

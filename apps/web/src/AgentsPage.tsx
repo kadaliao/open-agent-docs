@@ -1,8 +1,6 @@
 // 工作区设置 · Agent：列表、新建（token 和 webhook 密钥只显示一次，附接入命令）、重发 token / 密钥、撤销、改说明 / 权限 / webhook。
 import { useEffect, useState } from 'react'
 import { api, ApiError, type Agent, type Scope } from './api'
-import { SidebarIcon } from './icons'
-import { Inbox } from './Inbox'
 import { ago, colorFor, copyText } from './lib'
 import { loadAgents, useAgents } from './people'
 import type { PageStore } from './store'
@@ -21,7 +19,7 @@ interface Secrets {
   webhook_secret?: string
 }
 
-export default function AgentsPage({ store, canManage, sidebarCollapsed, onExpandSidebar }: { store: PageStore; canManage: boolean; sidebarCollapsed: boolean; onExpandSidebar: () => void }) {
+export default function AgentsPage({ store, canManage }: { store: PageStore; canManage: boolean }) {
   const agents = useAgents(store.ws)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Agent | null>(null)
@@ -48,23 +46,7 @@ export default function AgentsPage({ store, canManage, sidebarCollapsed, onExpan
   const list = [...agents].sort((a, b) => Number(!!a.revoked_at) - Number(!!b.revoked_at) || a.created_at - b.created_at)
 
   return (
-    <div className="page">
-      <header className="topbar">
-        {sidebarCollapsed && (
-          <button className="icon-btn" onClick={onExpandSidebar} aria-label={t('toggleSidebar')}>
-            <SidebarIcon />
-          </button>
-        )}
-        <nav className="crumbs">
-          <span className="crumb-btn is-current">
-            {t('settings')} / {t('agents')}
-          </span>
-        </nav>
-        <div className="topbar-right">
-          <Inbox store={store} />
-        </div>
-      </header>
-      <div className="page-scroll">
+    <>
         <div className="settings">
           <div className="settings-head">
             <div>
@@ -149,7 +131,6 @@ export default function AgentsPage({ store, canManage, sidebarCollapsed, onExpan
             </div>
           )}
         </div>
-      </div>
       {creating && (
         <AgentDialog
           title={t('newAgent')}
@@ -177,7 +158,7 @@ export default function AgentsPage({ store, canManage, sidebarCollapsed, onExpan
         />
       )}
       {secrets && <SecretsDialog s={secrets} onClose={() => setSecrets(null)} />}
-    </div>
+    </>
   )
 }
 

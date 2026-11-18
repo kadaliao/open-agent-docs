@@ -7,12 +7,21 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f1e1c'/%3E%3Cpath d='M16 6l2.6 7.4L26 16l-7.4 2.6L16 26l-2.6-7.4L6 16l7.4-2.6z' fill='%23fff'/%3E%3C/svg%3E" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Agent Docs" />
     <title>Open Agent Docs</title>
     <script>
       // 先把主题设好，免得打开时闪一下
       try {
         var t = localStorage.getItem('oad:theme')
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+        // 界面语言也先设好（标签的 lang，编辑器的数字日期格式按它）
+        var l = localStorage.getItem('oad:locale') || ((navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en')
+        document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en'
       } catch (e) {}
     </script>
   </head>

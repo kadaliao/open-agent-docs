@@ -2,8 +2,9 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Me, type Page } from './api'
 import { SidebarIcon } from './icons'
-import { applyTheme, colorFor, getTheme, initials, navigate, pagePath, storageGet, storageSet, type Theme } from './lib'
-import { buildTree, usePages, type PageStore, type TreeNode } from './store'
+import { applyTheme, colorFor, initials, navigate, onCommand, pagePath, runCommand, storageGet, storageSet, useTheme, type Theme } from './lib'
+import { buildTree, createAndOpen, usePages, type PageStore, type TreeNode } from './store'
+import { useLocale } from './i18n'
 import { t } from './strings'
 
 type Zone = 'before' | 'inside' | 'after'
@@ -51,15 +52,17 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
   }, [currentId, pages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const create = async (parent: string | null, kind: 'page' | 'database' = 'page') => {
-    // 建库返回的是 { page, schema, views, seq }
-    const page: Page =
-      kind === 'database'
-        ? ({ ...(await api.createDatabase(store.ws, { title: '', ...(parent ? { parent_id: parent } : {}) })).page, kind: 'database' } as Page)
-        : await api.createPage(store.ws, parent ? { parent_id: parent } : {})
-    store.upsert(page)
     if (parent) toggle(parent, true)
-    navigate(pagePath(page.id))
+    await createAndOpen(store, kind, parent)
   }
+  useEffect(
+    () =>
+      onCommand((c) => {
+        if (c === 'newPage') create(null)
+        else if (c === 'newDatabase') create(null, 'database')
+      }),
+    [], // eslint-disable-line react-hooks/exhaustive-deps
+  )
   const remove = async (id: string) => {
     const page = store.pages.get(id)
     if (!window.confirm(t('deleteConfirm', { title: page?.title || t('untitled') }))) return
@@ -88,12 +91,11 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
     move(dragged, { parent_id: parent, after: i > 0 ? sibs[i - 1].id : null })
   }
 
-  const [theme, setTheme] = useState<Theme>(getTheme)
+  const theme = useTheme()
   const nextTheme = () => {
     const order: Theme[] = ['system', 'light', 'dark']
     const n = order[(order.indexOf(theme) + 1) % order.length]
     applyTheme(n)
-    setTheme(n)
   }
 
   return (
@@ -101,7 +103,7 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
       <div className="side-head">
         <div className="ws">
           <span className="ws-mark" aria-hidden>
-            ✦
+            {me.workspaces[0]?.icon || '✦'}
           </span>
           <span className="ws-name">{workspaceName}</span>
         </div>
@@ -110,6 +112,13 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
         </button>
       </div>
 
+      <button className="side-new side-search" onClick={() => runCommand('palette')}>
+        <span className="side-new-plus" aria-hidden>
+          <SearchIcon />
+        </span>
+        {t('searchShort')}
+        <kbd className="side-kbd">{/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl K'}</kbd>
+      </button>
       {canWrite && (
         <button className="side-new" onClick={() => create(null)}>
           <span className="side-new-plus" aria-hidden>
@@ -161,19 +170,29 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
         )}
       </nav>
 
-      <button className={'side-link' + (currentId === null && location.pathname.startsWith('/settings') ? ' is-active' : '')} onClick={() => navigate('/settings/agents')}>
+      <button className={'side-link' + (location.pathname.startsWith('/settings/agents') ? ' is-active' : '')} onClick={() => navigate('/settings/agents')}>
         <span className="side-new-plus" aria-hidden>
           ✦
         </span>
         {t('agents')}
       </button>
+      <button className={'side-link' + (location.pathname.startsWith('/trash') ? ' is-active' : '')} onClick={() => navigate('/trash')}>
+        <span className="side-new-plus" aria-hidden>
+          <TrashIcon />
+        </span>
+        {t('trash')}
+      </button>
       <div className="side-foot">
-        <div className="me" title={me.user.email ?? undefined}>
-          <span className="avatar" style={{ background: colorFor(me.user.id) }}>
-            {initials(me.user.name)}
-          </span>
+        <button className="me" title={t('settings')} onClick={() => navigate('/settings/profile')}>
+          {me.user.avatar ? (
+            <img className="avatar" src={me.user.avatar} alt="" />
+          ) : (
+            <span className="avatar" style={{ background: colorFor(me.user.id) }}>
+              {initials(me.user.name)}
+            </span>
+          )}
           <span className="me-name">{me.user.name}</span>
-        </div>
+        </button>
         <button className="icon-btn" onClick={nextTheme} title={theme === 'light' ? t('themeLight') : theme === 'dark' ? t('themeDark') : t('themeSystem')}>
           {theme === 'light' ? '☀︎' : theme === 'dark' ? '☾' : '◐'}
         </button>
@@ -271,6 +290,7 @@ interface ItemProps {
 }
 
 const TreeItem = memo(function TreeItem(p: ItemProps) {
+  useLocale()
   const { page, children } = p.node
   const open = p.expanded.has(page.id)
   const active = p.currentId === page.id
@@ -388,6 +408,23 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (v: string)
         if (e.key === 'Escape') finish(initial)
       }}
     />
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.3" />
+      <path d="m10.5 10.5 3.2 3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2.8 4.2h10.4M6.2 4V2.7h3.6V4M4 4.2l.7 9.1h6.6l.7-9.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 

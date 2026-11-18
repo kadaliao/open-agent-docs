@@ -24,9 +24,11 @@ function idb() {
   })
   return dbp
 }
+// 行存成一个 JSON 字符串：读出来只拷一个字符串（不是 1 万个对象），引擎也直接吃字符串，省一次转换
 interface Cached {
   meta: DbMeta
-  rows: Row[]
+  rows?: Row[]
+  json?: string
   seq: number
 }
 async function readCache(id: string): Promise<Cached | null> {
@@ -115,7 +117,7 @@ export class DbStore {
     clearTimeout(this.saveTimer)
     if (!this.dirty || !this.meta) return
     this.dirty = false
-    writeCache(this.id, { meta: this.meta, rows: [...this.rows.values()].filter((r) => !r.id.startsWith('tmp_')), seq: this.seq })
+    writeCache(this.id, { meta: this.meta, json: JSON.stringify([...this.rows.values()].filter((r) => !r.id.startsWith('tmp_'))), seq: this.seq })
   }
 
   get schema(): Schema {
@@ -145,16 +147,25 @@ export class DbStore {
 
   private async doOpen() {
     const t0 = performance.now()
+    this.timing.start = t0
     // 引擎（WASM）和数据一起下载
     preloadEngine()
     const cached = await readCache(this.id)
     this.timing.idb = performance.now() - t0
     if (cached && !this.meta) {
+      // 先让首屏快照画出来（引擎装行、画表格要占主线程几十毫秒）
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
+    }
+    const t1 = performance.now()
+    if (cached && !this.meta) {
       this.meta = cached.meta
-      this.rows = new Map(cached.rows.map((r) => [r.id, r]))
+      const list: Row[] = cached.rows ?? JSON.parse(cached.json ?? '[]')
+      this.rows = new Map(list.map((r) => [r.id, r]))
       this.seq = cached.seq
       this.engine = await createEngine(cached.meta.schema, this.id)
-      this.engine.loadRows(cached.rows)
+      this.timing.engineReady = performance.now() - t0
+      this.engine.loadRows(cached.json ?? list)
+      this.timing.loadRows = performance.now() - t1
       this.status = 'cache'
       this.timing.cache = performance.now() - t0
       this.emit()

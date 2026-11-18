@@ -186,6 +186,27 @@ test('表格：改格子、新建选项、日期、键盘导航、复制粘贴�
   await ctx.close()
 })
 
+test('中文输入法：选中格子直接打字，组字在格子上完成，打完进编辑器', async ({ browser }) => {
+  const { ctx, page } = await newCtx(browser)
+  await openDb(page)
+  const cell = page.locator('[data-cell="6:0"]')
+  await cell.click()
+  const cdp = await ctx.newCDPSession(page)
+  // 模拟拼音输入：先出组字中的“zhong”，再上屏“中文”
+  await cdp.send('Input.imeSetComposition', { text: 'zhong', selectionStart: 5, selectionEnd: 5 })
+  await expect(page.locator('.db-ime-sink.is-on')).toBeVisible()
+  await shot(page, 'ime-composing')
+  await cdp.send('Input.imeSetComposition', { text: 'zhongwen', selectionStart: 8, selectionEnd: 8 })
+  await cdp.send('Input.insertText', { text: '中文' })
+  const input = page.locator('.db-cell-input')
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue('中文')
+  await page.keyboard.type('标题')
+  await page.keyboard.press('Enter')
+  await expect(cell).toContainText('中文标题')
+  await ctx.close()
+})
+
 test('公式编辑器：补全、实时报错、预览', async ({ browser }) => {
   const { ctx, page } = await newCtx(browser)
   await openDb(page)

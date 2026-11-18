@@ -1,4 +1,5 @@
 // 右侧评论栏：未解决 / 已解决两组，按在正文里的位置排；点一串高亮正文里那段并滚过去；回复、编辑、删除、解决、重新打开。
+import { useLocale } from '../i18n'
 import { scrollToThread, threadRange, type CommentAnchor, type Editor } from '@oad/editor'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, threadAnchor, type Comment, type Me, type Thread } from '../api'
@@ -148,6 +149,7 @@ interface CardProps {
 }
 
 const ThreadCard = memo(function ThreadCard({ thread, active, lost, me, candidates, nameOf, canWrite, reload, onActivate }: CardProps) {
+  useLocale()
   const a = threadAnchor(thread)
   const resolved = !!thread.resolved_at
   const comments = thread.comments ?? []

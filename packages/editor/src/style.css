@@ -1561,3 +1561,24 @@
     padding: 1px;
   }
 }
+
+/* 手机：格式菜单能横着滑，按钮够大 */
+@media (max-width: 760px) {
+  .oad-bubble {
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .oad-bubble-btn {
+    min-width: 36px;
+    height: 36px;
+  }
+  .oad-slash {
+    max-width: calc(100vw - 16px);
+  }
+}
+@media (hover: none) {
+  .oad-handle {
+    opacity: 0.4;
+  }
+}

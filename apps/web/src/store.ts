@@ -1,6 +1,7 @@
 // 页面树的状态：先用本机存的上一份列表画出来，再拉服务器的，之后跟着 SSE 事件改。
 import { useSyncExternalStore } from 'react'
 import { api, eventsUrl, type Page } from './api'
+import { navigate, pagePath } from './lib'
 
 type Listener = () => void
 
@@ -194,4 +195,16 @@ export function buildTree(pages: Page[]): TreeNode[] {
       .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : a.id < b.id ? -1 : 1))
       .map((page) => ({ page, children: make(page.id) }))
   return make(null)
+}
+
+/** 新建一页或一个库，放进侧栏，打开它 */
+export async function createAndOpen(store: PageStore, kind: 'page' | 'database' = 'page', parent: string | null = null) {
+  // 建库返回的是 { page, schema, views, seq }
+  const page: Page =
+    kind === 'database'
+      ? ({ ...(await api.createDatabase(store.ws, { title: '', ...(parent ? { parent_id: parent } : {}) })).page, kind: 'database' } as Page)
+      : await api.createPage(store.ws, parent ? { parent_id: parent } : {})
+  store.upsert(page)
+  navigate(pagePath(page.id))
+  return page
 }

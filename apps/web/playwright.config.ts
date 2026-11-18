@@ -24,6 +24,10 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
     viewport: { width: 1320, height: 900 },
     headless: true,
+    // service worker 默认关掉（它发的请求 Playwright 拦不到）；测离线的那个测试自己打开
+    serviceWorkers: 'block',
+    // 界面跟浏览器语言：测试默认中文（英文的测试自己切）
+    locale: 'zh-CN',
   },
   webServer: external
     ? undefined

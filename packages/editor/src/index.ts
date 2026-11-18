@@ -16,7 +16,7 @@ export {
 } from './extensions/comments'
 export { OadCaret, OadCollaboration, isChangeOrigin } from './extensions/collaboration'
 export * from './schema'
-export { strings, setEditorStrings, zh as editorStringsZh, type EditorStrings } from './strings'
+export { strings, setEditorStrings, setEditorLocale, zh as editorStringsZh, en as editorStringsEn, type EditorStrings } from './strings'
 export { loadKatex } from './views/katex'
 export type { Editor } from '@tiptap/core'
 export type { MediaServices } from './extensions/media'

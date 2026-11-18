@@ -1,0 +1,334 @@
+/* 设置、回收站、邀请 */
+.set-tabs {
+  display: flex;
+  gap: 2px;
+  margin: -8px 0 22px;
+  border-bottom: 1px solid var(--oad-line);
+}
+.set-tab {
+  position: relative;
+  height: 36px;
+  padding: 0 12px;
+  color: var(--oad-fg-3);
+  font-weight: 500;
+  font-size: 14px;
+}
+.set-tab:hover {
+  color: var(--oad-fg);
+}
+.set-tab.is-on {
+  color: var(--oad-fg);
+}
+.set-tab.is-on::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--oad-fg);
+}
+.settings.set-tabs-only {
+  padding-bottom: 0;
+}
+.settings.set-tabs-only .set-tabs {
+  margin-bottom: 0;
+}
+.settings.set-tabs-only + .settings {
+  padding-top: 24px;
+}
+.set-sections {
+  display: grid;
+  gap: 18px;
+}
+.set-card {
+  border: 1px solid var(--oad-line);
+  border-radius: 12px;
+  padding: 6px 20px 14px;
+  background: var(--oad-bg);
+}
+.set-h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 8px;
+  font-size: 15px;
+  font-weight: 650;
+}
+.set-count {
+  font-size: 12px;
+  color: var(--oad-fg-3);
+  font-weight: 500;
+}
+.set-p {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--oad-line);
+}
+.set-row:last-of-type {
+  border-bottom: 0;
+}
+.set-label {
+  flex: none;
+  width: 140px;
+  color: var(--oad-fg-2);
+  font-size: 14px;
+}
+.set-value {
+  color: var(--oad-fg);
+}
+.set-input,
+.set-select {
+  height: 34px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--oad-line-2);
+  border-radius: 8px;
+  background: var(--oad-bg);
+  color: var(--oad-fg);
+  font: 14px var(--oad-font);
+  outline: 0;
+}
+.set-input {
+  flex: 1;
+  max-width: 360px;
+}
+.set-input:focus,
+.set-select:focus {
+  border-color: var(--oad-accent);
+  box-shadow: 0 0 0 3px var(--oad-accent-soft);
+}
+.set-input:disabled,
+.set-select:disabled {
+  background: var(--oad-bg-2);
+  color: var(--oad-fg-2);
+}
+.set-icon-input {
+  max-width: 64px;
+  text-align: center;
+  font-size: 18px;
+}
+.set-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.set-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 650;
+  object-fit: cover;
+}
+img.avatar {
+  object-fit: cover;
+}
+.set-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+}
+.set-foot:empty {
+  display: none;
+}
+.set-flash {
+  font-size: 13px;
+}
+.set-flash.is-ok {
+  color: var(--ok);
+}
+.set-flash.is-bad {
+  color: var(--bad);
+}
+.set-pw {
+  display: grid;
+  gap: 12px;
+  max-width: 360px;
+  padding-bottom: 4px;
+}
+.set-members {
+  display: grid;
+}
+.set-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  border-top: 1px solid var(--oad-line);
+}
+.set-member .avatar {
+  width: 30px;
+  height: 30px;
+}
+.set-member-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: 14px;
+}
+.set-member-name b {
+  font-weight: 550;
+}
+.set-member-name .muted {
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-role {
+  color: var(--oad-fg-2);
+  font-size: 13px;
+}
+.set-invite-new {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.set-invite-new label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--oad-fg-3);
+}
+.set-fresh {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.set-fresh input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--oad-line-2));
+  background: color-mix(in srgb, var(--ok) 7%, var(--oad-bg));
+  color: var(--oad-fg);
+  font: 13px var(--oad-mono);
+}
+.set-invites {
+  display: grid;
+}
+.set-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-top: 1px solid var(--oad-line);
+  font-size: 13px;
+}
+.set-invite-url {
+  flex: 1;
+  min-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12.5px var(--oad-mono);
+  color: var(--oad-fg-2);
+}
+
+/* 回收站 */
+.trash-search {
+  width: 100%;
+  max-width: none;
+  margin-bottom: 14px;
+}
+.trash-list {
+  display: grid;
+}
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--oad-line);
+}
+.trash-ico {
+  width: 24px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--oad-fg-2);
+}
+.trash-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.trash-title {
+  justify-self: start;
+  max-width: 100%;
+  font-weight: 550;
+  font-size: 14.5px;
+  color: var(--oad-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.trash-meta {
+  font-size: 12.5px;
+}
+
+/* 邀请 */
+.invite-card {
+  text-align: center;
+}
+.invite-card h1 {
+  font-size: 22px;
+}
+.invite-form {
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+.invite-me {
+  margin-bottom: 4px;
+}
+.link-btn {
+  color: var(--oad-fg-2);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-btn:hover {
+  color: var(--oad-fg);
+}
+
+@media (max-width: 640px) {
+  .set-row {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 10px 0;
+  }
+  .set-label {
+    width: 100%;
+  }
+  .set-input {
+    max-width: none;
+  }
+  .set-card {
+    padding: 4px 14px 12px;
+  }
+  .trash-item {
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+  .trash-main {
+    flex-basis: calc(100% - 40px);
+  }
+}

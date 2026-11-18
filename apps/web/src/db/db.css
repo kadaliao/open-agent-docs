@@ -1513,6 +1513,46 @@
 .db-card-prop .db-pills {
   flex-wrap: wrap;
 }
+.db-card-prop.has-label {
+  gap: 8px;
+}
+.db-card-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 50%;
+  color: var(--oad-fg-3);
+  font-size: 12px;
+}
+.db-card-label .db-type-ico {
+  width: 12px;
+  height: 12px;
+}
+.db-card-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-card-val {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+.db-card-prop.is-number .db-card-val,
+.db-card-prop.is-formula .db-card-val,
+.db-card-prop.is-rollup .db-card-val {
+  color: var(--oad-fg);
+  font-variant-numeric: tabular-nums;
+}
+.db-list-label {
+  color: var(--oad-fg-3);
+  font-size: 12px;
+  margin-right: 5px;
+}
 .db-card-cover {
   aspect-ratio: 16 / 9;
   background: var(--oad-bg-3);
@@ -2132,4 +2172,182 @@
   line-height: 1.4;
   box-shadow: var(--oad-shadow);
   transform: translateY(var(--db-err-shift, 0));
+}
+/* 选中格子时接键盘的输入框：平时看不见；中文输入法组字时盖在格子上，样子和编辑器一样 */
+.db-ime-sink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  resize: none;
+  overflow: hidden;
+  pointer-events: none;
+  outline: 0;
+}
+.db-ime-sink.is-on {
+  position: fixed;
+  z-index: 55;
+  height: auto;
+  min-height: 34px;
+  padding: 7px 8px;
+  opacity: 1;
+  background: var(--oad-bg);
+  color: var(--oad-fg);
+  font: 14px/20px var(--oad-font);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--db-sel-line), var(--oad-shadow);
+}
+.db-snapshot {
+  pointer-events: none;
+}
+
+/* ---------- 手机 ---------- */
+@media (max-width: 760px) {
+  .db-bar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .db-tabs {
+    flex-basis: 100%;
+  }
+  .db-toolbar {
+    margin-left: 0;
+    flex: 1;
+    justify-content: flex-end;
+  }
+  .db-tool,
+  .db-tab {
+    min-height: 36px;
+  }
+  /* 看板：列竖着排，一列一列往下看 */
+  .db-board {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 6px;
+  }
+  .db-col {
+    width: 100%;
+    max-height: none;
+  }
+  .db-col-cards {
+    overflow: visible;
+  }
+  .db-page > .db .db-board {
+    padding-right: 16px;
+  }
+  /* 表格：横着滑，名称列固定 */
+  .db-table {
+    -webkit-overflow-scrolling: touch;
+  }
+  .db-cal-ev {
+    font-size: 11px;
+    padding: 0 4px;
+  }
+  .db-cal-grid {
+    grid-auto-rows: minmax(72px, 1fr);
+    min-height: 0;
+  }
+  .db-peek {
+    width: 100vw;
+  }
+  .db-pop {
+    max-width: calc(100vw - 16px);
+  }
+  .db-page-title {
+    font-size: 26px;
+  }
+}
+
+/* 改动记录 */
+.db-history-pop {
+  padding: 0;
+}
+.dbh {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(520px, 70vh);
+}
+.db-rowprops + .dbh,
+.db-rowprops .dbh {
+  max-height: 360px;
+  border: 1px solid var(--oad-line);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.dbh-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px 14px;
+  border-bottom: 1px solid var(--oad-line);
+}
+.dbh-head b {
+  flex: 1;
+  font-size: 14px;
+}
+.dbh-seg {
+  margin: 0;
+}
+.dbh-list {
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+}
+.dbh-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 7px;
+}
+.dbh-item:hover {
+  background: var(--db-hover);
+}
+.dbh-item .avatar-xs {
+  margin-top: 1px;
+  background: var(--oad-bg-3);
+}
+.dbh-item.is-undone .dbh-text {
+  color: var(--oad-fg-3);
+  text-decoration: line-through;
+}
+.dbh-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.dbh-text {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.dbh-text b {
+  font-weight: 600;
+}
+.dbh-item.is-schema .dbh-text {
+  color: var(--oad-fg);
+}
+.dbh-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--oad-fg-3);
+}
+.dbh-row {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--oad-fg-2);
+}
+.db-link-btn.is-on {
+  color: var(--oad-fg);
+  background: var(--side-hover);
 }

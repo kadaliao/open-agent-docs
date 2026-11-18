@@ -16,6 +16,7 @@ import { FlashBlock, LiveBlock } from './live-block'
 import { MediaServicesExt, type MediaServices } from './media'
 import { Paste } from './paste'
 import { OadPlaceholder } from './placeholder'
+import { NotionKeys } from './keys'
 import { SlashCommands } from './slash'
 
 export interface OadUser {
@@ -58,6 +59,7 @@ export function editorExtensions(o: EditorExtensionOptions): AnyExtension[] {
     Gapcursor,
     OadPlaceholder.configure({ empty: () => t('emptyPlaceholder'), line: () => t('placeholder') }),
     SlashCommands,
+    NotionKeys,
     LiveBlock,
     FlashBlock,
     MediaServicesExt.configure({ get: () => o.media?.() ?? {} }),

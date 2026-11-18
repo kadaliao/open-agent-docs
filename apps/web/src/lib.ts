@@ -1,3 +1,4 @@
+import { fmtAgo } from './i18n'
 // 零碎的工具：路由、主题、用户颜色。
 import { useSyncExternalStore } from 'react'
 
@@ -41,7 +42,26 @@ export function getTheme(): Theme {
   }
 }
 
+const themeListeners = new Set<() => void>()
+export function useTheme(): Theme {
+  return useSyncExternalStore(
+    (l) => {
+      themeListeners.add(l)
+      return () => themeListeners.delete(l)
+    },
+    getTheme,
+  )
+}
+/** 现在看起来是不是深色 */
+export const isDark = () => {
+  const t = getTheme()
+  return t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+}
+/** ⌘⇧L：浅色、深色来回换 */
+export const toggleTheme = () => applyTheme(isDark() ? 'light' : 'dark')
+
 export function applyTheme(t: Theme) {
+  queueMicrotask(() => themeListeners.forEach((l) => l()))
   const root = document.documentElement
   if (t === 'system') delete root.dataset.theme
   else root.dataset.theme = t
@@ -115,19 +135,8 @@ export async function clearLocalData() {
   }
 }
 
-const rtf = typeof Intl !== 'undefined' ? new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' }) : null
-/** “3 分钟前”“昨天”这种 */
-export function ago(ms: number | null | undefined): string {
-  if (!ms) return ''
-  const s = (ms - Date.now()) / 1000
-  const abs = Math.abs(s)
-  if (!rtf) return new Date(ms).toLocaleString()
-  if (abs < 45) return rtf.format(0, 'second')
-  if (abs < 3600) return rtf.format(Math.round(s / 60), 'minute')
-  if (abs < 86400) return rtf.format(Math.round(s / 3600), 'hour')
-  if (abs < 86400 * 30) return rtf.format(Math.round(s / 86400), 'day')
-  return new Date(ms).toLocaleDateString()
-}
+// 多久以前（跟着界面语言）
+export const ago = fmtAgo
 
 export async function copyText(s: string) {
   try {
@@ -142,4 +151,26 @@ export async function copyText(s: string) {
     ta.remove()
     return ok
   }
+}
+
+// ---------- 最近看过的页面（⌘K 里列） ----------
+const RECENT_KEY = 'oad:recent'
+export function recentPages(): string[] {
+  return storageGet<string[]>(RECENT_KEY) ?? []
+}
+export function pushRecent(id: string) {
+  const list = recentPages().filter((x) => x !== id)
+  list.unshift(id)
+  storageSet(RECENT_KEY, list.slice(0, 20))
+}
+
+// ---------- 全局命令：快捷键、⌘K 面板发出来，页面、侧栏接 ----------
+export type Command = 'palette' | 'shortcuts' | 'history' | 'share' | 'sidebar' | 'newPage' | 'newDatabase'
+export function runCommand(c: Command) {
+  window.dispatchEvent(new CustomEvent<Command>('oad:cmd', { detail: c }))
+}
+export function onCommand(f: (c: Command) => void) {
+  const h = (e: Event) => f((e as CustomEvent<Command>).detail)
+  window.addEventListener('oad:cmd', h)
+  return () => window.removeEventListener('oad:cmd', h)
 }

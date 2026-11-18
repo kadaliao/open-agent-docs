@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CellEditor, CellView, cellValue, isEmptyVal, useDb } from './cells'
 import { ColumnMenu, AddPropMenu } from './ColumnMenu'
+import { useLocale } from '../i18n'
 import { tryNormalize } from './engine'
 import { t, TOTAL_NAMES } from './strings'
 import type { Group, Prop, QueryResult, Row, View } from './types'
@@ -82,23 +83,33 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
   const rowIndexOf = useMemo(() => new Map(rowItems.map(([it, i], k) => [i, k])), [rowItems])
 
   const scroll = useRef<HTMLDivElement>(null)
+  // 第一帧只画看得见的（打开快）；画出来以后再多备几行，滚动时不白
+  const [warm, setWarm] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setTimeout(() => setWarm(true), 0))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  const initialRect = useMemo(() => ({ width: window.innerWidth, height: maxHeight ?? window.innerHeight }), []) // eslint-disable-line react-hooks/exhaustive-deps
   const rv = useVirtualizer({
     count: items.length,
     getScrollElement: () => scroll.current,
     estimateSize: (i) => (items[i].t === 'g' ? GROUP_H : ROW_H),
-    overscan: 12,
+    initialRect,
+    overscan: warm ? 12 : 0,
     paddingStart: HEAD_H,
     paddingEnd: FOOT_H + 8,
   })
   useEffect(() => rv.measure(), [items, rv])
-  const rest = cols.slice(1)
-  const titleW = cols[0] ? width(cols[0]) : 0
+  const rest = useMemo(() => cols.slice(1), [cols])
+  // 手机上名称列窄一点，别的列才露得出来
+  const titleW = cols[0] ? (window.innerWidth < 760 ? Math.min(width(cols[0]), 168) : width(cols[0])) : 0
   const cv = useVirtualizer({
     horizontal: true,
     count: rest.length,
     getScrollElement: () => scroll.current,
     estimateSize: (i) => width(rest[i]),
-    overscan: 4,
+    initialRect,
+    overscan: warm ? 4 : 0,
     paddingStart: titleW,
   })
   useEffect(() => cv.measure(), [rest, localW, view.widths, cv])
@@ -125,6 +136,10 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
     return it && it.t === 'r' ? store.rows.get(it.id) : undefined
   }
 
+  // 选中格子时焦点在一个看不见的输入框上（就在格子上面）：中文输入法要有能输入的地方，组字在它里面完成，打完再开编辑器
+  const sink = useRef<HTMLTextAreaElement>(null)
+  const [composing, setComposing] = useState<Anchor | null>(null)
+  const focusGrid = () => (sink.current ?? scroll.current)?.focus({ preventScroll: true })
   const cellEl = (r: number, c: number) => scroll.current?.querySelector(`[data-cell="${r}:${c}"]`) as HTMLElement | null
 
   const reveal = (r: number, c: number) => {
@@ -170,7 +185,7 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
 
   const doneEdit = (dir?: 'down' | 'right' | 'left' | 'none') => {
     setEditing(null)
-    scroll.current?.focus({ preventScroll: true })
+    focusGrid()
     if (dir === 'down') move(1, 0)
     else if (dir === 'right') move(0, 1)
     else if (dir === 'left') move(0, -1)
@@ -237,8 +252,9 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
   useEffect(() => {
     const el = scroll.current
     if (!el) return
-    const c = (e: ClipboardEvent) => document.activeElement === el && copy(e)
-    const p = (e: ClipboardEvent) => document.activeElement === el && paste(e)
+    const mine = () => document.activeElement === el || document.activeElement === sink.current
+    const c = (e: ClipboardEvent) => mine() && copy(e)
+    const p = (e: ClipboardEvent) => mine() && paste(e)
     document.addEventListener('copy', c)
     document.addEventListener('paste', p)
     return () => {
@@ -369,7 +385,10 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
         setAnchorSel(null)
         setSel({ r, c })
       }
-      scroll.current?.focus({ preventScroll: true })
+      // 按下的默认动作会把焦点给外面的表格，接键盘的输入框要在它之后拿焦点
+      if ((ev.target as HTMLElement).closest('a, button, input')) return
+      ev.preventDefault()
+      focusGrid()
     },
     edit: (r, c) => startEdit(r, c),
   }
@@ -490,6 +509,34 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
           </div>
         </div>
         {empty && <div className="db-empty">{t('emptyDb')}</div>}
+        <textarea
+          ref={sink}
+          className={'db-ime-sink' + (composing ? ' is-on' : '')}
+          style={composing ? { left: composing.left, top: composing.top, width: composing.width } : undefined}
+          aria-hidden
+          tabIndex={-1}
+          autoComplete="off"
+          spellCheck={false}
+          onCompositionStart={() => {
+            const el = sel && cellEl(sel.r, sel.c)
+            if (!sel || !canWrite || !el) return
+            setComposing(rectOf(el))
+          }}
+          onCompositionEnd={(e) => {
+            const text = (e.target as HTMLTextAreaElement).value
+            ;(e.target as HTMLTextAreaElement).value = ''
+            setComposing(null)
+            if (sel && text) startEdit(sel.r, sel.c, text)
+          }}
+          onInput={(e) => {
+            // 没经过组字直接进来的文字（有的输入法、手机键盘）
+            const el = e.target as HTMLTextAreaElement
+            if ((e.nativeEvent as InputEvent).isComposing || composing) return
+            const text = el.value
+            el.value = ''
+            if (sel && text) startEdit(sel.r, sel.c, text)
+          }}
+        />
       </div>
       {editing &&
         (() => {
@@ -597,6 +644,7 @@ interface RowProps {
 const TableRow = memo(
   function TableRow({ row, r, top, cols, visibleCols, leftPad, titleW, width, totalW, sel, range, onCell, onEdit }: RowProps) {
     const { openRow } = useDb()
+    useLocale()
     const cls = (c: number) => {
       let s = 'db-td'
       if (sel && sel.r === r && sel.c === c) s += ' is-active'

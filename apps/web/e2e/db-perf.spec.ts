@@ -23,18 +23,36 @@ const summary = (xs: number[]) => ({ n: xs.length, p50: pct(xs, 50), p95: pct(xs
 
 test.describe.configure({ mode: 'serial' })
 
-// 从导航开始到表格的行画出来（DOM 里有了、再过一帧）
+// 从导航开始：first = 第一次看到行（首屏快照或真的表格），rows = 真的表格的行画出来（都是 DOM 里有了、再过一帧）
+const WATCH = () => {
+  const w = window as any
+  const mo = new MutationObserver(() => {
+    if (w.__first === undefined && document.querySelector('.db-tr')) {
+      w.__first = -1
+      requestAnimationFrame(() => (w.__first = performance.now()))
+    }
+    if (w.__live === undefined && document.querySelector('.db-page:not(.db-snapshot) .db-tr')) {
+      w.__live = -1
+      requestAnimationFrame(() => {
+        w.__live = performance.now()
+        mo.disconnect()
+      })
+    }
+  })
+  document.addEventListener('DOMContentLoaded', () => mo.observe(document.body, { childList: true, subtree: true }))
+}
 async function openTime(page: Page) {
+  if (!(page as any).__watching) {
+    await page.addInitScript(WATCH)
+    ;(page as any).__watching = true
+  }
   await page.goto(`/p/${DB}`)
-  await page.waitForSelector('.db-tr', { timeout: 30_000 })
+  await page.waitForFunction(() => (window as any).__live > 0, null, { timeout: 30_000 })
   return page.evaluate(
-    (db) =>
-      new Promise<{ rows: number; timing: Record<string, number> }>((r) =>
-        requestAnimationFrame(() => {
-          const now = performance.now()
-          r({ rows: now, timing: { ...(window as any).__oadDb.get(db).timing, rowsPainted: now } })
-        }),
-      ),
+    (db) => {
+      const w = window as any
+      return { first: w.__first as number, rows: w.__live as number, snapshot: !!document.querySelector('.db-snapshot') || w.__first < w.__live - 1, timing: { ...w.__oadDb.get(db).timing } }
+    },
     DB,
   )
 }
@@ -60,7 +78,7 @@ test('打开：没有缓存', async ({ browser }) => {
     const r = await openTime(page)
     nav.push(r.rows)
     // 从库的代码开始打开（DbStore.open）到行画出来
-    ready.push(r.timing.rowsPainted - (r.timing.rowsPainted - r.timing.ready) - 0)
+    ready.push(r.timing.ready)
     await ctx.close()
   }
   results.openUncached = { fromNavigation: summary(nav), storeReady: summary(ready) }
@@ -96,13 +114,17 @@ test('打开：有 IndexedDB 缓存', async ({ browser }) => {
       { timeout: 20_000 },
     )
     .toBe(true)
+  // 让首屏快照存下来（离开页面时存）
+  await page.goto('about:blank')
   const nav: number[] = []
+  const first: number[] = []
   const cache: number[] = []
   // 在应用里切过来：从点侧栏到行画出来
   const inApp: number[] = []
   for (let i = 0; i < ROUNDS; i++) {
     const r = await openTime(page)
     nav.push(r.rows)
+    first.push(r.first)
     cache.push(r.timing.cache)
     if (!(r.timing.cache > 0)) console.log('timing', JSON.stringify(r.timing))
     expect(r.timing.cache).toBeGreaterThan(0)
@@ -133,7 +155,7 @@ test('打开：有 IndexedDB 缓存', async ({ browser }) => {
     )
     inApp.push(t)
   }
-  results.openCached = { fromNavigation: summary(nav), idbToRows: summary(cache), inAppSwitch: summary(inApp) }
+  results.openCached = { firstContent: summary(first), fromNavigation: summary(nav), idbToRows: summary(cache), inAppSwitch: summary(inApp) }
   console.log('有缓存：', results.openCached)
   await ctx.close()
 })
@@ -229,7 +251,7 @@ test('筛选、排序、分组：改视图到画出来', async ({ browser }) => 
   }
   // 搜索框：打一个字到画出来
   const search: number[] = []
-  await page.locator('.db-tool-icon').click()
+  await page.locator('.db-tool-icon[aria-label="搜索"]').click()
   for (let i = 0; i < ROUNDS; i++) {
     const t = await page.evaluate(
       () =>

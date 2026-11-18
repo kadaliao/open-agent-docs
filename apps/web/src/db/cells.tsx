@@ -336,7 +336,7 @@ function OptionsEditor({ p, row, anchor, initial, onDone }: EditProps) {
               if (!inG.length) return null
               return (
                 <div key={g}>
-                  <div className="db-opt-group">{g === 'todo' ? '未开始' : g === 'doing' ? '进行中' : '已完成'}</div>
+                  <div className="db-opt-group">{g === 'todo' ? t('statusTodo') : g === 'doing' ? t('statusDoing') : t('statusDone')}</div>
                   {inG.map((it) => it.kind === 'opt' && <OptRow key={it.o.id} o={it.o} on={selected.includes(it.o.id)} active={items.indexOf(it) === active} status onPick={() => pick(it.o)} />)}
                 </div>
               )
@@ -381,7 +381,7 @@ export function MonthGrid({ month, onMonth, isSel, inRange, onPick }: { month: D
           ‹
         </button>
         <span>
-          {month.getFullYear()} 年 {month.getMonth() + 1} 月
+          {t('monthTitle', { y: month.getFullYear(), m: month.getMonth() + 1 })}
         </span>
         <button type="button" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label={t('next')}>
           ›

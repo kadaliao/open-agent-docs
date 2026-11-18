@@ -1,6 +1,7 @@
 // 库页面的工具栏：筛选（可嵌套的且 / 或）、排序、分组（日历依据、画廊封面）、属性显隐、搜索、新建。
 import { useState } from 'react'
 import { useDb } from './cells'
+import { DbHistory } from './History'
 import { COND_NAMES, t, TYPE_NAMES, WITHIN_NAMES } from './strings'
 import type { Cond, Filter, Prop, View } from './types'
 import { isGroup } from './types'
@@ -16,7 +17,7 @@ interface Props {
 
 export function Toolbar({ view, onView, search, onSearch, onNew }: Props) {
   const { store, canWrite } = useDb()
-  const [open, setOpen] = useState<{ kind: 'filter' | 'sort' | 'group' | 'props'; anchor: Anchor } | null>(null)
+  const [open, setOpen] = useState<{ kind: 'filter' | 'sort' | 'group' | 'props' | 'history'; anchor: Anchor } | null>(null)
   const [searching, setSearching] = useState(!!search)
   const nFilter = countConds(view.filter)
   const nSort = view.sorts?.length ?? 0
@@ -59,10 +60,20 @@ export function Toolbar({ view, onView, search, onSearch, onNew }: Props) {
           </svg>
         </button>
       )}
+      <button type="button" className={'db-tool db-tool-icon' + (open?.kind === 'history' ? ' is-on' : '')} data-db-tool="history" aria-label={t('history')} title={t('history')} onClick={(e) => setOpen({ kind: 'history', anchor: rectOf(e.currentTarget) })}>
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
+          <path fill="currentColor" d="M13 3a9 9 0 1 1-8.5 12h2.1A7 7 0 1 0 6 9.3L8.7 12H2V5.3l2.6 2.6A9 9 0 0 1 13 3zm-1 4h2v5.2l3.4 2-1 1.7-4.4-2.6z" />
+        </svg>
+      </button>
       {canWrite && (
         <button type="button" className="db-new" onClick={onNew}>
           {t('newRow')}
         </button>
+      )}
+      {open?.kind === 'history' && (
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={440} align="right" className="db-menu db-history-pop">
+          <DbHistory />
+        </Popover>
       )}
       {open?.kind === 'filter' && (
         <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={560} className="db-menu db-filter-pop">

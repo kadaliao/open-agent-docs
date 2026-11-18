@@ -679,8 +679,9 @@ input {
 
 /* 窄屏：侧栏盖在内容上 */
 @media (max-width: 760px) {
+  /* 侧栏是盖在上面的抽屉，内容占满（侧栏收起时 display: none，不能让内容掉进 0 宽的那一列） */
   .app {
-    grid-template-columns: 0 minmax(0, 1fr);
+    display: block;
   }
   .sidebar {
     position: fixed;
@@ -1443,5 +1444,144 @@ input {
     right: 12px;
     width: auto;
     top: 48px;
+  }
+}
+
+/* ======================= 第 5 阶段：搜索入口、回收站、分享、历史、手机 ======================= */
+.side-new + .side-new {
+  margin-top: -8px;
+}
+.side-search {
+  margin-top: 6px;
+}
+.side-kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--oad-line-2);
+  color: var(--oad-fg-3);
+  font: 11px/16px var(--oad-font);
+  letter-spacing: 0.02em;
+}
+.side-link + .side-link {
+  margin-top: -6px;
+}
+button.me {
+  padding: 3px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  text-align: left;
+  color: inherit;
+}
+button.me:hover {
+  background: var(--side-hover);
+}
+.topbar-icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+.page-body {
+  position: relative;
+}
+/* 版本对比盖住正文，右边留给版本列表 */
+.page-body > .hv {
+  right: 320px;
+}
+.page-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 8px 16px;
+  border-radius: 9px;
+  background: var(--oad-fg);
+  color: var(--oad-bg);
+  font-size: 13px;
+  box-shadow: var(--oad-shadow);
+  animation: oad-pop 0.14s ease-out;
+}
+.drawer-mask {
+  display: none;
+}
+
+/* ---------- 手机 ---------- */
+@media (max-width: 760px) {
+  .drawer-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(15, 15, 15, 0.32);
+    animation: fade 0.15s ease-out;
+  }
+  .sidebar {
+    animation: drawer-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(-24px);
+      opacity: 0.6;
+    }
+  }
+  .side-kbd {
+    display: none;
+  }
+  /* 触屏：点的地方大一点 */
+  .tree-row,
+  .side-new,
+  .side-link {
+    min-height: 40px;
+  }
+  .topbar {
+    gap: 4px;
+    padding: 0 6px;
+    padding-top: env(safe-area-inset-top);
+    height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  }
+  .topbar-right {
+    gap: 2px;
+  }
+  .topbar-btn,
+  .icon-btn {
+    min-width: 36px;
+    height: 36px;
+  }
+  .status {
+    font-size: 0;
+    gap: 0;
+  }
+  .status .status-dot {
+    margin: 0 4px;
+  }
+  .presence .avatars .avatar:nth-child(n + 3) {
+    display: none;
+  }
+  .page-body > .hv {
+    right: 0;
+  }
+  .crumb:not(:last-child) {
+    display: none;
+  }
+  .modal-mask {
+    padding: 0;
+    place-items: end center;
+  }
+  .modal {
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .palette-mask {
+    place-items: start center;
+  }
+}
+@media (hover: none) {
+  /* 没有鼠标悬停：块把手、行的“打开”按钮一直看得见一点 */
+  .oad-handle {
+    opacity: 0.35;
   }
 }

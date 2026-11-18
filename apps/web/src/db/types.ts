@@ -128,7 +128,7 @@ export interface QueryResult {
 
 /** @oad/db 的接口（WASM）。网页只通过它算筛选、排序、分组、公式、汇总。 */
 export interface DbEngine {
-  loadRows(rows: Row[]): void
+  loadRows(rows: Row[] | string): void
   loadRelated(dbId: string, schema: Schema, rows: Row[]): void
   apply(changes: { row_id: string; props?: Record<string, unknown>; deleted?: boolean; row?: Row }[]): string[]
   setSchema(schema: Schema): void

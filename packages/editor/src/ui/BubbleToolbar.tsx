@@ -2,7 +2,8 @@
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { KeysStorage } from '../extensions/keys'
 import { t, type EditorStrings } from '../strings'
 import { normalizeUrl } from './UrlPrompt'
 
@@ -17,6 +18,17 @@ const MARKS: { mark: string; label: keyof EditorStrings; glyph: React.ReactNode;
 
 export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment?: () => void }) {
   const [link, setLink] = useState<string | null>(null)
+  // ⌘K（选中了文字）：打开链接输入框
+  useEffect(() => {
+    const st = (editor.storage as unknown as { oadKeys?: KeysStorage }).oadKeys
+    if (!st) return
+    st.link = () => setLink((editor.getAttributes('link').href as string | undefined) ?? '')
+    st.comment = onComment ?? null
+    return () => {
+      st.link = null
+      st.comment = null
+    }
+  }, [editor, onComment])
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => {

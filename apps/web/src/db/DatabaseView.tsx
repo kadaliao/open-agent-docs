@@ -254,7 +254,7 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
             onClick={async () => {
               setMenu(null)
               const { id: _, ...rest } = menu.v
-              const id = await store.addView({ ...rest, name: menu.v.name + ' 副本' })
+              const id = await store.addView({ ...rest, name: menu.v.name + t('copySuffix') })
               if (id) onPick(id)
             }}
           >

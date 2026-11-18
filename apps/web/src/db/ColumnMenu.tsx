@@ -3,7 +3,8 @@ import { useState, useSyncExternalStore } from 'react'
 import { useDb } from './cells'
 import { FormulaEditor } from './FormulaEditor'
 import { DbStore } from './store'
-import { DATE_FORMAT_NAMES, FORMAT_NAMES, t, TYPE_NAMES } from './strings'
+import { DATE_FORMAT_NAMES, FORMAT_NAMES, t, TOTAL_NAMES, TYPE_NAMES } from './strings'
+import { getLocale } from '../i18n'
 import type { Prop, PropType, SelectOption, View } from './types'
 import { ADDABLE_TYPES, COLOR_NAMES, COLORS, condsFor, optId, Pill, Popover, randomColor, TypeIcon, type Anchor } from './ui'
 
@@ -228,9 +229,9 @@ function defaultsFor(ty: PropType, p: Prop, dbId: string, props: Prop[] = []): P
   if (ty === 'status' && !p.options?.some((o) => o.group))
     return {
       options: [
-        { id: optId(), name: '未开始', color: 'gray', group: 'todo' },
-        { id: optId(), name: '进行中', color: 'blue', group: 'doing' },
-        { id: optId(), name: '已完成', color: 'green', group: 'done' },
+        { id: optId(), name: t('statusTodo'), color: 'gray', group: 'todo' },
+        { id: optId(), name: t('statusDoing'), color: 'blue', group: 'doing' },
+        { id: optId(), name: t('statusDone'), color: 'green', group: 'done' },
       ],
     }
   if (ty === 'formula') return { formula: p.formula ?? '' }
@@ -301,13 +302,13 @@ function OptionsMenu({ p, anchor, onClose }: { p: Prop; anchor: Anchor; onClose:
                   <div className="db-menu-seg">
                     {(['todo', 'doing', 'done'] as const).map((g) => (
                       <button key={g} type="button" aria-pressed={(o.group ?? 'todo') === g} onClick={() => save(opts.map((x) => (x.id === o.id ? { ...x, group: g } : x)))}>
-                        {g === 'todo' ? '未开始' : g === 'doing' ? '进行中' : '已完成'}
+                        {g === 'todo' ? t('statusTodo') : g === 'doing' ? t('statusDoing') : t('statusDone')}
                       </button>
                     ))}
                   </div>
                 )}
                 <button type="button" className="db-menu-item is-danger" onClick={() => save(opts.filter((x) => x.id !== o.id))}>
-                  {t('deleteProp').replace('属性', '选项')}
+                  {t('deleteOption')}
                 </button>
               </div>
             ) : (
@@ -323,7 +324,7 @@ function OptionsMenu({ p, anchor, onClose }: { p: Prop; anchor: Anchor; onClose:
         type="button"
         className="db-menu-item"
         onClick={() => {
-          const o: SelectOption = { id: optId(), name: `选项 ${opts.length + 1}`, color: randomColor(opts.length), ...(p.type === 'status' ? { group: 'todo' as const } : {}) }
+          const o: SelectOption = { id: optId(), name: t('optionN', { n: opts.length + 1 }), color: randomColor(opts.length), ...(p.type === 'status' ? { group: 'todo' as const } : {}) }
           save([...opts, o])
           setEditing(o.id)
         }}
@@ -380,7 +381,7 @@ function RollupSettings({ p, onClose }: { p: Prop; onClose: () => void }) {
   const target = DbStore.get(rel?.relation?.db_id ?? store.id)
   useSyncExternalStore(target.subscribe, target.getVersion)
   const FNS = ['show_original', 'count', 'count_values', 'sum', 'average', 'min', 'max', 'earliest', 'latest', 'percent_checked']
-  const NAMES: Record<string, string> = { show_original: '显示原值', count: '计数', count_values: '有值的个数', sum: '求和', average: '平均', min: '最小', max: '最大', earliest: '最早', latest: '最晚', percent_checked: '勾选占比' }
+  const NAMES: Record<string, string> = { ...TOTAL_NAMES, show_original: getLocale() === 'en' ? 'Show original' : '显示原值', count: TOTAL_NAMES.count, average: TOTAL_NAMES.avg }
   const set = (patch: Partial<NonNullable<Prop['rollup']>>) => store.updateProp(p.key, { rollup: { relation: relKey ?? '', prop: p.rollup?.prop ?? 'title', fn: p.rollup?.fn ?? 'count', ...patch } })
   return (
     <div className="db-rollup">

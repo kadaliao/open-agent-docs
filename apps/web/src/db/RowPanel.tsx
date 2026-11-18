@@ -9,6 +9,7 @@ import type { PageStore } from '../store'
 import { CellEditor, CellView, cellValue, DbContext, isEmptyVal, useDb, type DbCtx } from './cells'
 import { AddPropMenu } from './ColumnMenu'
 import { useDbPeople } from './DatabaseView'
+import { DbHistory } from './History'
 import { DbStore } from './store'
 import { t } from './strings'
 import type { Prop } from './types'
@@ -21,6 +22,7 @@ export function RowProps({ rowId }: { rowId: string }) {
   const [editing, setEditing] = useState<{ p: Prop; anchor: Anchor } | null>(null)
   const [adding, setAdding] = useState<Anchor | null>(null)
   const [showEmpty, setShowEmpty] = useState(true)
+  const [history, setHistory] = useState(false)
   if (!row) return null
   const props = store.schema.props.filter((p) => p.type !== 'title')
   const empty = props.filter((p) => isEmptyVal(cellValue(store, p, row)) && p.type !== 'button' && p.type !== 'checkbox')
@@ -59,7 +61,7 @@ export function RowProps({ rowId }: { rowId: string }) {
       <div className="db-rowprops-foot">
         {empty.length > 0 && (
           <button type="button" className="db-link-btn" onClick={() => setShowEmpty((v) => !v)}>
-            {showEmpty ? `隐藏 ${empty.length} 个空属性` : `显示 ${empty.length} 个空属性`}
+            {showEmpty ? t('hideEmptyProps', { n: empty.length }) : t('showEmptyProps', { n: empty.length })}
           </button>
         )}
         {canWrite && (
@@ -67,7 +69,11 @@ export function RowProps({ rowId }: { rowId: string }) {
             + {t('addProp')}
           </button>
         )}
+        <button type="button" className={'db-link-btn' + (history ? ' is-on' : '')} onClick={() => setHistory((v) => !v)} aria-expanded={history}>
+          ↺ {t('history')}
+        </button>
       </div>
+      {history && <DbHistory rowId={rowId} onClose={() => setHistory(false)} />}
       {editing && <CellEditor p={store.prop(editing.p.key) ?? editing.p} row={store.rows.get(rowId) ?? row} anchor={editing.anchor} onDone={() => setEditing(null)} />}
       {adding && view && <AddPropMenu anchor={adding} view={view} onView={(patch) => store.updateView(view.id, patch)} onClose={() => setAdding(null)} />}
     </div>

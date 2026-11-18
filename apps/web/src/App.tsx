@@ -3,7 +3,9 @@ import { api, ApiError, type AuthMode, type Me } from './api'
 import { SidebarIcon } from './icons'
 import { Login } from './Login'
 import { Sidebar } from './Sidebar'
-import { clearLocalData, navigate, pageIdOf, pagePath, storageGet, storageSet, usePath } from './lib'
+import { adoptAccountLocale, useLocale } from './i18n'
+import { clearLocalData, navigate, onCommand, pageIdOf, pagePath, pushRecent, storageGet, storageSet, usePath } from './lib'
+import { Overlays } from './Overlays'
 import { PageStore, usePages } from './store'
 import { t } from './strings'
 
@@ -24,7 +26,8 @@ const firstIsDb = (() => {
     return false
   }
 })()
-if (firstPage && firstIsDb) import('./db/DbPage')
+// 库的本机缓存（IndexedDB）和引擎（WASM）在界面启动之前就开始读
+if (firstPage && firstIsDb) import('./db/DbPage').then((m) => m.prefetchDb(firstPage))
 else if (firstPage) import('./conn').then((m) => m.preopenPage(firstPage))
 
 function usePageView() {
@@ -36,7 +39,9 @@ function usePageView() {
 }
 
 // 设置页不在打开页面的关键路径上，用 lazy 就行
-const AgentsPage = lazy(() => import('./AgentsPage'))
+const SettingsPage = lazy(() => import('./settings/Settings'))
+const TrashPage = lazy(() => import('./settings/Trash'))
+const InvitePage = lazy(() => import('./settings/Invite'))
 
 const ME_KEY = 'oad:me'
 const LAST_KEY = 'oad:last-page'
@@ -44,6 +49,8 @@ const LAST_KEY = 'oad:last-page'
 type Session = { mode: AuthMode; me: Me } | { mode: AuthMode; me: null } | null
 
 export function App() {
+  // 换语言时整个界面重画（不刷新）
+  useLocale()
   // 上次的登录信息先拿来用（本地优先），后台再向服务器确认
   const [session, setSession] = useState<Session>(() => {
     const me = storageGet<Me>(ME_KEY)
@@ -62,6 +69,7 @@ export function App() {
       try {
         const me = await mePromise
         storageSet(ME_KEY, me)
+        adoptAccountLocale(me.user.locale)
         setSession({ mode, me })
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
@@ -92,6 +100,22 @@ export function App() {
       </div>
     )
   if (!session) return <div className="splash" aria-busy="true" />
+  // 邀请链接：没登录也能打开（登录或注册以后加入）
+  const invite = /^\/invite\/([^/?#]+)/.exec(location.pathname)?.[1]
+  if (invite)
+    return (
+      <Suspense fallback={<div className="splash" aria-busy="true" />}>
+        <InvitePage
+          token={invite}
+          me={session.me}
+          onJoined={(me) => {
+            storageSet(ME_KEY, me)
+            setSession({ mode: session.mode, me })
+            navigate('/', true)
+          }}
+        />
+      </Suspense>
+    )
   if (!session.me)
     return (
       <Login
@@ -108,6 +132,10 @@ export function App() {
     <Workspace
       me={session.me}
       mode={session.mode}
+      onMe={(me) => {
+        storageSet(ME_KEY, me)
+        setSession({ mode: session.mode, me })
+      }}
       onLogout={async () => {
         await api.logout().catch(() => {})
         setSession({ mode: session.mode, me: null })
@@ -120,7 +148,7 @@ export function App() {
   )
 }
 
-function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: () => void }) {
+function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLogout: () => void; onMe: (me: Me) => void }) {
   const ws = me.workspaces[0]
   const store = useMemo(() => (ws ? new PageStore(ws.id) : null), [ws?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const path = usePath()
@@ -147,8 +175,22 @@ function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: (
   }, [store])
 
   useEffect(() => {
-    if (pageId) storageSet(LAST_KEY, pageId)
+    if (!pageId) return
+    storageSet(LAST_KEY, pageId)
+    pushRecent(pageId)
   }, [pageId])
+  // ⌘\ 收起 / 展开侧栏
+  useEffect(
+    () =>
+      onCommand((c) => {
+        if (c !== 'sidebar') return
+        setCollapsed((v) => {
+          if (!narrow()) storageSet('oad:sidebar-collapsed', !v)
+          return !v
+        })
+      }),
+    [],
+  )
 
   // 首页：回到上次打开的那页
   useEffect(() => {
@@ -160,6 +202,10 @@ function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: (
 
   if (!ws || !store) return <div className="splash">{t('error')}</div>
   const canWrite = ws.role !== 'viewer'
+  const expand = () => {
+    setCollapsed(false)
+    if (!narrow()) storageSet('oad:sidebar-collapsed', false)
+  }
 
   return (
     <div className={'app' + (collapsed ? ' is-collapsed' : '')}>
@@ -196,20 +242,19 @@ function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: (
           )
         ) : path.startsWith('/settings') ? (
           <Suspense fallback={<div className="page-skeleton" />}>
-            <AgentsPage
-              store={store}
-              canManage={canWrite}
-              sidebarCollapsed={collapsed}
-              onExpandSidebar={() => {
-                setCollapsed(false)
-                storageSet('oad:sidebar-collapsed', false)
-              }}
-            />
+            <SettingsPage store={store} me={me} onMe={onMe} sidebarCollapsed={collapsed} onExpandSidebar={expand} />
+          </Suspense>
+        ) : path.startsWith('/trash') ? (
+          <Suspense fallback={<div className="page-skeleton" />}>
+            <TrashPage store={store} canWrite={canWrite} sidebarCollapsed={collapsed} onExpandSidebar={expand} />
           </Suspense>
         ) : (
           <Home store={store} canWrite={canWrite} collapsed={collapsed} onExpand={() => setCollapsed(false)} />
         )}
       </main>
+      {/* 窄屏：侧栏是抽屉，点外面收起 */}
+      {!collapsed && <div className="drawer-mask" onClick={() => setCollapsed(true)} aria-hidden />}
+      <Overlays store={store} me={me} pageId={pageId} />
     </div>
   )
 }

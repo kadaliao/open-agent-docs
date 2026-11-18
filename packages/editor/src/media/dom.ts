@@ -51,10 +51,11 @@ export function host(url: string) {
 }
 
 // 跟着页面语言（界面是中文就按中文写数字和日期），不看浏览器语言
-const zh = typeof document === 'undefined' || /^zh/i.test(document.documentElement.lang || 'zh')
+// 每次现读（换语言不用刷新）
+const isZh = () => typeof document === 'undefined' || /^zh/i.test(document.documentElement.lang || 'zh')
 export function count(n?: number) {
   if (n === undefined || n === null) return ''
-  if (zh) {
+  if (isZh()) {
     if (n >= 1e8) return (n / 1e8).toFixed(n >= 1e9 ? 0 : 1).replace(/\.0$/, '') + '亿'
     if (n >= 1e4) return (n / 1e4).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + '万'
     return n.toLocaleString('zh-CN')
@@ -77,7 +78,7 @@ export function date(iso?: string, withTime = false) {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(+d)) return ''
-  return d.toLocaleString(zh ? 'zh-CN' : undefined, withTime ? { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' } : { year: 'numeric', month: 'long', day: 'numeric' })
+  return d.toLocaleString(isZh() ? 'zh-CN' : 'en-US', withTime ? { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' } : { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 export function bytes(n?: number) {

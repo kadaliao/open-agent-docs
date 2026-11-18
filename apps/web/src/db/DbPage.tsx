@@ -1,8 +1,9 @@
 // 数据库整页（PageView 按 kind 切过来，单独一个包）：标题 + 库。也带出行页面用的属性头、内嵌用的挂载函数。
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { api, type Me } from '../api'
 import { usePages, type PageStore } from '../store'
 import { DatabaseView } from './DatabaseView'
+import { readDbSnapshot, saveDbSnapshot, takeDbSnapshot } from './snapshot'
 import { DbStore } from './store'
 import { t } from './strings'
 import { preloadEngine } from './engine'
@@ -27,8 +28,40 @@ export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me
   useEffect(() => {
     document.title = (title || t('untitled')) + ' · Open Agent Docs'
   }, [title])
+  // 首屏快照：库的数据（IndexedDB + 引擎）还没好时先画上次的样子
+  useSyncExternalStore(db.subscribe, db.getVersion)
+  const [snap] = useState(() => (db.meta ? null : readDbSnapshot(pageId)))
+  useEffect(() => {
+    db.open(store)
+  }, [db, store])
+  const live = !!db.meta
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (snap && !live) {
+      ;(window as unknown as { __oadDbFirst?: number }).__oadDbFirst ??= performance.now()
+    }
+  }, [snap, live])
+  useEffect(() => {
+    if (!live) return
+    let timer = 0
+    const save = () => box.current && saveDbSnapshot(pageId, takeDbSnapshot(box.current))
+    const later = () => {
+      clearTimeout(timer)
+      timer = window.setTimeout(save, 1500)
+    }
+    const off = db.subscribe(later)
+    later()
+    window.addEventListener('pagehide', save)
+    return () => {
+      off()
+      clearTimeout(timer)
+      window.removeEventListener('pagehide', save)
+      save()
+    }
+  }, [live, pageId, db])
+  if (snap && !live) return <div className="db-page db-snapshot" aria-busy="true" dangerouslySetInnerHTML={{ __html: snap }} />
   return (
-    <div className="db-page">
+    <div className="db-page" ref={box}>
       <div className="db-page-head">
         <input
           className="db-page-title"
@@ -55,7 +88,7 @@ export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me
 export { preloadEngine }
 
 /** 提前开始打开一个库（App 在认出地址是库时调） */
-export function prefetchDb(id: string, events: PageStore) {
+export function prefetchDb(id: string, events?: PageStore) {
   DbStore.get(id).open(events)
 }
 

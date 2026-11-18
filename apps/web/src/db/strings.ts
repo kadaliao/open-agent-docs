@@ -1,4 +1,5 @@
-// 数据库界面的文字（和数据库的代码一起按需加载，不进主包）。以后加英文照这份写一份 en。
+// 数据库界面的文字（和数据库的代码一起按需加载，不进主包）：中文 zh、英文 en，按当前语言取。
+import { getLocale, makeT } from '../i18n'
 import type { PropType, ViewType } from './types'
 
 const zh = {
@@ -98,17 +99,181 @@ const zh = {
   pressed: '已执行',
   totalsNone: '无',
   weekdays: '一,二,三,四,五,六,日',
+  statusTodo: '未开始',
+  statusDoing: '进行中',
+  statusDone: '已完成',
+  optionN: '选项 {n}',
+  deleteOption: '删除选项',
+  copySuffix: ' 副本',
+  hideEmptyProps: '隐藏 {n} 个空属性',
+  showEmptyProps: '显示 {n} 个空属性',
+  monthTitle: '{y} 年 {m} 月',
+  monthDay: '{m}月{d}日',
+  history: '历史',
+  historyTitle: '改动记录',
+  historyEmpty: '还没有改动',
+  historyRowTitle: '这一行的改动',
+  historySchema: '改了表结构',
+  historyCell: '把“{prop}”从 {old} 改成 {new}',
+  historyCellSet: '把“{prop}”设成 {new}',
+  historyCellClear: '清空了“{prop}”（原来是 {old}）',
+  historyAddRow: '加了一行',
+  historyDeleteRow: '删了一行',
+  historyMoveRow: '挪了位置',
+  historyUndo: '撤销',
+  historyUndone: '已撤销',
+  historyUndoConfirm: '撤销这次改动？撤销也会记一条。',
+  historyUnavailable: '服务器还不支持改动记录',
+  historyAll: '全部',
+  historyOnlySchema: '只看表结构',
 }
 
 export type DbStrings = typeof zh
-const strings: DbStrings = { ...zh }
-export function t(k: keyof DbStrings, vars?: Record<string, string | number>) {
-  let s = strings[k]
-  if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace(`{${a}}`, String(b))
-  return s
+
+const en: DbStrings = {
+  newRow: 'New',
+  untitled: 'Untitled',
+  search: 'Search',
+  filter: 'Filter',
+  sort: 'Sort',
+  group: 'Group',
+  props: 'Properties',
+  addView: 'Add view',
+  renameView: 'Rename view',
+  duplicateView: 'Duplicate view',
+  deleteView: 'Delete view',
+  addFilter: 'Add filter rule',
+  addFilterGroup: 'Add filter group',
+  addSort: 'Add sort',
+  and: 'And',
+  or: 'Or',
+  where: 'Where',
+  noGroup: 'None',
+  groupBy: 'Group by',
+  calendarBy: 'Show calendar by',
+  cover: 'Card preview',
+  noCover: 'None',
+  bodyCover: 'First image in page',
+  cardSize: 'Card size',
+  small: 'Small',
+  medium: 'Medium',
+  large: 'Large',
+  asc: 'Ascending',
+  desc: 'Descending',
+  sortAsc: 'Sort ascending',
+  sortDesc: 'Sort descending',
+  hide: 'Hide',
+  show: 'Show',
+  showAll: 'Show all',
+  hideAll: 'Hide all',
+  rename: 'Rename',
+  changeType: 'Type',
+  deleteProp: 'Delete property',
+  deletePropConfirm: 'Delete property “{name}”? Schema changes can be undone.',
+  insertLeft: 'Insert left',
+  insertRight: 'Insert right',
+  newProp: 'New property',
+  addProp: 'Add a property',
+  editFormula: 'Edit formula',
+  format: 'Number format',
+  dateFormat: 'Date format',
+  options: 'Options',
+  addOption: 'Add an option',
+  createOption: 'Create “{name}”',
+  newOptionLabel: 'Create',
+  noResults: 'No results',
+  empty: 'Empty',
+  openRow: 'Open',
+  openFullPage: 'Open as page',
+  closePanel: 'Close',
+  deleteRow: 'Delete row',
+  deleteRows: 'Delete {n} rows',
+  rows: '{n} rows',
+  count: 'Count',
+  calc: 'Calculate',
+  none: 'None',
+  today: 'Today',
+  month: 'Month',
+  week: 'Week',
+  prev: 'Previous',
+  next: 'Next',
+  endDate: 'End date',
+  includeTime: 'Include time',
+  clear: 'Clear',
+  upload: 'Upload file',
+  addLink: 'Add link',
+  linkRow: 'Link a row',
+  searchRows: 'Search rows to link',
+  noRelatedDb: "The related database hasn't loaded yet",
+  formulaTitle: 'Formula',
+  formulaHint: 'Use prop("Name") to refer to properties; completion as you type',
+  formulaOk: 'Formula looks good',
+  preview: 'Preview',
+  save: 'Save',
+  cancel: 'Cancel',
+  loading: 'Loading…',
+  loadFailed: "Couldn't load",
+  retry: 'Retry',
+  offline: 'Offline — showing the copy on this device',
+  saveFailed: "Couldn't save, change undone: ",
+  noRows: 'No rows',
+  noDate: 'No date',
+  dropHere: 'Drop here',
+  copyCells: 'Copied {n} cells',
+  pasteSkipped: "Skipped {n} cells that couldn't be read",
+  emptyDb: 'No rows yet. Click “New” to add one.',
+  dbLabel: 'Database',
+  hiddenCount: '{n} hidden',
+  pressed: 'Done',
+  totalsNone: 'None',
+  weekdays: 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
+  statusTodo: 'Not started',
+  statusDoing: 'In progress',
+  statusDone: 'Done',
+  optionN: 'Option {n}',
+  deleteOption: 'Delete option',
+  copySuffix: ' (copy)',
+  hideEmptyProps: 'Hide {n} empty properties',
+  showEmptyProps: 'Show {n} empty properties',
+  monthTitle: '{month} {y}',
+  monthDay: '{monthShort} {d}',
+  history: 'History',
+  historyTitle: 'Changes',
+  historyEmpty: 'No changes yet',
+  historyRowTitle: 'Changes to this row',
+  historySchema: 'Changed the schema',
+  historyCell: 'Changed “{prop}” from {old} to {new}',
+  historyCellSet: 'Set “{prop}” to {new}',
+  historyCellClear: 'Cleared “{prop}” (was {old})',
+  historyAddRow: 'Added a row',
+  historyDeleteRow: 'Deleted a row',
+  historyMoveRow: 'Moved the row',
+  historyUndo: 'Undo',
+  historyUndone: 'Undone',
+  historyUndoConfirm: 'Undo this change? The undo is recorded too.',
+  historyUnavailable: "The server doesn't keep change history yet",
+  historyAll: 'All',
+  historyOnlySchema: 'Schema only',
 }
 
-export const TYPE_NAMES: Record<PropType, string> = {
+const tr = makeT<DbStrings>({ zh, en })
+export function t(k: keyof DbStrings, vars?: Record<string, string | number>) {
+  if (k === 'monthTitle' || k === 'monthDay') {
+    // 英文月份名用浏览器的
+    const m = Number(vars?.m ?? 1)
+    const d = new Date(2026, m - 1, 1)
+    vars = { ...vars, month: d.toLocaleString('en-US', { month: 'long' }), monthShort: d.toLocaleString('en-US', { month: 'short' }) }
+  }
+  return tr(k, vars)
+}
+
+/** 一张按语言切的名字表：用起来和普通对象一样（TYPE_NAMES[type]、Object.entries） */
+function localized<K extends string>(zhT: Record<K, string>, enT: Record<K, string>): Record<K, string> {
+  return new Proxy(zhT, { get: (target, k) => (getLocale() === 'en' ? (enT as Record<string | symbol, string>)[k] : undefined) ?? (target as Record<string | symbol, string>)[k] })
+}
+
+export const TYPE_NAMES: Record<PropType, string> = localized<PropType>(
+  {
   title: '名称',
   text: '文本',
   number: '数字',
@@ -131,11 +296,17 @@ export const TYPE_NAMES: Record<PropType, string> = {
   formula: '公式',
   unique_id: '自动编号',
   button: '按钮',
-}
+},
+  { title: 'Name', text: 'Text', number: 'Number', select: 'Select', multi_select: 'Multi-select', status: 'Status', date: 'Date', person: 'Person', checkbox: 'Checkbox', url: 'URL', email: 'Email', phone: 'Phone', files: 'Files & media', created_time: 'Created time', updated_time: 'Last edited time', created_by: 'Created by', updated_by: 'Last edited by', relation: 'Relation', rollup: 'Rollup', formula: 'Formula', unique_id: 'ID', button: 'Button' },
+)
 
-export const VIEW_NAMES: Record<ViewType, string> = { table: '表格', board: '看板', calendar: '日历', gallery: '画廊', list: '列表' }
+export const VIEW_NAMES: Record<ViewType, string> = localized<ViewType>(
+  { table: '表格', board: '看板', calendar: '日历', gallery: '画廊', list: '列表' },
+  { table: 'Table', board: 'Board', calendar: 'Calendar', gallery: 'Gallery', list: 'List' },
+)
 
-export const COND_NAMES: Record<string, string> = {
+export const COND_NAMES: Record<string, string> = localized<string>(
+  {
   eq: '是',
   neq: '不是',
   contains: '包含',
@@ -151,9 +322,12 @@ export const COND_NAMES: Record<string, string> = {
   checked: '已勾选',
   unchecked: '未勾选',
   is_within: '在…之内',
-}
+},
+  { eq: 'Is', neq: 'Is not', contains: 'Contains', not_contains: 'Does not contain', starts_with: 'Starts with', ends_with: 'Ends with', gt: '>', gte: '≥', lt: '<', lte: '≤', empty: 'Is empty', not_empty: 'Is not empty', checked: 'Is checked', unchecked: 'Is not checked', is_within: 'Is within' },
+)
 
-export const WITHIN_NAMES: Record<string, string> = {
+export const WITHIN_NAMES: Record<string, string> = localized<string>(
+  {
   today: '今天',
   past_week: '过去一周',
   past_month: '过去一个月',
@@ -161,9 +335,12 @@ export const WITHIN_NAMES: Record<string, string> = {
   next_week: '未来一周',
   next_month: '未来一个月',
   next_year: '未来一年',
-}
+},
+  { today: 'Today', past_week: 'Past week', past_month: 'Past month', past_year: 'Past year', next_week: 'Next week', next_month: 'Next month', next_year: 'Next year' },
+)
 
-export const TOTAL_NAMES: Record<string, string> = {
+export const TOTAL_NAMES: Record<string, string> = localized<string>(
+  {
   count: '总数',
   count_values: '有值的',
   count_empty: '空的',
@@ -181,8 +358,16 @@ export const TOTAL_NAMES: Record<string, string> = {
   checked: '已勾选',
   unchecked: '未勾选',
   percent_checked: '勾选占比',
-}
+},
+  { count: 'Count all', count_values: 'Count values', count_empty: 'Count empty', count_unique: 'Count unique', percent_empty: 'Percent empty', percent_not_empty: 'Percent not empty', sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', range: 'Range', earliest: 'Earliest', latest: 'Latest', checked: 'Checked', unchecked: 'Unchecked', percent_checked: 'Percent checked' },
+)
 
-export const DATE_FORMAT_NAMES: Record<string, string> = { iso: '2026-11-15', zh: '2026年11月15日', slash: '2026/11/15', relative: '相对（3 天后）' }
+export const DATE_FORMAT_NAMES: Record<string, string> = localized<string>(
+  { iso: '2026-11-15', zh: '2026年11月15日', slash: '2026/11/15', relative: '相对（3 天后）' },
+  { iso: '2026-11-15', zh: '2026年11月15日', slash: '2026/11/15', relative: 'Relative (in 3 days)' },
+)
 
-export const FORMAT_NAMES: Record<string, string> = { number: '数字', comma: '千分位', percent: '百分比', cny: '人民币', usd: '美元' }
+export const FORMAT_NAMES: Record<string, string> = localized<string>(
+  { number: '数字', comma: '千分位', percent: '百分比', cny: '人民币', usd: '美元' },
+  { number: 'Number', comma: 'With commas', percent: 'Percent', cny: 'Yuan', usd: 'US dollar' },
+)

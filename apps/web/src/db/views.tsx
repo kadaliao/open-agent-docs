@@ -6,14 +6,24 @@ import { CellView, cellValue, isEmptyVal, useDb } from './cells'
 import { groupDefaults, visibleProps } from './TableView'
 import { t } from './strings'
 import type { DateValue, Group, Prop, QueryResult, Row, View } from './types'
-import { Pill, READONLY } from './ui'
-
+import { Pill, READONLY, TypeIcon } from './ui'
 
 interface VProps {
   view: View
   result: QueryResult
   onView: (patch: Partial<View>) => void
   maxHeight?: number
+}
+
+// 光看值不知道是什么的类型（数字、日期、勾选……）：卡片上值前面带上属性名
+const LABELED = new Set<Prop['type']>(['number', 'formula', 'rollup', 'date', 'created_time', 'updated_time', 'checkbox', 'unique_id', 'url', 'email', 'phone', 'text'])
+function PropLabel({ p }: { p: Prop }) {
+  return (
+    <span className="db-card-label">
+      <TypeIcon type={p.type} />
+      <span className="db-card-label-text">{p.name}</span>
+    </span>
+  )
 }
 
 /** 卡片上显示的属性：视图里没隐藏、有值的 */
@@ -30,8 +40,11 @@ function Card({ row, props, onOpen, cover, draggable, onDragStart }: { row: Row;
       <div className="db-card-body">
         <div className={'db-card-title' + (row.props.title ? '' : ' is-empty')}>{(row.props.title as string) || t('untitled')}</div>
         {shown.map((p) => (
-          <div key={p.key} className={'db-card-prop is-' + p.type} title={p.name}>
-            <CellView p={p} row={row} />
+          <div key={p.key} className={'db-card-prop is-' + p.type + (LABELED.has(p.type) ? ' has-label' : '')} title={p.name}>
+            {LABELED.has(p.type) && <PropLabel p={p} />}
+            <span className="db-card-val">
+              <CellView p={p} row={row} />
+            </span>
           </div>
         ))}
       </div>
@@ -237,7 +250,7 @@ export function CalendarView({ view, result }: VProps) {
     <div className="db-cal">
       <div className="db-cal-head">
         <span className="db-cal-title">
-          {cursor.getFullYear()} 年 {cursor.getMonth() + 1} 月
+          {t('monthTitle', { y: cursor.getFullYear(), m: cursor.getMonth() + 1 })}
         </span>
         <span className="db-cal-nodate">{noDate ? `${t('noDate')} · ${noDate}` : ''}</span>
         <div className="db-menu-seg db-cal-mode">
@@ -288,7 +301,7 @@ export function CalendarView({ view, result }: VProps) {
               }}
             >
               <div className="db-cal-num">
-                <span>{d.getDate() === 1 && mode === 'month' ? `${d.getMonth() + 1}月${d.getDate()}日` : d.getDate()}</span>
+                <span>{d.getDate() === 1 && mode === 'month' ? t('monthDay', { m: d.getMonth() + 1, d: d.getDate() }) : d.getDate()}</span>
                 {canWrite && prop.type === 'date' && (
                   <button type="button" className="db-cal-add" aria-label={t('newRow')} onClick={() => store.addRow({ ...groupDefaults(store, view), [prop.key]: { start: k } })}>
                     +
@@ -436,7 +449,8 @@ export function ListView({ view, result, maxHeight }: VProps) {
               <span className="db-list-props">
                 {props.map((p) =>
                   isEmptyVal(cellValue(store, p, row)) ? null : (
-                    <span key={p.key} className="db-list-prop">
+                    <span key={p.key} className="db-list-prop" title={p.name}>
+                      {(p.type === 'number' || p.type === 'formula' || p.type === 'rollup' || p.type === 'checkbox') && <span className="db-list-label">{p.name}</span>}
                       <CellView p={p} row={row} />
                     </span>
                   ),

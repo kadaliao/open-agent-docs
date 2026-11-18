@@ -1,6 +1,7 @@
 // 数据库界面的小零件：浮层、选项色块、类型图标、每种类型能用的筛选条件和汇总。
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { getLocale } from '../i18n'
 import type { Color, Prop, PropType, SelectOption } from './types'
 
 // ---------- 浮层 ----------
@@ -59,7 +60,9 @@ export function Popover({ anchor, onClose, children, className = '', width, alig
 
 // ---------- 选项 ----------
 export const COLORS: Color[] = ['default', 'gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red']
-export const COLOR_NAMES: Record<Color, string> = { default: '默认', gray: '灰', brown: '棕', orange: '橙', yellow: '黄', green: '绿', blue: '蓝', purple: '紫', pink: '粉', red: '红' }
+const COLOR_ZH: Record<Color, string> = { default: '默认', gray: '灰', brown: '棕', orange: '橙', yellow: '黄', green: '绿', blue: '蓝', purple: '紫', pink: '粉', red: '红' }
+const COLOR_EN: Record<Color, string> = { default: 'Default', gray: 'Gray', brown: 'Brown', orange: 'Orange', yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple', pink: 'Pink', red: 'Red' }
+export const COLOR_NAMES: Record<Color, string> = new Proxy(COLOR_ZH, { get: (z, k: string) => (getLocale() === 'en' ? COLOR_EN : z)[k as Color] })
 
 export function Pill({ opt, status, onRemove }: { opt: Pick<SelectOption, 'name' | 'color'>; status?: boolean; onRemove?: () => void }) {
   return (
