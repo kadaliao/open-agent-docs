@@ -12,6 +12,8 @@ import math
 import re
 import statistics
 from datetime import date, datetime, timedelta
+from . import i18n
+from .i18n import N_
 
 MAX_LEN = 1000      # 公式最长多少字
 MAX_DEPTH = 40      # 嵌套多深
@@ -38,7 +40,7 @@ def _tokens(src: str) -> list[tuple[str, str]]:
     while i < len(src):
         m = _TOKEN.match(src, i)
         if not m or m.end() == i:
-            raise FormulaError(f"公式第 {i + 1} 个字附近看不懂：{src[i:i + 12]}")
+            raise FormulaError(i18n.t("公式第 {n} 个字附近看不懂：{text}", n=i + 1, text=src[i:i + 12]))
         i = m.end()
         kind = m.lastgroup
         text = m.group(kind)
@@ -72,21 +74,21 @@ class _Parser:
     def take(self, text=None):
         tok = self.t[self.i]
         if text is not None and tok[1] != text:
-            got = tok[1] or "结尾"
-            raise FormulaError(f"公式这里应该是「{text}」，不是「{got}」")
+            got = tok[1] or i18n.t("结尾")
+            raise FormulaError(i18n.t("公式这里应该是「{want}」，不是「{got}」", want=text, got=got))
         self.i += 1
         return tok
 
     def parse(self):
         node = self.expr()
         if self.peek()[0] != "end":
-            raise FormulaError(f"公式多了「{self.peek()[1]}」")
+            raise FormulaError(i18n.t("公式多了「{text}」", text=self.peek()[1]))
         return node
 
     def expr(self):
         self.depth += 1
         if self.depth > MAX_DEPTH:
-            raise FormulaError("公式嵌套太深")
+            raise FormulaError(i18n.t("公式嵌套太深"))
         cond = self.binary(1)
         if self.peek() == ("op", "?"):
             self.take()
@@ -119,7 +121,7 @@ class _Parser:
     def atom(self):
         kind, text = self.take()
         if kind == "end":
-            raise FormulaError("公式没写完")
+            raise FormulaError(i18n.t("公式没写完"))
         if kind == "num":
             return ("lit", float(text) if any(c in text for c in ".eE") else int(text))
         if kind == "str":
@@ -133,7 +135,7 @@ class _Parser:
             if low in ("true", "false") and self.peek() != ("op", "("):
                 return ("lit", low == "true")
             if self.peek() != ("op", "("):
-                raise FormulaError(f"「{text}」后面要跟括号；取属性的值写 prop(\"{text}\")")
+                raise FormulaError(i18n.t("「{name}」后面要跟括号；取属性的值写 prop(\"{name}\")", name=text))
             self.take("(")
             args = []
             if self.peek() != ("op", ")"):
@@ -146,23 +148,23 @@ class _Parser:
             self.take(")")
             if low == "prop":
                 if len(args) != 1 or args[0][0] != "lit" or not isinstance(args[0][1], str):
-                    raise FormulaError('prop 里写属性名，比如 prop("数量")')
+                    raise FormulaError(i18n.t('prop 里写属性名，比如 prop("数量")'))
                 return ("prop", args[0][1])
             if low not in FUNCS:
-                raise FormulaError(f"没有函数 {text}，能用的有：{', '.join(sorted(FUNCS))}")
+                raise FormulaError(i18n.t("没有函数 {name}，能用的有：{funcs}", name=text, funcs=", ".join(sorted(FUNCS))))
             lo, hi = FUNCS[low][1]
             if len(args) < lo or (hi is not None and len(args) > hi):
-                raise FormulaError(f"{low} 的参数个数不对（{FUNCS[low][2]}）")
+                raise FormulaError(i18n.t("{name} 的参数个数不对（{usage}）", name=low, usage=i18n.t(FUNCS[low][2])))
             return ("call", low, args)
-        raise FormulaError(f"公式这里多了「{text or '结尾'}」")
+        raise FormulaError(i18n.t("公式这里多了「{text}」", text=text or i18n.t("结尾")))
 
 
 def parse(src: str):
     src = str(src or "").strip()
     if not src:
-        raise FormulaError("公式是空的")
+        raise FormulaError(i18n.t("公式是空的"))
     if len(src) > MAX_LEN:
-        raise FormulaError(f"公式太长（最多 {MAX_LEN} 字）")
+        raise FormulaError(i18n.t("公式太长（最多 {n} 字）", n=MAX_LEN))
     return _Parser(src).parse()
 
 
@@ -246,7 +248,7 @@ def _clean(v):
     """算出来的值：数字规整一下，NaN、无穷当成错。"""
     if isinstance(v, float):
         if v != v or v in (math.inf, -math.inf):
-            raise FormulaError("算出来不是一个数")
+            raise FormulaError(i18n.t("算出来不是一个数"))
         return int(v) if v.is_integer() and abs(v) < 2 ** 53 else round(v, 10)
     if isinstance(v, str) and len(v) > MAX_STR:
         return v[:MAX_STR]
@@ -256,7 +258,7 @@ def _clean(v):
 def _arith(op, a, b):
     if op == "+":
         if isinstance(a, datetime) or isinstance(b, datetime):
-            raise FormulaError("日期要用 dateAdd 加减")
+            raise FormulaError(i18n.t("日期要用 dateAdd 加减"))
         if isinstance(a, str) or isinstance(b, str) or isinstance(a, list) or isinstance(b, list):
             return text(a) + text(b)
     x, y = num(a), num(b)
@@ -276,7 +278,7 @@ def _arith(op, a, b):
         return None if y == 0 else math.fmod(x, y)
     if op == "^":
         if abs(y) > 1000:
-            raise FormulaError("次方太大")
+            raise FormulaError(i18n.t("次方太大"))
         return x ** y
     raise FormulaError(op)
 
@@ -298,13 +300,13 @@ def _cmp(op, a, b):
 
 _UNITS = {"years": "years", "year": "years", "年": "years", "quarters": "quarters", "季度": "quarters", "months": "months", "month": "months",
           "月": "months", "weeks": "weeks", "week": "weeks", "周": "weeks", "days": "days", "day": "days", "天": "days", "日": "days",
-          "hours": "hours", "hour": "hours", "小时": "hours", "minutes": "minutes", "minute": "minutes", "分钟": "minutes"}
+          "quarter": "quarters", "hours": "hours", "hour": "hours", "小时": "hours", "minutes": "minutes", "minute": "minutes", "分钟": "minutes"}
 
 
 def _unit(u) -> str:
     u = _UNITS.get(str(u or "").strip().lower())
     if not u:
-        raise FormulaError("时间单位写 years、months、weeks、days、hours、minutes（或者 年、月、周、天、小时、分钟）")
+        raise FormulaError(i18n.t("时间单位写 years、months、weeks、days、hours、minutes（或者 年、月、周、天、小时、分钟）"))
     return u
 
 
@@ -375,48 +377,48 @@ def _slice(s, a, b=None):
     return s[a:b]
 
 
-# 函数：名字 → (实现, (最少参数, 最多参数 / None 不限), 写法)
+# 函数：名字 → (实现, (最少参数, 最多参数 / None 不限), 写法)。写法里有中文的包上 N_，报错时再翻
 FUNCS = {
-    "if": (None, (3, 3), "if(条件, 是的话, 不是的话)"),
-    "ifs": (None, (3, None), "ifs(条件1, 值1, 条件2, 值2, …, 都不是的话)"),
-    "and": (None, (1, None), "and(甲, 乙, …)"),
-    "or": (None, (1, None), "or(甲, 乙, …)"),
-    "not": (lambda v: not _truth(v), (1, 1), "not(甲)"),
-    "empty": (lambda v: _empty(v), (1, 1), "empty(值)"),
-    "length": (lambda v: len(v) if isinstance(v, list) else len(text(v)), (1, 1), "length(文字或列表)"),
-    "concat": (lambda *a: "".join(text(x) for x in a), (1, None), "concat(甲, 乙, …)"),
-    "join": (lambda lst, sep="": text(sep).join(text(x) for x in (lst if isinstance(lst, list) else [lst])), (1, 2), "join(列表, 分隔)"),
-    "contains": (lambda s, x: (text(x) in [text(y) for y in s]) if isinstance(s, list) else text(x) in text(s), (2, 2), "contains(文字或列表, 找什么)"),
-    "replace": (lambda s, a, b: text(s).replace(text(a), text(b)), (3, 3), "replace(文字, 旧, 新)"),
-    "lower": (lambda s: text(s).lower(), (1, 1), "lower(文字)"),
-    "upper": (lambda s: text(s).upper(), (1, 1), "upper(文字)"),
-    "trim": (lambda s: text(s).strip(), (1, 1), "trim(文字)"),
-    "slice": (_slice, (2, 3), "slice(文字, 从, 到)"),
-    "tonumber": (lambda v: num(v), (1, 1), "toNumber(值)"),
-    "totext": (lambda v: text(v), (1, 1), "toText(值)"),
-    "format": (lambda v: text(v), (1, 1), "format(值)"),
-    "round": (_round, (1, 2), "round(数, 小数位)"),
-    "floor": (lambda x: None if num(x) is None else math.floor(num(x)), (1, 1), "floor(数)"),
-    "ceil": (lambda x: None if num(x) is None else math.ceil(num(x)), (1, 1), "ceil(数)"),
-    "abs": (lambda x: None if num(x) is None else abs(num(x)), (1, 1), "abs(数)"),
-    "sqrt": (lambda x: None if num(x) is None or num(x) < 0 else math.sqrt(num(x)), (1, 1), "sqrt(数)"),
-    "pow": (lambda x, y: _arith("^", x, y), (2, 2), "pow(底, 次方)"),
-    "min": (lambda *a: min(_nums(a)) if _nums(a) else None, (1, None), "min(甲, 乙, …)"),
-    "max": (lambda *a: max(_nums(a)) if _nums(a) else None, (1, None), "max(甲, 乙, …)"),
-    "sum": (lambda *a: sum(_nums(a)), (1, None), "sum(甲, 乙, …)"),
-    "average": (lambda *a: statistics.fmean(_nums(a)) if _nums(a) else None, (1, None), "average(甲, 乙, …)"),
+    "if": (None, (3, 3), N_("if(条件, 是的话, 不是的话)")),
+    "ifs": (None, (3, None), N_("ifs(条件1, 值1, 条件2, 值2, …, 都不是的话)")),
+    "and": (None, (1, None), N_("and(甲, 乙, …)")),
+    "or": (None, (1, None), N_("or(甲, 乙, …)")),
+    "not": (lambda v: not _truth(v), (1, 1), N_("not(甲)")),
+    "empty": (lambda v: _empty(v), (1, 1), N_("empty(值)")),
+    "length": (lambda v: len(v) if isinstance(v, list) else len(text(v)), (1, 1), N_("length(文字或列表)")),
+    "concat": (lambda *a: "".join(text(x) for x in a), (1, None), N_("concat(甲, 乙, …)")),
+    "join": (lambda lst, sep="": text(sep).join(text(x) for x in (lst if isinstance(lst, list) else [lst])), (1, 2), N_("join(列表, 分隔)")),
+    "contains": (lambda s, x: (text(x) in [text(y) for y in s]) if isinstance(s, list) else text(x) in text(s), (2, 2), N_("contains(文字或列表, 找什么)")),
+    "replace": (lambda s, a, b: text(s).replace(text(a), text(b)), (3, 3), N_("replace(文字, 旧, 新)")),
+    "lower": (lambda s: text(s).lower(), (1, 1), N_("lower(文字)")),
+    "upper": (lambda s: text(s).upper(), (1, 1), N_("upper(文字)")),
+    "trim": (lambda s: text(s).strip(), (1, 1), N_("trim(文字)")),
+    "slice": (_slice, (2, 3), N_("slice(文字, 从, 到)")),
+    "tonumber": (lambda v: num(v), (1, 1), N_("toNumber(值)")),
+    "totext": (lambda v: text(v), (1, 1), N_("toText(值)")),
+    "format": (lambda v: text(v), (1, 1), N_("format(值)")),
+    "round": (_round, (1, 2), N_("round(数, 小数位)")),
+    "floor": (lambda x: None if num(x) is None else math.floor(num(x)), (1, 1), N_("floor(数)")),
+    "ceil": (lambda x: None if num(x) is None else math.ceil(num(x)), (1, 1), N_("ceil(数)")),
+    "abs": (lambda x: None if num(x) is None else abs(num(x)), (1, 1), N_("abs(数)")),
+    "sqrt": (lambda x: None if num(x) is None or num(x) < 0 else math.sqrt(num(x)), (1, 1), N_("sqrt(数)")),
+    "pow": (lambda x, y: _arith("^", x, y), (2, 2), N_("pow(底, 次方)")),
+    "min": (lambda *a: min(_nums(a)) if _nums(a) else None, (1, None), N_("min(甲, 乙, …)")),
+    "max": (lambda *a: max(_nums(a)) if _nums(a) else None, (1, None), N_("max(甲, 乙, …)")),
+    "sum": (lambda *a: sum(_nums(a)), (1, None), N_("sum(甲, 乙, …)")),
+    "average": (lambda *a: statistics.fmean(_nums(a)) if _nums(a) else None, (1, None), N_("average(甲, 乙, …)")),
     "now": (lambda: datetime.now().replace(second=0, microsecond=0), (0, 0), "now()"),
     "today": (lambda: datetime.combine(date.today(), datetime.min.time()), (0, 0), "today()"),
-    "dateadd": (_date_add, (3, 3), 'dateAdd(日期, 数, "days")'),
-    "datesubtract": (lambda d, n, u: _date_add(d, -(num(n) or 0), u), (3, 3), 'dateSubtract(日期, 数, "days")'),
-    "datebetween": (_date_between, (3, 3), 'dateBetween(日期1, 日期2, "days")：日期1 减 日期2'),
-    "formatdate": (_format_date, (1, 2), 'formatDate(日期, "YYYY-MM-DD")'),
+    "dateadd": (_date_add, (3, 3), N_('dateAdd(日期, 数, "days")')),
+    "datesubtract": (lambda d, n, u: _date_add(d, -(num(n) or 0), u), (3, 3), N_('dateSubtract(日期, 数, "days")')),
+    "datebetween": (_date_between, (3, 3), N_('dateBetween(日期1, 日期2, "days")：日期1 减 日期2')),
+    "formatdate": (_format_date, (1, 2), N_('formatDate(日期, "YYYY-MM-DD")')),
     "parsedate": (lambda s: to_dt(text(s)), (1, 1), 'parseDate("2026-11-15")'),
-    "year": (lambda d: to_dt(d).year if to_dt(d) else None, (1, 1), "year(日期)"),
-    "month": (lambda d: to_dt(d).month if to_dt(d) else None, (1, 1), "month(日期)"),
-    "day": (lambda d: to_dt(d).day if to_dt(d) else None, (1, 1), "day(日期)"),
-    "weekday": (lambda d: to_dt(d).isoweekday() if to_dt(d) else None, (1, 1), "weekday(日期)：周一是 1，周日是 7"),
-    "hour": (lambda d: to_dt(d).hour if to_dt(d) else None, (1, 1), "hour(日期)"),
+    "year": (lambda d: to_dt(d).year if to_dt(d) else None, (1, 1), N_("year(日期)")),
+    "month": (lambda d: to_dt(d).month if to_dt(d) else None, (1, 1), N_("month(日期)")),
+    "day": (lambda d: to_dt(d).day if to_dt(d) else None, (1, 1), N_("day(日期)")),
+    "weekday": (lambda d: to_dt(d).isoweekday() if to_dt(d) else None, (1, 1), N_("weekday(日期)：周一是 1，周日是 7")),
+    "hour": (lambda d: to_dt(d).hour if to_dt(d) else None, (1, 1), N_("hour(日期)")),
 }
 
 
@@ -475,10 +477,11 @@ def run(node, get):
 
 
 # ---------- 汇总 ----------
-ROLLUPS = {"show": "显示原值", "show_unique": "去重显示", "count": "条数", "count_values": "有值的个数", "count_unique": "不同值的个数",
-           "count_empty": "空的个数", "percent_empty": "空的占比", "sum": "求和", "average": "平均", "median": "中位数",
-           "min": "最小", "max": "最大", "range": "最大减最小", "earliest": "最早", "latest": "最晚",
-           "checked": "勾了几个", "percent_checked": "勾了的占比"}
+# 算法的名字（中文原文，显示时 i18n.t）
+ROLLUPS = {"show": N_("显示原值"), "show_unique": N_("去重显示"), "count": N_("条数"), "count_values": N_("有值的个数"), "count_unique": N_("不同值的个数"),
+           "count_empty": N_("空的个数"), "percent_empty": N_("空的占比"), "sum": N_("求和"), "average": N_("平均"), "median": N_("中位数"),
+           "min": N_("最小"), "max": N_("最大"), "range": N_("最大减最小"), "earliest": N_("最早"), "latest": N_("最晚"),
+           "checked": N_("勾了几个"), "percent_checked": N_("勾了的占比")}
 
 
 def rollup(fn: str, values: list, total: int):

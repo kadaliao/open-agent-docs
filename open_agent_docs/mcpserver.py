@@ -24,13 +24,14 @@ from pydantic import BaseModel, Field
 
 from . import agents, dbcalc, dbs, events, i18n, library, media, notify, pagecomments, pagedoc, search
 from .config import PUBLIC_URL
+from .i18n import N_, t
 
 PATH = "/mcp"
 LIST_LIMIT = 300     # list_pages 最多列这么多行
 
 
 # ---------- MCP 工具 ----------
-INSTRUCTIONS = """这是 Open Agent Docs：用户和各个 Agent 一起写的文档（Markdown 页面，可以有子页面；还有数据库）。
+INSTRUCTIONS = N_("""这是 Open Agent Docs：用户和各个 Agent 一起写的文档（Markdown 页面，可以有子页面；还有数据库）。
 你写的内容署你的名字（建 Agent 时起的），用户在网页上实时看到，也能在段落上给你写评论。
 
 怎么用：
@@ -43,7 +44,7 @@ INSTRUCTIONS = """这是 Open Agent Docs：用户和各个 Agent 一起写的文
 - 页面里放图片：先用 upload_image 传上来，把它返回的 ![说明](/api/media/编号) 写进页面。
 - 用户锁定的页面只能读和评论。
 - 数据库（多维表：任务看板、会议列表这类一条一行、带属性的表）：read_page 读库会给出属性和前面的行；db_query 筛选、排序，
-  db_add 加行，db_update 改属性（带行的版本号），db_schema 改表结构，db_create 建库。每一行也是页面，正文用 read_page / edit_page。"""
+  db_add 加行，db_update 改属性（带行的版本号），db_schema 改表结构，db_create 建库。每一行也是页面，正文用 read_page / edit_page。""")
 
 WRITE_TOOLS = {"create_page", "edit_page", "rewrite_page", "comment_page", "upload_image", "db_create", "db_schema", "db_add", "db_update"}
 _RO = ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -53,9 +54,26 @@ _RW = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_h
 class _Server(MCPServer):
     async def _handle_list_tools(self, ctx, params):
         res = await super()._handle_list_tools(ctx, params)
+        tools = res.tools
         if _scope_of(getattr(ctx, "request", None)) not in ("write", "admin"):   # 只读的 token 看不到写的工具
-            res = ListToolsResult(tools=[t for t in res.tools if t.name not in WRITE_TOOLS])
-        return res
+            tools = [x for x in tools if x.name not in WRITE_TOOLS]
+        # 说明在 import 时就登记好了（中文原文）：语言能在设置里随时换，所以列工具的时候再翻
+        return ListToolsResult(tools=[x.model_copy(update={"description": _tr(x.description) if x.description else x.description,
+                                                           "input_schema": _tr_schema(x.input_schema)}) for x in tools])
+
+
+def _tr(s: str) -> str:
+    """一段说明：整段是一个键就整段翻；拼起来的（db_add 的说明后面接着值的写法）按行翻。"""
+    return t(s) if s in i18n.EN else "\n".join(t(x) for x in s.split("\n"))
+
+
+def _tr_schema(x):
+    """参数说明（JSON Schema 里每一层的 description）按现在的语言翻。"""
+    if isinstance(x, dict):
+        return {k: _tr(v) if k == "description" and isinstance(v, str) else _tr_schema(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_tr_schema(v) for v in x]
+    return x
 
 
 def _scope_of(req) -> str:
@@ -67,9 +85,9 @@ def _agent(ctx: Context, write: bool = False) -> dict:
     req = ctx.request_context.request
     a = req.scope.get("oad.agent") if req is not None else None
     if not a:
-        raise ToolError("没有带 token")
+        raise ToolError(t("没有带 token"))
     if write and a["scope"] not in ("write", "admin"):
-        raise ToolError("这个 token 只读，不能改文档。要写的话在网页的 设置 → Agent 里建一个可写的")
+        raise ToolError(t("这个 token 只读，不能改文档。要写的话在网页的 设置 → Agent 里建一个可写的"))
     return a
 
 
@@ -117,20 +135,21 @@ def _tool(description: str, read_only: bool):
     return server.tool(description=description, annotations=_RO if read_only else _RW, structured_output=False)
 
 
-@_tool("按关键词查页面（标题、正文、数据库行的属性），返回页面编号、标题、命中的那一小段。看全文用 read_page。", read_only=True)
-async def search_pages(query: Annotated[str, Field(description="要找什么，用自然的说法；可以多写几个同义的词")],
+@_tool(N_("按关键词查页面（标题、正文、数据库行的属性），返回页面编号、标题、命中的那一小段。看全文用 read_page。"), read_only=True)
+async def search_pages(query: Annotated[str, Field(description=N_("要找什么，用自然的说法；可以多写几个同义的词"))],
                        ctx: Context,
-                       limit: Annotated[int, Field(description="最多返回几个，默认 10", ge=1, le=30)] = 10) -> str:
+                       limit: Annotated[int, Field(description=N_("最多返回几个，默认 10"), ge=1, le=30)] = 10) -> str:
     _agent(ctx)
     hits = await search.search(query, limit)
     if not hits:
-        return "没找到相关的页面"
-    return "\n".join(f"- #{h['ref']}《{h['title']}》{_url(ctx, h['ref'])}：{h['snippet']}" for h in hits)
+        return t("没找到相关的页面")
+    return "\n".join(t("- #{id}《{title}》{url}：{snippet}", id=h["ref"], title=h["title"], url=_url(ctx, h["ref"]), snippet=h["snippet"])
+                     for h in hits)
 
 
-@_tool("列出页面目录（缩进的是子页面），带页面编号、格式、版本号和更新时间。给 parent_id 只列那个页面下面的。", read_only=True)
+@_tool(N_("列出页面目录（缩进的是子页面），带页面编号、格式、版本号和更新时间。给 parent_id 只列那个页面下面的。"), read_only=True)
 async def list_pages(ctx: Context,
-                     parent_id: Annotated[int | None, Field(description="可选：只列这个页面下面的子页面")] = None) -> str:
+                     parent_id: Annotated[int | None, Field(description=N_("可选：只列这个页面下面的子页面"))] = None) -> str:
     _agent(ctx)
     pages = library.list_pages()   # 置顶的在前、新的在前：最上层就按这个顺序，和网页上的页面树一样
     by_id = {p["id"]: p for p in pages}
@@ -142,7 +161,7 @@ async def list_pages(ctx: Context,
         if k is not None:
             v.sort(key=lambda p: (p["pos"], p["id"]))
     if parent_id is not None and parent_id not in by_id:
-        return f"没有页面 #{parent_id}"
+        return t("没有页面 #{id}", id=parent_id)
     lines: list[str] = []
     total = [0]
 
@@ -150,57 +169,58 @@ async def list_pages(ctx: Context,
         for p in kids.get(pid, []):
             total[0] += 1
             if len(lines) < LIST_LIMIT:
-                extra = " · html" + (" 小应用" if p["app"] else "") if p["format"] == "html" else f" · 版本 {p['version']}"
-                lines.append(f"{'  ' * depth}- #{p['id']}《{p['title']}》{extra}{' · 已锁定' if p['locked'] else ''}"
-                             f" · {_when(p['updated'])} 更新")
+                extra = " · html" + (" " + t("小应用") if p["app"] else "") if p["format"] == "html" else " · " + t("版本 {v}", v=p["version"])
+                lines.append(f"{'  ' * depth}- " + t("#{id}《{title}》", id=p["id"], title=p["title"]) + extra
+                             + (" · " + t("已锁定") if p["locked"] else "") + " · " + t("{when} 更新", when=_when(p["updated"])))
             if p["id"] not in seen:
                 walk(p["id"], depth + 1, seen | {p["id"]})
 
     walk(parent_id, 0, frozenset())
     if parent_id is not None:
-        up = "".join(f"#{x['id']}《{x['title']}》 / " for x in library.family(parent_id)["ancestors"])
-        head = f"{up}#{parent_id}《{by_id[parent_id]['title']}》下面有 {total[0]} 个页面" + ("：" if total[0] else "")
+        up = "".join(t("#{id}《{title}》", id=x["id"], title=x["title"]) + " / " for x in library.family(parent_id)["ancestors"])
+        kw = {"path": up, "id": parent_id, "title": by_id[parent_id]["title"], "n": total[0]}
+        head = t("{path}#{id}《{title}》下面有 {n} 个页面：", **kw) if total[0] else t("{path}#{id}《{title}》下面有 {n} 个页面", **kw)
     else:
-        head = f"共 {total[0]} 个页面" + ("（缩进的是子页面）：" if total[0] else "")
-    more = f"\n…还有 {total[0] - len(lines)} 个没列出来，用 parent_id 分开看，或者用 search_pages 找" if total[0] > len(lines) else ""
+        head = t("共 {n} 个页面（缩进的是子页面）：", n=total[0]) if total[0] else t("共 {n} 个页面", n=total[0])
+    more = "\n" + t("…还有 {n} 个没列出来，用 parent_id 分开看，或者用 search_pages 找", n=total[0] - len(lines)) if total[0] > len(lines) else ""
     return head + ("\n" + "\n".join(lines) if lines else "") + more
 
 
-@_tool("读一个页面（html 页面只给文字）。markdown 页面带版本号，每段前面一行是段落编号 ⟦xxxx⟧，"
-       "改页面、写评论时用；末尾附上没处理的评论。页面太长时会告诉你从哪一段接着读。", read_only=True)
+@_tool(N_("读一个页面（html 页面只给文字）。markdown 页面带版本号，每段前面一行是段落编号 ⟦xxxx⟧，"
+       "改页面、写评论时用；末尾附上没处理的评论。页面太长时会告诉你从哪一段接着读。"), read_only=True)
 async def read_page(page_id: int, ctx: Context,
-                    start: Annotated[str | None, Field(description="可选：从这个段落编号开始读（页面太长、上次没读完时）")] = None) -> str:
+                    start: Annotated[str | None, Field(description=N_("可选：从这个段落编号开始读（页面太长、上次没读完时）"))] = None) -> str:
     _agent(ctx)
     return library.tool_read_page({"page_id": page_id, "start": start})
 
 
-@_tool("新建一个 Markdown 页面，返回页面编号和网页链接。给 parent_id 就放在那个页面下面当子页面。", read_only=False)
+@_tool(N_("新建一个 Markdown 页面，返回页面编号和网页链接。给 parent_id 就放在那个页面下面当子页面。"), read_only=False)
 async def create_page(title: str,
-                      content: Annotated[str, Field(description="页面全文，Markdown")],
+                      content: Annotated[str, Field(description=N_("页面全文，Markdown"))],
                       ctx: Context,
-                      parent_id: Annotated[int | None, Field(description="可选：放在哪个页面下面当子页面")] = None) -> str:
+                      parent_id: Annotated[int | None, Field(description=N_("可选：放在哪个页面下面当子页面"))] = None) -> str:
     a = _agent(ctx, write=True)
     try:
         p = library.save_page(None, title, media.embed(content), "markdown", by=_by(a), parent_id=parent_id)
     except (ValueError, TypeError) as e:
-        return f"没建：{e}"
+        return t("没建：{error}", error=e)
     await events.emit("pages_changed")
-    return (f"已建页面 #{p['id']}「{p['title']}」（版本 {p['version']}），网页上打开：{_url(ctx, p['id'])}。"
-            "接着改用 read_page 看段落编号，再用 edit_page 按段改。")
+    return t("已建页面 #{id}「{title}」（版本 {v}），网页上打开：{url}。接着改用 read_page 看段落编号，再用 edit_page 按段改。",
+             id=p["id"], title=p["title"], v=p["version"], url=_url(ctx, p["id"]))
 
 
 class EditOp(BaseModel):
     op: Literal["replace", "insert_after", "insert_before", "delete", "append"] = Field(
-        description="replace 换掉一段；insert_after / insert_before 加在某段后面 / 前面；delete 删掉一段；append 加到页面最后")
-    block: str | None = Field(None, description="段落编号，比如 k7qd（append 不用填）")
-    markdown: str | None = Field(None, description="新的内容，可以是好几段（delete 不用填）")
+        description=N_("replace 换掉一段；insert_after / insert_before 加在某段后面 / 前面；delete 删掉一段；append 加到页面最后"))
+    block: str | None = Field(None, description=N_("段落编号，比如 k7qd（append 不用填）"))
+    markdown: str | None = Field(None, description=N_("新的内容，可以是好几段（delete 不用填）"))
 
 
-@_tool("按段改 markdown 页面：只动要改的段，不会冲掉别人刚改的地方。先用 read_page 读，拿到版本号和段落编号。"
-       "一次可以改好几处，全部生效或者都不生效；要改的段在你读过之后被别人改了，会告诉你它现在的内容，按新版本号再提交就行。", read_only=False)
+@_tool(N_("按段改 markdown 页面：只动要改的段，不会冲掉别人刚改的地方。先用 read_page 读，拿到版本号和段落编号。"
+       "一次可以改好几处，全部生效或者都不生效；要改的段在你读过之后被别人改了，会告诉你它现在的内容，按新版本号再提交就行。"), read_only=False)
 async def edit_page(page_id: int,
-                    version: Annotated[int, Field(description="read_page 显示的版本号")],
-                    ops: Annotated[list[EditOp], Field(description="按顺序执行的修改")],
+                    version: Annotated[int, Field(description=N_("read_page 显示的版本号"))],
+                    ops: Annotated[list[EditOp], Field(description=N_("按顺序执行的修改"))],
                     ctx: Context) -> str:
     a = _agent(ctx, write=True)
     out, event = pagedoc.tool_edit(_by(a), {"page_id": page_id, "version": version,
@@ -211,57 +231,57 @@ async def edit_page(page_id: int,
     return out
 
 
-@_tool("整页换成新的正文（markdown 页面）。没变的段保留原来的编号和作者，评论还挂着。要带 read_page 看到的版本号；"
-       "会覆盖掉你读过之后别人改过的段时不写，告诉你那几段现在的内容。只改几处用 edit_page。", read_only=False)
+@_tool(N_("整页换成新的正文（markdown 页面）。没变的段保留原来的编号和作者，评论还挂着。要带 read_page 看到的版本号；"
+       "会覆盖掉你读过之后别人改过的段时不写，告诉你那几段现在的内容。只改几处用 edit_page。"), read_only=False)
 async def rewrite_page(page_id: int,
-                       version: Annotated[int, Field(description="read_page 显示的版本号")],
-                       content: Annotated[str, Field(description="页面全文，Markdown（不要带段落编号）")],
+                       version: Annotated[int, Field(description=N_("read_page 显示的版本号"))],
+                       content: Annotated[str, Field(description=N_("页面全文，Markdown（不要带段落编号）"))],
                        ctx: Context,
-                       title: Annotated[str | None, Field(description="可选：新标题，不给就不改")] = None) -> str:
+                       title: Annotated[str | None, Field(description=N_("可选：新标题，不给就不改"))] = None) -> str:
     a = _agent(ctx, write=True)
     old = library.get_page(page_id, False)
     if not old:
-        return f"没有页面 #{page_id}"
+        return t("没有页面 #{id}", id=page_id)
     if old["format"] != "markdown":
-        return f"没保存：页面 #{page_id} 是 html 页面，只能读"
+        return t("没保存：页面 #{id} 是 html 页面，只能读", id=page_id)
     if old["locked"]:
-        return f"没保存：页面 #{page_id}「{old['title']}」被用户锁定了，只能读，有意见用 comment_page"
+        return t("没保存：页面 #{id}「{title}」被用户锁定了，只能读，有意见用 comment_page", id=page_id, title=old["title"])
     try:
         p = library.save_page(None, title or old["title"], media.embed(content), "markdown", page_id, by=_by(a), base=version)
     except pagedoc.Conflict as e:
-        return pagedoc.conflict_text(e, "没保存")
+        return pagedoc.conflict_text(e, N_("没保存"))
     except (ValueError, TypeError, LookupError) as e:
-        return f"没保存：{e}"
+        return t("没保存：{error}", error=e)
     if p["version"] == old["version"]:
-        return f"页面 #{page_id}「{p['title']}」没有变化（版本 {p['version']}）"
+        return t("页面 #{id}「{title}」没有变化（版本 {v}）", id=page_id, title=p["title"], v=p["version"])
     await events.emit("page_changed", page_id=p["id"], version=p["version"], by=_by(a), title=p["title"],
                         updated=p["updated"], changed=[])   # changed 为空：网页上开着的整页重新拉
     await events.emit("pages_changed")
-    return f"已保存页面 #{p['id']}「{p['title']}」，现在是版本 {p['version']}：{_url(ctx, p['id'])}"
+    return t("已保存页面 #{id}「{title}」，现在是版本 {v}：{url}", id=p["id"], title=p["title"], v=p["version"], url=_url(ctx, p["id"]))
 
 
-@_tool("看一个页面上的评论：每串评论挂在哪一段（⟦段落编号⟧，没有就是对整页）、谁说的、回复。默认只看没解决的。", read_only=True)
+@_tool(N_("看一个页面上的评论：每串评论挂在哪一段（⟦段落编号⟧，没有就是对整页）、谁说的、回复。默认只看没解决的。"), read_only=True)
 async def list_comments(page_id: int, ctx: Context,
-                        include_resolved: Annotated[bool, Field(description="也列出已经解决的")] = False) -> str:
+                        include_resolved: Annotated[bool, Field(description=N_("也列出已经解决的"))] = False) -> str:
     _agent(ctx)
     p = library.get_page(page_id, False)
     if not p:
-        return f"没有页面 #{page_id}"
+        return t("没有页面 #{id}", id=page_id)
     text = pagecomments.render(page_id, 50, resolved=include_resolved)
     if text:
         return text
     if pagecomments.comments(page_id):
-        return f"页面 #{page_id}「{p['title']}」上的评论都解决了（include_resolved=true 能看到）"
-    return f"页面 #{page_id}「{p['title']}」上还没有评论"
+        return t("页面 #{id}「{title}」上的评论都解决了（include_resolved=true 能看到）", id=page_id, title=p["title"])
+    return t("页面 #{id}「{title}」上还没有评论", id=page_id, title=p["title"])
 
 
-@_tool("在页面上写评论、回复评论、把一串评论标成已解决。处理完用户的评论后用它回复（reply_to 填那条评论的编号），"
-       "事情办完了加 resolve=true。也能对某一段（block 填段落编号）或整页提意见。你写的评论不会通知别的 Agent。", read_only=False)
+@_tool(N_("在页面上写评论、回复评论、把一串评论标成已解决。处理完用户的评论后用它回复（reply_to 填那条评论的编号），"
+       "事情办完了加 resolve=true。也能对某一段（block 填段落编号）或整页提意见。你写的评论不会通知别的 Agent。"), read_only=False)
 async def comment_page(page_id: int, ctx: Context,
-                       text: Annotated[str | None, Field(description="评论内容（只想标成已解决可以不填）")] = None,
-                       block: Annotated[str | None, Field(description="可选：评论哪一段（read_page 里的段落编号）；不填就是整页")] = None,
-                       reply_to: Annotated[int | None, Field(description="可选：回复哪条评论（#编号）")] = None,
-                       resolve: Annotated[bool, Field(description="可选：把这串评论标成已解决（要和 reply_to 一起用）")] = False) -> str:
+                       text: Annotated[str | None, Field(description=N_("评论内容（只想标成已解决可以不填）"))] = None,
+                       block: Annotated[str | None, Field(description=N_("可选：评论哪一段（read_page 里的段落编号）；不填就是整页"))] = None,
+                       reply_to: Annotated[int | None, Field(description=N_("可选：回复哪条评论（#编号）"))] = None,
+                       resolve: Annotated[bool, Field(description=N_("可选：把这串评论标成已解决（要和 reply_to 一起用）"))] = False) -> str:
     a = _agent(ctx, write=True)
     out, pid = pagecomments.tool_comment(_by(a), {"page_id": page_id, "text": text, "block": block, "reply_to": reply_to,
                                                   "resolve": resolve})
@@ -291,6 +311,7 @@ class Endpoint:
         if not a:
             return await _reply(send, 401, i18n.t("token 不对或者已经撤销了：在 设置 → Agent 里新建一个"),
                                 [(b"www-authenticate", b'Bearer realm="open-agent-docs"')])
+        server._lowlevel_server.instructions = t(INSTRUCTIONS)   # initialize 时发给 Agent：按现在的语言
         # 无状态：每个请求起一个会话管理、处理完就收掉，不留常驻的任务（不用进 lifespan，测试里的 ASGITransport 也不跑 lifespan）。
         # 浏览器来的跨站请求带 Origin：server.py 的中间件已经拦了，这里不再查
         manager = StreamableHTTPSessionManager(app=server._lowlevel_server, stateless=True, json_response=True,
@@ -329,23 +350,23 @@ class _PropConfig(BaseModel):
 class DbProp(_PropConfig):
     name: str
     type: _TypeName = Field(description=dbs._PROP_SPEC["properties"]["type"]["description"])
-    options: list[str] | None = Field(None, description="单选、多选、状态的选项（按顺序）；状态不给就是 未开始 / 进行中 / 已完成")
+    options: list[str] | None = Field(None, description=N_("单选、多选、状态的选项（按顺序）；状态不给就是 未开始 / 进行中 / 已完成"))
     format: _Format | None = Field(None, description=_P["format"]["description"])
 
 
 class DbSchemaOp(_PropConfig):
     op: Literal["add", "update", "delete"]
-    prop: str | None = Field(None, description="update / delete：哪个属性（名字）")
-    name: str | None = Field(None, description="add：属性名；update：新名字")
+    prop: str | None = Field(None, description=N_("update / delete：哪个属性（名字）"))
+    name: str | None = Field(None, description=N_("add：属性名；update：新名字"))
     type: _TypeName | None = None
     options: list[str] | None = None
     format: _Format | None = None
 
 
 class DbFilter(BaseModel):
-    prop: str = Field(description="属性名")
+    prop: str = Field(description=N_("属性名"))
     op: Literal[tuple(dbs.OPS)] = Field(description=dbs.DB_QUERY["function"]["parameters"]["properties"]["filter"]["items"]["properties"]["op"]["description"])
-    value: Any = Field(None, description="比的值，写法和 db_add 一样；日期能写 today / 今天 / 明天")
+    value: Any = Field(None, description=N_("比的值，写法和 db_add 一样；日期能写 today / 今天 / 明天"))
 
 
 class DbSort(BaseModel):
@@ -354,15 +375,15 @@ class DbSort(BaseModel):
 
 
 class DbNewRow(BaseModel):
-    title: str = Field("", description="名称")
-    props: dict[str, Any] = Field(default_factory=dict, description="{属性名: 值}")
-    content: str = Field("", description="可选：这一行的正文（Markdown）")
+    title: str = Field("", description=N_("名称"))
+    props: dict[str, Any] = Field(default_factory=dict, description=N_("{属性名: 值}"))
+    content: str = Field("", description=N_("可选：这一行的正文（Markdown）"))
 
 
 class DbRowChange(BaseModel):
     row_id: int
-    props: dict[str, Any] = Field(description="{属性名: 新值}")
-    version: int | None = Field(None, description="这一行的版本号")
+    props: dict[str, Any] = Field(description=N_("{属性名: 新值}"))
+    version: int | None = Field(None, description=N_("这一行的版本号"))
 
 
 def _desc(spec: dict) -> str:
@@ -379,9 +400,9 @@ async def _db_write(ctx: Context, fn, args: dict) -> str:
 @_tool(_desc(dbs.DB_QUERY), read_only=True)
 async def db_query(db_id: int, ctx: Context,
                    filter: list[DbFilter] | None = None, sort: list[DbSort] | None = None,
-                   view: Annotated[str | None, Field(description="可选：用这个视图（名字）的筛选和排序")] = None,
-                   props: Annotated[list[str] | None, Field(description="可选：只要这几列（名称总在）")] = None,
-                   limit: Annotated[int, Field(description="最多几行，默认 50", ge=1, le=200)] = 50) -> str:
+                   view: Annotated[str | None, Field(description=N_("可选：用这个视图（名字）的筛选和排序"))] = None,
+                   props: Annotated[list[str] | None, Field(description=N_("可选：只要这几列（名称总在）"))] = None,
+                   limit: Annotated[int, Field(description=N_("最多几行，默认 50"), ge=1, le=200)] = 50) -> str:
     _agent(ctx)
     return dbs.tool_query({"db_id": db_id, "filter": [f.model_dump() for f in filter or []], "sort": [x.model_dump() for x in sort or []],
                            "view": view, "props": props, "limit": limit})
@@ -389,9 +410,9 @@ async def db_query(db_id: int, ctx: Context,
 
 @_tool(_desc(dbs.DB_CREATE), read_only=False)
 async def db_create(title: str, ctx: Context,
-                    properties: Annotated[list[DbProp] | None, Field(description="名称以外的属性。不给就是：状态、负责人（人员）、日期")] = None,
-                    title_name: Annotated[str | None, Field(description="可选：名称这一列叫什么（默认“名称”）")] = None,
-                    parent_id: Annotated[int | None, Field(description="可选：放在哪个页面下面")] = None) -> str:
+                    properties: Annotated[list[DbProp] | None, Field(description=N_("名称以外的属性。不给就是：状态、负责人（人员）、日期"))] = None,
+                    title_name: Annotated[str | None, Field(description=N_("可选：名称这一列叫什么（默认“名称”）"))] = None,
+                    parent_id: Annotated[int | None, Field(description=N_("可选：放在哪个页面下面"))] = None) -> str:
     return await _db_write(ctx, dbs.tool_create, {"title": title, "title_name": title_name, "parent_id": parent_id,
                                                   "properties": None if properties is None else [x.model_dump(exclude_none=True) for x in properties]})
 
@@ -412,36 +433,36 @@ async def db_update(rows: list[DbRowChange], ctx: Context) -> str:
 
 
 # ---------- 图片、通知 ----------
-@_tool("传一张图片（PNG、JPG、WebP、GIF，最多 10 MB），返回能写进页面的 Markdown：![说明](/api/media/编号)。"
-       "传完用 edit_page / create_page 把这一行放进页面。", read_only=False)
-async def upload_image(data_base64: Annotated[str, Field(description="图片内容，base64（可以带 data:image/png;base64, 开头）")],
+@_tool(N_("传一张图片（PNG、JPG、WebP、GIF，最多 10 MB），返回能写进页面的 Markdown：![说明](/api/media/编号)。"
+       "传完用 edit_page / create_page 把这一行放进页面。"), read_only=False)
+async def upload_image(data_base64: Annotated[str, Field(description=N_("图片内容，base64（可以带 data:image/png;base64, 开头）"))],
                        ctx: Context,
-                       name: Annotated[str, Field(description="可选：文件名")] = "",
-                       alt: Annotated[str, Field(description="可选：图片说明（写进 Markdown 的 ![说明]）")] = "") -> str:
+                       name: Annotated[str, Field(description=N_("可选：文件名"))] = "",
+                       alt: Annotated[str, Field(description=N_("可选：图片说明（写进 Markdown 的 ![说明]）"))] = "") -> str:
     _agent(ctx, write=True)
     raw = data_base64.split(",", 1)[1] if data_base64.startswith("data:") and "," in data_base64 else data_base64
     try:
         data = base64.b64decode("".join(raw.split()), validate=True)
         m = media.save(data, name)
     except (binascii.Error, ValueError) as e:
-        return f"没传上：{e}"
-    return f"已传上（{m['w']}×{m['h']}，{m['size'] // 1024} KB）。写进页面：{media.image_md(m['id'], alt or name)}"
+        return t("没传上：{error}", error=e)
+    return t("已传上（{w}×{h}，{kb} KB）。写进页面：{md}", w=m["w"], h=m["h"], kb=m["size"] // 1024, md=media.image_md(m["id"], alt or name))
 
 
-@_tool("看有没有用户在页面上要你处理的评论（@ 了你、评论了你写的段、回复了你说过话的评论串）。"
-       "默认只列还没处理的，列出来就算处理过了（mark_done=false 只看不标）。有宿主替你收通知的话一般用不上。", read_only=False)
+@_tool(N_("看有没有用户在页面上要你处理的评论（@ 了你、评论了你写的段、回复了你说过话的评论串）。"
+       "默认只列还没处理的，列出来就算处理过了（mark_done=false 只看不标）。有宿主替你收通知的话一般用不上。"), read_only=False)
 async def my_notifications(ctx: Context,
-                           include_done: Annotated[bool, Field(description="也列出已经处理过的（最近 20 条）")] = False,
-                           mark_done: Annotated[bool, Field(description="列出来的标成处理过了，默认 true")] = True) -> str:
+                           include_done: Annotated[bool, Field(description=N_("也列出已经处理过的（最近 20 条）"))] = False,
+                           mark_done: Annotated[bool, Field(description=N_("列出来的标成处理过了，默认 true"))] = True) -> str:
     a = _agent(ctx)
     items = notify.listing(a["id"], pending=not include_done, limit=100)
     if include_done:
         items = items[-20:]
     if not items:
-        return "没有要你处理的评论"
+        return t("没有要你处理的评论")
     if mark_done:
         notify.ack(a["id"], [n["id"] for n in items])
-    out = [f"{len(items)} 条通知（从旧到新）："]
+    out = [t("{n} 条通知（从旧到新）：", n=len(items))]
     for n in items:
-        out.append(f"--- 通知 #{n['id']} · {_when(n['created'])}{' · 已处理' if n['done'] else ''}\n{n['prompt']}")
+        out.append("--- " + t("通知 #{id}", id=n["id"]) + f" · {_when(n['created'])}" + (" · " + t("已处理") if n["done"] else "") + f"\n{n['prompt']}")
     return "\n\n".join(out)

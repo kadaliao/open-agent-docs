@@ -9,6 +9,7 @@ import hmac
 import json
 import secrets
 import time
+from . import i18n
 from .config import PASSWORD
 from .db import conn
 
@@ -36,7 +37,7 @@ def _scrypt(password: str, salt: bytes) -> str:
 
 def set_password(password: str):
     if len(password or "") < 8:
-        raise ValueError("密码至少 8 个字符")
+        raise ValueError(i18n.t("密码至少 8 个字符"))
     salt = secrets.token_bytes(16)
     _put("password", {"salt": salt.hex(), "hash": _scrypt(password, salt)})
     conn.execute("delete from sessions")

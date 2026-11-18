@@ -176,27 +176,28 @@ def tool_comment(who: int | str, args: dict, wrote: list | None = None) -> tuple
     pid = args.get("page_id")
     p = library.get_page(pid, False) if isinstance(pid, int) else None
     if not p:
-        return f"没有页面 #{pid}", None
+        return i18n.t("没有页面 #{id}", id=pid), None
     text, reply_to = str(args.get("text") or "").strip(), args.get("reply_to")
     if reply_to is not None and not isinstance(reply_to, int):
         reply_to = int(str(reply_to).lstrip("#")) if str(reply_to).lstrip("#").isdigit() else -1
     if not text and not args.get("resolve"):
-        return "没写：评论内容是空的", None
+        return i18n.t("没写：评论内容是空的"), None
     try:
         out = []
         if text:
             c = add(pid, by, text, args.get("block"), None, reply_to)
             if wrote is not None:
                 wrote.append(c)
-            out.append(f"已在页面 #{pid}「{p['title']}」{'回复评论 #' + str(c['parent_id']) if c['parent_id'] else '写了评论'}（#{c['id']}）")
+            out.append(i18n.t("已在页面 #{id}「{title}」回复评论 #{parent}（#{cid}）", id=pid, title=p["title"], parent=c["parent_id"], cid=c["id"])
+                       if c["parent_id"] else i18n.t("已在页面 #{id}「{title}」写了评论（#{cid}）", id=pid, title=p["title"], cid=c["id"]))
         if args.get("resolve"):
             if reply_to is None:
-                return "没标：resolve 要和 reply_to 一起用，说明是哪串评论", None
+                return i18n.t("没标：resolve 要和 reply_to 一起用，说明是哪串评论"), None
             update(pid, reply_to, resolved=True)
-            out.append(f"评论 #{reply_to} 那一串已标成已解决")
+            out.append(i18n.t("评论 #{id} 那一串已标成已解决", id=reply_to))
     except (ValueError, LookupError) as e:
-        return f"没写：{e}", None
-    return "；".join(out), pid
+        return i18n.t("没写：{error}", error=e), None
+    return i18n.t("；").join(out), pid
 
 
 def render(pid: int, limit_threads: int = 20, resolved: bool = False) -> str:
@@ -205,11 +206,13 @@ def render(pid: int, limit_threads: int = 20, resolved: bool = False) -> str:
     roots = [c for c in open_ if c["parent_id"] is None]
     if not roots:
         return ""
-    lines = [f"评论（{len(roots)} 串）：" if resolved else f"未处理的评论（{len(roots)}）："]
+    lines = [i18n.t("评论（{n} 串）：", n=len(roots)) if resolved else i18n.t("未处理的评论（{n}）：", n=len(roots))]
     for r in roots[:limit_threads]:
-        where = f"⟦{r['block_id']}⟧ " if r["block_id"] else "整页 "
-        lines.append(f"#{r['id']} {where}{'（已解决）' if r['resolved'] else ''}{pagedoc.name_of(r['by'])}：{r['text'][:300]}")
-        lines += [f"  #{c['id']} {pagedoc.name_of(c['by'])}：{c['text'][:300]}" for c in open_ if c["parent_id"] == r["id"]]
+        where = f"⟦{r['block_id']}⟧ " if r["block_id"] else i18n.t("整页") + " "
+        lines.append(f"#{r['id']} {where}" + (i18n.t("（已解决）") if r["resolved"] else "")
+                     + i18n.t("{name}：{text}", name=pagedoc.name_of(r["by"]), text=r["text"][:300]))
+        lines += ["  " + i18n.t("#{id} {name}：{text}", id=c["id"], name=pagedoc.name_of(c["by"]), text=c["text"][:300])
+                  for c in open_ if c["parent_id"] == r["id"]]
     if len(roots) > limit_threads:
-        lines.append(f"…还有 {len(roots) - limit_threads} 串没显示")
+        lines.append(i18n.t("…还有 {n} 串没显示", n=len(roots) - limit_threads))
     return "\n".join(lines)

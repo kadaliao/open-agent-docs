@@ -13,6 +13,7 @@ import json
 import time
 from . import agents, blocks, i18n, library, media
 from .db import conn
+from .i18n import N_
 
 conn.execute("""create table if not exists page_versions(
   id integer primary key, page_id integer, version integer, title text, content text, meta text,
@@ -484,32 +485,34 @@ def restore(pid: int, vid: int, by: str = "user") -> dict:
 def render(pid: int, start: str | None = None, limit: int = READ_LIMIT) -> str:
     p, blks = load(pid)
     if not p:
-        return f"没有页面 #{pid}"
+        return i18n.t("没有页面 #{id}", id=pid)
     from . import dbs
     if p.get("kind") == "db":   # 数据库：表结构和前面的行
         return dbs.render_db(pid, limit)
-    maker = f"「{name_of('agent:' + str(p['agent_id']))}」建的" if p.get("agent_id") else "用户建的"
-    head = (f"《{p['title'] or '无标题'}》{library.link(pid)} · 版本 {p['version']} · " + maker +
-            f" · {time.strftime('%Y-%m-%d', time.localtime(p['updated']))} 更新" + (" · 已锁定（只有用户能改，有意见用 comment_page）" if p.get("locked") else ""))
+    maker = i18n.t("「{name}」建的", name=name_of('agent:' + str(p['agent_id']))) if p.get("agent_id") else i18n.t("用户建的")
+    head = (i18n.t("《{title}》", title=p["title"] or i18n.t("无标题")) + f"{library.link(pid)} · " + i18n.t("版本 {v}", v=p["version"]) + " · " + maker
+            + " · " + i18n.t("{when} 更新", when=time.strftime('%Y-%m-%d', time.localtime(p['updated'])))
+            + (" · " + i18n.t("已锁定（只有用户能改，有意见用 comment_page）") if p.get("locked") else ""))
     fam = library.family(pid)
+    ref = lambda x: i18n.t("#{id}《{title}》", id=x["id"], title=x["title"])   # noqa: E731
     if fam["ancestors"] or fam["children"]:
-        head += "\n" + "　".join(x for x in (
-            "上级：" + " / ".join(f"#{a['id']}《{a['title']}》" for a in fam["ancestors"]) if fam["ancestors"] else "",
-            "子页面：" + "、".join(f"#{c['id']}《{c['title']}》" for c in fam["children"][:30]) if fam["children"] else "") if x)
+        head += "\n" + i18n.t("　").join(x for x in (
+            i18n.t("上级：") + " / ".join(ref(a) for a in fam["ancestors"]) if fam["ancestors"] else "",
+            i18n.t("子页面：") + i18n.t("、").join(ref(c) for c in fam["children"][:30]) if fam["children"] else "") if x)
     if p.get("kind") == "row":   # 数据库的一行：属性放在正文前面
         head += "\n" + dbs.row_text(pid)
     from . import pagecomments
     tail = pagecomments.render(pid)
     tail = "\n\n" + tail if tail else ""
     if not blks:
-        return head + "\n\n（空页面）" + tail
+        return head + "\n\n" + i18n.t("（空页面）") + tail
     k0 = 0
     note = ""
     if start:
         k0 = next((k for k, b in enumerate(blks) if b["id"] == blocks.clean_id(start)), -1)
         if k0 < 0:
-            k0, note = 0, f"（没有段落 ⟦{blocks.clean_id(start)}⟧，从头显示）\n"
-    legend = "（每段前一行的 ⟦xxxx⟧ 是段落编号，只给 edit_page / comment_page 用，不是正文，写内容时不要带上）"
+            k0, note = 0, i18n.t("（没有段落 ⟦{id}⟧，从头显示）", id=blocks.clean_id(start)) + "\n"
+    legend = i18n.t("（每段前一行的 ⟦xxxx⟧ 是段落编号，只给 edit_page / comment_page 用，不是正文，写内容时不要带上）")
     out, used = [], len(head) + len(legend) + len(note) + 4
     for k in range(k0, len(blks)):
         b = blks[k]
@@ -517,11 +520,12 @@ def render(pid: int, start: str | None = None, limit: int = READ_LIMIT) -> str:
         if used + len(piece) > limit:
             if not out:   # 一段就超了：只显示前面一截
                 room = max(200, limit - used - 200)
-                out.append(f"⟦{b['id']}⟧\n{b['md'][:room]}\n…（这一段太长，只显示了前 {room} 字）")
+                out.append(f"⟦{b['id']}⟧\n{b['md'][:room]}\n" + i18n.t("…（这一段太长，只显示了前 {n} 字）", n=room))
                 k += 1
             rest = sum(len(x["md"]) for x in blks[k:])
             if k < len(blks):
-                out.append(f"…还有 {len(blks) - k} 段没显示（约 {rest} 字），接着读：read_page(page_id={pid}, start=\"{blks[k]['id']}\")")
+                out.append(i18n.t("…还有 {n} 段没显示（约 {chars} 字），接着读：read_page(page_id={id}, start=\"{start}\")",
+                                  n=len(blks) - k, chars=rest, id=pid, start=blks[k]["id"]))
             break
         out.append(piece)
         used += len(piece) + 2
@@ -534,14 +538,14 @@ _BOT_OPS = {"replace": "replace", "delete": "delete", "insert_after": "after", "
 
 def _bot_ops(raw) -> list[dict]:
     if not isinstance(raw, list):
-        raise ValueError("ops 要是一个列表")
+        raise ValueError(i18n.t("ops 要是一个列表"))
     out = []
     for o in raw:
         if not isinstance(o, dict) or o.get("op") not in _BOT_OPS:
-            raise ValueError(f"不认识的修改：{o.get('op') if isinstance(o, dict) else o}（只能是 {'、'.join(_BOT_OPS)}）")
+            raise ValueError(i18n.t("不认识的修改：{op}（只能是 {ops}）", op=o.get('op') if isinstance(o, dict) else o, ops=i18n.t("、").join(_BOT_OPS)))
         t, md = o["op"], o.get("markdown") or ""
         if t != "append" and not blocks.clean_id(o.get("block")):
-            raise ValueError(f"{t} 要给 block（段落编号，read_page 里每段前面的 ⟦xxxx⟧）")
+            raise ValueError(i18n.t("{op} 要给 block（段落编号，read_page 里每段前面的 ⟦xxxx⟧）", op=t))
         if t in ("replace", "delete"):
             out.append({"op": t, "block": o.get("block"), "markdown": md})
         elif t == "append":
@@ -549,25 +553,26 @@ def _bot_ops(raw) -> list[dict]:
         else:
             out.append({"op": "insert", _BOT_OPS[t]: o.get("block") or "", "markdown": md})
         if t != "delete" and not md.strip():
-            raise ValueError(f"{t} 要给 markdown（删掉一段用 delete）")
+            raise ValueError(i18n.t("{op} 要给 markdown（删掉一段用 delete）", op=t))
         if md:
             out[-1]["markdown"] = media.embed(md)
     return out
 
 
-def conflict_text(e: Conflict, head: str = "没改") -> str:
-    lines = [f"{head}：页面现在是版本 {e.version}，你要动的段有变化，这一批修改都没写。"]
+def conflict_text(e: Conflict, head: str = N_("没改")) -> str:
+    """head 是开头的那句（没改 / 没保存），中文原文，这里再翻。"""
+    lines = [i18n.t("{head}：页面现在是版本 {v}，你要动的段有变化，这一批修改都没写。", head=i18n.t(head), v=e.version)]
     for c in e.items:
         if c["reason"] == "changed":
-            lines.append(f"⟦{c['block']}⟧ 在你读过之后被「{name_of(c['by'])}」改了，现在是：\n{c['current'][:800]}")
+            lines.append(i18n.t("⟦{block}⟧ 在你读过之后被「{name}」改了，现在是：", block=c["block"], name=name_of(c["by"])) + f"\n{c['current'][:800]}")
         elif c["reason"] == "missing":
-            lines.append(f"⟦{c['block']}⟧ 已经不在了（可能被删了）")
+            lines.append(i18n.t("⟦{block}⟧ 已经不在了（可能被删了）", block=c["block"]))
         else:
-            lines.append(f"⟦{c['block']}⟧ 不在了，没法在它前后加")
+            lines.append(i18n.t("⟦{block}⟧ 不在了，没法在它前后加", block=c["block"]))
     if not e.items:
-        lines.append("页面刚好被别人改了，用 read_page 重新读一下")
+        lines.append(i18n.t("页面刚好被别人改了，用 read_page 重新读一下"))
     else:
-        lines.append(f"按现在的内容决定怎么改，用 version={e.version} 再提交（没列出来的段不用重读）。")
+        lines.append(i18n.t("按现在的内容决定怎么改，用 version={v} 再提交（没列出来的段不用重读）。", v=e.version))
     return "\n".join(lines)
 
 
@@ -577,25 +582,26 @@ def tool_edit(who: int | str, args: dict) -> tuple[str, dict | None]:
     pid = args.get("page_id")
     p = library.get_page(pid, False) if isinstance(pid, int) else None
     if not p:
-        return f"没有页面 #{pid}", None
+        return i18n.t("没有页面 #{id}", id=pid), None
     if p["format"] != "markdown":
-        return f"没改：页面 #{pid} 是 html 页面，没有段，只能读", None
+        return i18n.t("没改：页面 #{id} 是 html 页面，没有段，只能读", id=pid), None
     if p["kind"] == "db":
-        return f"没改：#{pid} 是数据库，加行用 db_add、改属性用 db_update、改表结构用 db_schema；某一行的正文才用 edit_page", None
+        return i18n.t("没改：#{id} 是数据库，加行用 db_add、改属性用 db_update、改表结构用 db_schema；某一行的正文才用 edit_page", id=pid), None
     if p.get("locked") or _db_locked(p):
-        return f"没改：页面 #{pid}「{p['title']}」被用户锁定了，只能读", None
+        return i18n.t("没改：页面 #{id}「{title}」被用户锁定了，只能读", id=pid, title=p["title"]), None
     pid = p["id"]
     try:
         res = apply(pid, args.get("version"), _bot_ops(args.get("ops")), by)
     except Conflict as e:
         return conflict_text(e), None
     except (ValueError, TypeError) as e:
-        return f"没改：{e}", None
+        return i18n.t("没改：{error}", error=e), None
     added = [b["id"] for b in res["blocks"] if b["v"] == res["version"]]
-    text = (f"已改页面 #{pid}「{p['title']}」，现在是版本 {res['version']}：改动或新加 {len(res['blocks'])} 段"
-            + (f"、删掉 {len(res['removed'])} 段" if res["removed"] else "") + "。"
-            + (f"涉及的段：{'、'.join(f'⟦{i}⟧' for i in added)}。" if added else "")
-            + (f"有 {len(res['merged'])} 处相邻的段拼起来以后合成了一段。" if res["merged"] else ""))
+    kw = {"id": pid, "title": p["title"], "v": res["version"], "n": len(res["blocks"]), "removed": len(res["removed"])}
+    text = (i18n.t("已改页面 #{id}「{title}」，现在是版本 {v}：改动或新加 {n} 段、删掉 {removed} 段。", **kw) if res["removed"]
+            else i18n.t("已改页面 #{id}「{title}」，现在是版本 {v}：改动或新加 {n} 段。", **kw))
+    text += ((i18n.t("涉及的段：{blocks}。", blocks=i18n.t("、").join(f"⟦{i}⟧" for i in added)) if added else "")
+             + (i18n.t("有 {n} 处相邻的段拼起来以后合成了一段。", n=len(res["merged"])) if res["merged"] else ""))
     return text, event(pid, res, by)
 
 

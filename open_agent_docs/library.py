@@ -94,7 +94,7 @@ def save_page(bot_id: int | None, title: str, content: str, fmt: str = "markdown
             pagedoc.snapshot_html(pid, by, title=title, content=content)
     else:
         if kind not in KINDS:
-            raise ValueError(f"kind 只能是 {' / '.join(KINDS)}")
+            raise ValueError(i18n.t("kind 只能是 {kinds}", kinds=" / ".join(KINDS)))
         if kind != "row" and conn.execute("select count(*) from pages where coalesce(kind, 'page') != 'row'").fetchone()[0] >= MAX_PAGES:
             raise ValueError(i18n.t("最多 {n} 个页面，先删掉一些", n=MAX_PAGES))   # 数据库的行另算（dbs.MAX_ROWS）
         if parent_id is not None or kind == "row":
@@ -350,11 +350,12 @@ def tool_read_page(args: dict, limit: int = 12000) -> str:
     from . import pagedoc, search
     p = get_page(args.get("page_id")) if isinstance(args.get("page_id"), int) else None
     if not p:
-        return f"没有页面 #{args.get('page_id')}"
+        return i18n.t("没有页面 #{id}", id=args.get("page_id"))
     if p["format"] == "markdown":
         return pagedoc.render(p["id"], args.get("start"), limit)
     text = search._plain(p["content"] or "", p["format"])
     if p["format"] == "html":
         text = re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", text)).strip()
-    more = f"\n…（还有 {len(text) - limit} 字没显示）" if len(text) > limit else ""
-    return f"《{p['title']}》{link(p['id'])}，{time.strftime('%Y-%m-%d', time.localtime(p['updated']))} 更新\n\n{text[:limit]}{more}"
+    more = "\n" + i18n.t("…（还有 {n} 字没显示）", n=len(text) - limit) if len(text) > limit else ""
+    return (i18n.t("《{title}》{link}，{when} 更新", title=p["title"], link=link(p["id"]), when=time.strftime('%Y-%m-%d', time.localtime(p['updated'])))
+            + f"\n\n{text[:limit]}{more}")
