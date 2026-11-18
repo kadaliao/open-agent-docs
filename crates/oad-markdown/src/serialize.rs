@@ -327,6 +327,8 @@ enum Kind {
     Text(String),
     Code(String),
     Math(String),
+    /// 行内提及：`<网址>`
+    Mention(String),
     Break,
 }
 
@@ -494,6 +496,20 @@ fn inline_with(nodes: &[Node], cx: Ctx, all_html: bool) -> (String, Vec<Node>, b
                 });
                 ws_flags.push(0);
             }
+            "linkMention" => {
+                let url = n.attr_str("url").unwrap_or("").to_string();
+                // 提及不带格式（`<网址>` 外面套 ** 之类解析回来会是链接）；网址写不成 <…> 的退成普通文字
+                let kind = if mention_ok(&url) {
+                    Kind::Mention(url)
+                } else {
+                    Kind::Text(url)
+                };
+                pieces.push(Piece {
+                    kind,
+                    marks: Vec::new(),
+                });
+                ws_flags.push(0);
+            }
             _ => {
                 pieces.push(Piece {
                     kind: Kind::Text(n.plain_text()),
@@ -566,6 +582,7 @@ fn inline_with(nodes: &[Node], cx: Ctx, all_html: bool) -> (String, Vec<Node>, b
             Kind::Text(t) => t.chars().next(),
             Kind::Code(_) => Some('`'),
             Kind::Math(_) => Some('$'),
+            Kind::Mention(_) => Some('<'),
             Kind::Break => Some(' '),
         }
     };
@@ -574,6 +591,7 @@ fn inline_with(nodes: &[Node], cx: Ctx, all_html: bool) -> (String, Vec<Node>, b
             Kind::Text(t) => t.chars().last(),
             Kind::Code(_) => Some('`'),
             Kind::Math(_) => Some('$'),
+            Kind::Mention(_) => Some('>'),
             Kind::Break => Some(' '),
         }
     };
@@ -695,6 +713,12 @@ fn inline_with(nodes: &[Node], cx: Ctx, all_html: bool) -> (String, Vec<Node>, b
                     out.push('$');
                     esc.line_start = false;
                 }
+                Kind::Mention(u) => {
+                    out.push('<');
+                    out.push_str(u);
+                    out.push('>');
+                    esc.line_start = false;
+                }
                 Kind::Break => {
                     if cx.inline_br {
                         out.push_str("<br>");
@@ -722,6 +746,7 @@ fn inline_with(nodes: &[Node], cx: Ctx, all_html: bool) -> (String, Vec<Node>, b
                 expected.push(Node::text(t.clone(), m));
             }
             Kind::Math(t) => expected.push(Node::new("mathInline").with("latex", t.clone())),
+            Kind::Mention(u) => expected.push(Node::new("linkMention").with("url", u.clone())),
             Kind::Break => expected.push(Node::new("hardBreak")),
         }
     }
@@ -755,6 +780,11 @@ pub(crate) fn tidy_lines(nodes: Vec<Node>) -> Vec<Node> {
 
 fn has_mark(pieces: &[Piece], ty: &str) -> bool {
     pieces.iter().any(|p| p.marks.iter().any(|m| m.ty == ty))
+}
+
+/// 能写成 `<网址>` 的提及：http(s) 开头，没有空白和尖括号。
+fn mention_ok(url: &str) -> bool {
+    crate::is_bare_url(url) && !url.contains(['<', '>'])
 }
 
 fn link_tail(m: &Mark) -> String {

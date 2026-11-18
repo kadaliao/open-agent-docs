@@ -3,23 +3,27 @@
 //! 可替换的部分是 trait：[`Storage`]（首版 SQLite）、[`AuthProvider`]（内置账号 / 可信请求头 / 不登录）。
 pub mod agents;
 pub mod auth;
+pub mod blob;
 pub mod comments;
 mod error;
 pub mod events;
 pub mod hub;
 pub mod ids;
+pub mod media;
 pub mod model;
 pub mod notify;
 pub mod position;
 pub mod ssrf;
 pub mod storage;
 pub mod tree;
+pub mod unfurl;
 
 pub use auth::{AuthMode, AuthProvider, AuthRequest};
+pub use blob::{BlobStore, FsBlobs, MemBlobs};
 pub use comments::{Anchor, AuthorRef, CommentView, NotifySpec, ThreadView};
 pub use error::{Error, Result};
 pub use events::{Event, EventKind, Events};
-pub use hub::{DocHub, HubConfig, Writer};
+pub use hub::{DocHub, HubConfig, Targets, Writer};
 pub use model::*;
 pub use notify::{Notifier, NotifyConfig};
 pub use oad_doc::{Node, PageDoc};
@@ -30,6 +34,29 @@ use std::sync::{Arc, Mutex};
 
 pub const DEFAULT_WORKSPACE: &str = "默认工作区";
 const LOCAL_USER_EMAIL: &str = "local@localhost";
+
+/// 文件和链接解析的配置。
+#[derive(Clone)]
+pub struct MediaConfig {
+    pub blobs: Arc<dyn BlobStore>,
+    /// 抓外部网页、图片：超时、代理（`OAD_FETCH_PROXY`）、允许的内网网段（测试、本机开发）。
+    pub fetch: oad_unfurl::FetchConfig,
+    /// 上传上限（字节）。
+    pub max_upload: usize,
+    /// 开不开链接解析（默认开）。
+    pub unfurl: bool,
+}
+
+impl Default for MediaConfig {
+    fn default() -> Self {
+        MediaConfig {
+            blobs: Arc::new(MemBlobs::default()),
+            fetch: oad_unfurl::FetchConfig::default(),
+            max_upload: 100 << 20,
+            unfurl: true,
+        }
+    }
+}
 
 /// 登录方式的配置。
 #[derive(Clone, Debug)]
@@ -63,6 +90,10 @@ pub struct Core {
     pub default_workspace: Workspace,
     /// 通知：存、投 webhook、叫醒等着的。
     pub notes: Arc<Notifier>,
+    /// 文件和图片。
+    pub media: Arc<media::Media>,
+    /// 链接解析（没开时为 None）。
+    pub unfurls: Option<Arc<unfurl::UnfurlService>>,
     /// 关机信号：SSE、WebSocket 等长连接看到它就结束，HTTP 服务才能停下来。
     shutdown: tokio::sync::watch::Sender<bool>,
     /// Agent 最后一次记使用时间的时刻（少写库）。
@@ -96,6 +127,17 @@ impl Core {
         auth: AuthConfig,
         hub: HubConfig,
         notify: NotifyConfig,
+    ) -> Result<Arc<Core>> {
+        Self::open_full(storage, auth, hub, notify, MediaConfig::default()).await
+    }
+
+    /// 全部配置：再加上文件存哪、链接解析怎么抓。
+    pub async fn open_full(
+        storage: Arc<dyn Storage>,
+        auth: AuthConfig,
+        hub: HubConfig,
+        notify: NotifyConfig,
+        media_cfg: MediaConfig,
     ) -> Result<Arc<Core>> {
         let default_workspace = match storage.workspaces().await?.into_iter().next() {
             Some(w) => w,
@@ -131,8 +173,33 @@ impl Core {
         };
         let events = Events::default();
         let notes = Notifier::new(storage.clone(), events.clone(), notify);
+        let fetcher = oad_unfurl::Fetcher::new(media_cfg.fetch.clone())
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let media = Arc::new(media::Media::new(
+            storage.clone(),
+            media_cfg.blobs.clone(),
+            fetcher,
+            media_cfg.max_upload,
+        ));
+        let unfurls = if media_cfg.unfurl {
+            let u = oad_unfurl::Unfurler::new(media_cfg.fetch.clone())
+                .map_err(|e| Error::Internal(e.to_string()))?;
+            Some(unfurl::UnfurlService::new(
+                storage.clone(),
+                media.clone(),
+                u,
+            ))
+        } else {
+            None
+        };
+        let hub = DocHub::new(storage.clone(), events.clone(), hub);
+        if let Some(u) = &unfurls {
+            hub.set_prefetch(u.prefetch_sink());
+        }
         let core = Arc::new(Core {
-            hub: DocHub::new(storage.clone(), events.clone(), hub),
+            hub,
+            media,
+            unfurls,
             storage,
             events,
             auth: provider,
@@ -300,7 +367,7 @@ impl Core {
     /// 正文（节点树）和当前版本。
     pub async fn content(&self, id: &str, who: &Principal) -> Result<(Node, Vec<u8>)> {
         self.page_for(id, who, false).await?;
-        self.hub.read(id, |d| (d.to_node(), d.version())).await
+        self.hub.content(id).await
     }
 
     /// 整页替换：对得上的块沿用编号、只改变了的地方。给了 base（读的时候拿到的版本）就在那个版本上改，
@@ -318,17 +385,26 @@ impl Core {
             block: None,
         };
         self.hub
-            .edit(id, Some(w), base, move |d| {
-                d.set_content(&doc);
-                Ok(())
-            })
+            .edit(
+                id,
+                Some(w),
+                base,
+                Targets {
+                    all: true,
+                    ..Default::default()
+                },
+                move |d| {
+                    d.set_content(&doc);
+                    Ok(())
+                },
+            )
             .await
     }
 
     /// 当前版本（写完之后给 Agent 接着改用）。
     pub async fn version(&self, id: &str, who: &Principal) -> Result<Vec<u8>> {
         self.page_for(id, who, false).await?;
-        self.hub.read(id, |d| d.version()).await
+        self.hub.version(id).await
     }
 
     /// 一块和当前版本。
@@ -340,10 +416,7 @@ impl Core {
     ) -> Result<(Node, Vec<u8>)> {
         self.page_for(id, who, false).await?;
         let b = block_id.to_string();
-        let (node, version) = self
-            .hub
-            .read(id, move |d| (d.block(&b), d.version()))
-            .await?;
+        let (node, version) = self.hub.block(id, &b).await?;
         let node = node.ok_or_else(|| Error::NotFound(format!("找不到块 {block_id}")))?;
         Ok((node, version))
     }
@@ -364,7 +437,16 @@ impl Core {
             block: Some(b.clone()),
         };
         self.hub
-            .edit(id, Some(w), base, move |d| Ok(d.replace_block(&b, &nodes)?))
+            .edit(
+                id,
+                Some(w),
+                base,
+                Targets {
+                    content: vec![b.clone()],
+                    ..Default::default()
+                },
+                move |d| Ok(d.replace_block(&b, &nodes)?),
+            )
             .await
     }
 
@@ -382,10 +464,16 @@ impl Core {
             block: after.clone(),
         };
         self.hub
-            .edit(id, Some(w), None, move |d| match after {
-                Some(a) => Ok(d.insert_after(Some(&a), &nodes)?),
-                None => Ok(d.append(&nodes)),
-            })
+            .edit(
+                id,
+                Some(w),
+                None,
+                Targets::default(),
+                move |d| match after {
+                    Some(a) => Ok(d.insert_after(Some(&a), &nodes)?),
+                    None => Ok(d.append(&nodes)),
+                },
+            )
             .await
     }
 
@@ -397,7 +485,9 @@ impl Core {
             block: Some(b.clone()),
         };
         self.hub
-            .edit(id, Some(w), None, move |d| Ok(d.delete_block(&b)?))
+            .edit(id, Some(w), None, Targets::default(), move |d| {
+                Ok(d.delete_block(&b)?)
+            })
             .await
     }
 
@@ -417,8 +507,20 @@ impl Core {
             principal: who.clone(),
             block: ops.iter().find_map(|o| o.block().map(str::to_string)),
         };
+        let mut targets = Targets::default();
+        for op in &ops {
+            match op {
+                BlockOp::Replace { block, .. } => targets.content.push(block.clone()),
+                BlockOp::InsertAfter { block, .. } | BlockOp::InsertBefore { block, .. } => {
+                    targets.refs.push(block.clone())
+                }
+                // 删一块：不管在那之后它有没有变，删的都是同一个元素
+                BlockOp::Delete { block } => targets.refs.push(block.clone()),
+                BlockOp::Append { .. } => {}
+            }
+        }
         self.hub
-            .edit(id, Some(w), base, move |d| {
+            .edit(id, Some(w), base, targets, move |d| {
                 let md = |m: &str| oad_markdown::parse(m).content;
                 let mut out = Vec::new();
                 for (i, op) in ops.iter().enumerate() {

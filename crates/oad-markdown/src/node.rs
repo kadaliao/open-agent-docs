@@ -1,12 +1,41 @@
 //! 文档结构：和 ProseMirror 的 JSON 同形（type / attrs / content / text / marks），浏览器的 Tiptap 和服务器的 Yrs 都按这个存。
 //!
 //! 块：paragraph、heading{level}、bulletList / orderedList{start} / listItem、taskList / taskItem{checked}、
-//! blockquote、callout{kind, title}、codeBlock{language}、mathBlock{latex}、horizontalRule、image{src, alt, title}、
-//! embed{url}、table / tableRow / tableHeader / tableCell、details / detailsSummary / detailsContent。
-//! 行内：text（marks：bold、italic、strike、code、link{href, title}、underline、highlight）、hardBreak、mathInline{latex}。
+//! blockquote、callout{kind, title}、codeBlock{language, wrap}、mathBlock{latex}、horizontalRule、
+//! image{src, alt, title, width, caption}、embed{url, view}、table / tableRow / tableHeader / tableCell、
+//! details{open} / detailsSummary / detailsContent。
+//! 行内：text（marks：bold、italic、strike、code、link{href, title}、underline、highlight）、hardBreak、mathInline{latex}、
+//! linkMention{url}（行内提及，Markdown 写成 `<url>`）。
 //! 每个块级节点可以有 attrs.id（块编号），这里不生成，由调用方分配。
+//!
+//! **展示属性**（[`PRESENTATION_ATTRS`]）：只影响显示、Markdown 里没有的属性。从 Markdown 解析出来的节点不带它们；
+//! 服务器按 Markdown 改写时，沿用了编号的块保留旧的展示属性（见 oad-doc 的 reconcile）。
+//! - `embed.view`：`"embed"`（默认，按网站画富卡片 / 播放器）| `"bookmark"`（书签卡片）
+//! - `image.width`：占正文宽度的百分比（10–100），不写 = 原始大小但不超过正文宽
+//! - `image.caption`：图注（纯文字）
+//! - `codeBlock.wrap`：自动换行
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+
+/// 展示属性：(节点类型, 属性名)。前后端共用这一份。
+pub const PRESENTATION_ATTRS: &[(&str, &str)] = &[
+    ("embed", "view"),
+    ("image", "width"),
+    ("image", "caption"),
+    ("codeBlock", "wrap"),
+];
+
+/// 这个属性是不是这种节点的展示属性。
+pub fn is_presentation(ty: &str, attr: &str) -> bool {
+    PRESENTATION_ATTRS
+        .iter()
+        .any(|(t, a)| *t == ty && *a == attr)
+}
+
+/// 行内的原子节点（没有文字、没有块编号）。
+pub fn is_inline_atom(ty: &str) -> bool {
+    matches!(ty, "hardBreak" | "mathInline" | "linkMention")
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Node {
@@ -101,6 +130,8 @@ impl Node {
                 s.push('\n');
             } else if n.ty == "mathInline" {
                 s.push_str(n.attr_str("latex").unwrap_or(""));
+            } else if n.ty == "linkMention" {
+                s.push_str(n.attr_str("url").unwrap_or(""));
             }
             for c in &n.content {
                 walk(c, s);
@@ -109,6 +140,15 @@ impl Node {
         walk(self, &mut s);
         s
     }
+    /// 去掉所有展示属性（和 Markdown 来回的结果比较时用）。
+    pub fn without_presentation(&self) -> Node {
+        let mut n = self.clone();
+        let ty = n.ty.clone();
+        n.attrs.retain(|k, _| !is_presentation(&ty, k));
+        n.content = n.content.iter().map(|c| c.without_presentation()).collect();
+        n
+    }
+
     /// 去掉所有 attrs.id（比较内容时用）。
     pub fn without_ids(&self) -> Node {
         let mut n = self.clone();

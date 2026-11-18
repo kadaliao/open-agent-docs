@@ -110,6 +110,7 @@ fn fail(e: CoreError) -> Result<CallToolResult, ErrorData> {
         CoreError::Forbidden(m) => format!("没有权限：{m}"),
         CoreError::BadRequest(m) => format!("参数不对：{m}"),
         CoreError::Conflict(m) => format!("冲突：{m}"),
+        CoreError::BadGateway(m) => format!("去外部网站取东西失败：{m}"),
         CoreError::Unauthorized(m) => format!("没有登录：{m}"),
         CoreError::Storage(_) | CoreError::Internal(_) => "服务器内部错误，稍后再试".to_string(),
     };
@@ -275,6 +276,14 @@ pub struct CommentArgs {
     pub block: Option<String>,
     /// true：把这串标成已解决；false：重新打开。
     pub resolve: Option<bool>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct UploadArgs {
+    /// 文件名（带扩展名，比如 chart.png）。
+    pub name: String,
+    /// 文件内容，base64 编码。
+    pub content_base64: String,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -629,6 +638,52 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
                 .await
         );
         ok(format!("已评论（thread_id: {}）", t.id))
+    }
+
+    #[tool(
+        description = "上传一个文件（图片、PDF、表格……，内容用 base64），存到这个工作区。返回能直接放进页面的 Markdown：\
+图片是 ![](网址)，别的文件是单独一行的网址（网页里显示成文件卡片）。再用 edit_page / create_page 把它写进页面。"
+    )]
+    async fn upload_file(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<UploadArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+        let who = tri!(caller(&parts));
+        let ws = tri!(self.workspace(&who).await);
+        tri!(self.core.require(&ws, &who, true).await);
+        let raw: String = a
+            .content_base64
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        let raw = raw
+            .split_once("base64,")
+            .map(|(_, b)| b.to_string())
+            .unwrap_or(raw);
+        let data = match STANDARD.decode(&raw).or_else(|_| URL_SAFE.decode(&raw)) {
+            Ok(d) => d,
+            Err(_) => {
+                return fail(CoreError::BadRequest(
+                    "content_base64 不是合法的 base64".into(),
+                ));
+            }
+        };
+        let up = tri!(self.core.media.upload(&ws, &who, &a.name, data).await);
+        let md = if up.mime.starts_with("image/") {
+            format!("![]({})", up.url)
+        } else {
+            up.url.clone()
+        };
+        let mut info = format!("{}，{} 字节", up.mime, up.size);
+        if let (Some(w), Some(h)) = (up.width, up.height) {
+            info.push_str(&format!("，{w}×{h}"));
+        }
+        ok(format!(
+            "已上传《{}》（{info}）。放进页面用这段 Markdown：\n{md}",
+            up.name
+        ))
     }
 
     #[tool(

@@ -275,3 +275,38 @@ pub struct NewNotification {
     /// 要投 webhook 时第一次投的时间。
     pub next_attempt_at: Option<i64>,
 }
+
+/// 一条链接解析缓存。
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnfurlRow {
+    pub url_key: String,
+    pub data: Option<serde_json::Value>,
+    pub ok: bool,
+    pub fetched_at: i64,
+    pub expires_at: i64,
+    pub error: Option<String>,
+    pub failures: i64,
+}
+
+/// 存下来的一份内容的信息。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BlobInfo {
+    pub hash: String,
+    pub size: i64,
+    pub mime: String,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub blurhash: Option<String>,
+    pub duration_ms: Option<i64>,
+}
+
+/// 上传的文件。
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileRow {
+    pub id: String,
+    pub workspace_id: String,
+    pub name: String,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+    pub blob: BlobInfo,
+}

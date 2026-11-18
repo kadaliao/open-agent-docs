@@ -55,8 +55,29 @@ impl Server {
         cfg: ServerConfig,
         notify: NotifyConfig,
     ) -> Server {
+        Self::start_media(
+            dir,
+            auth,
+            hub,
+            cfg,
+            notify,
+            oad_core::MediaConfig::default(),
+        )
+        .await
+    }
+
+    pub async fn start_media(
+        dir: &Path,
+        auth: AuthConfig,
+        hub: HubConfig,
+        cfg: ServerConfig,
+        notify: NotifyConfig,
+        media: oad_core::MediaConfig,
+    ) -> Server {
         let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
-        let core = Core::open_with(storage, auth, hub, notify).await.unwrap();
+        let core = Core::open_full(storage, auth, hub, notify, media)
+            .await
+            .unwrap();
         let app = oad_server::router(AppState::new(core.clone(), cfg))
             .into_make_service_with_connect_info::<SocketAddr>();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -109,6 +130,7 @@ impl Server {
 }
 
 pub fn http() -> reqwest::Client {
+    oad_core::notify::install_tls();
     reqwest::Client::builder().no_proxy().build().unwrap()
 }
 
@@ -304,6 +326,18 @@ impl YClient {
         self.doc.to_node()
     }
 
+    /// 在最后加一个顶层块（比如 embed），和浏览器里插入一样是一个本地事务。
+    pub fn push_block(&self, ty: &str, attrs: &[(&str, &str)]) {
+        let mut txn = self.doc.ydoc().transact_mut();
+        let len = self.frag.len(&txn);
+        let el = self
+            .frag
+            .insert(&mut txn, len, yrs::XmlElementPrelim::empty(ty));
+        for (k, v) in attrs {
+            el.insert_attribute(&mut txn, *k, *v);
+        }
+    }
+
     /// 在编号为 block 的段落里第 offset 个字（UTF-16）处打字，和浏览器里一样是一个本地事务。
     pub fn type_at(&self, block: &str, offset: u32, text: &str) {
         let mut txn = self.doc.ydoc().transact_mut();
@@ -364,7 +398,7 @@ pub async fn mcp_client(
     use rmcp::ServiceExt;
     use rmcp::transport::StreamableHttpClientTransport;
     use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
-    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let client = http();
     let transport = StreamableHttpClientTransport::with_client(
         client,
         StreamableHttpClientTransportConfig::with_uri(s.mcp()).auth_header(token.to_string()),

@@ -31,6 +31,14 @@ impl Parent {
             Parent::El(e) => e.get(txn, i),
         }
     }
+    /// [start, start+len) 的子节点，一次走完（按下标逐个 get 每次都从头数，大文档会变成 O(n²)）。
+    fn slice<T: ReadTxn>(&self, txn: &T, start: u32, len: u32) -> Vec<XmlOut> {
+        let it = match self {
+            Parent::Root(f) => f.children(txn),
+            Parent::El(e) => e.children(txn),
+        };
+        it.skip(start as usize).take(len as usize).collect()
+    }
     pub fn element<T: ReadTxn>(&self, txn: &T, i: u32) -> Option<XmlElementRef> {
         match self.get(txn, i) {
             Some(XmlOut::Element(el)) => Some(el),
@@ -89,7 +97,16 @@ pub fn find<T: ReadTxn>(
         }
         None
     }
-    walk(txn, root, &Parent::Root(root.clone()), id)
+    // 先在顶层找（Agent 改的多是顶层块），找不到再往下层找
+    let me = Parent::Root(root.clone());
+    for (i, c) in root.children(txn).enumerate() {
+        if let XmlOut::Element(el) = c
+            && id_of(txn, &el).as_deref() == Some(id)
+        {
+            return Some((me, i as u32, el));
+        }
+    }
+    walk(txn, root, &me, id)
 }
 
 /// 旧的一个子项（读出来的样子，用来对齐）。
@@ -98,6 +115,29 @@ struct Old {
     ty: String,
     id: Option<String>,
     content_hash: u64,
+    /// 元素读出来的样子（文字为 None）。
+    node: Option<Node>,
+    item: XmlOut,
+}
+
+/// 新节点和旧的完全一样（编号除外的子孙也一样）就不用动。新节点的子孙自带编号时要连编号一起比。
+fn unchanged(old: &Node, new: &Node) -> bool {
+    fn has_ids(n: &Node) -> bool {
+        n.content
+            .iter()
+            .any(|c| c.attrs.contains_key("id") || has_ids(c))
+    }
+    // 属性：新的都和旧的一样；旧的多出来的只能是展示属性（会保留）
+    let attrs_same = new.attrs.iter().all(|(k, v)| old.attrs.get(k) == Some(v))
+        && old
+            .attrs
+            .keys()
+            .all(|k| new.attrs.contains_key(k) || oad_markdown::node::is_presentation(&old.ty, k));
+    if has_ids(new) {
+        attrs_same && old.content == new.content
+    } else {
+        attrs_same && old.without_ids().content == new.content
+    }
 }
 
 fn hash_node(n: &Node) -> u64 {
@@ -121,16 +161,20 @@ pub fn reconcile_range(
     existing: &mut HashSet<String>,
 ) {
     // 读旧的
-    let old: Vec<Old> = (start..start + old_len)
-        .map(|i| match parent.get(txn, i) {
-            Some(XmlOut::Element(el)) => {
-                let n = convert::read_element(txn, &el);
+    let old: Vec<Old> = parent
+        .slice(txn, start, old_len)
+        .into_iter()
+        .map(|item| match &item {
+            XmlOut::Element(el) => {
+                let n = convert::read_element(txn, el);
                 let id = n.attr_str("id").map(str::to_string);
                 Old {
                     key: key(&n.ty, id.as_deref()),
                     ty: n.ty.clone(),
                     id,
                     content_hash: hash_node(&n),
+                    node: Some(n),
+                    item,
                 }
             }
             _ => Old {
@@ -138,6 +182,8 @@ pub fn reconcile_range(
                 ty: "#text".into(),
                 id: None,
                 content_hash: 0,
+                node: None,
+                item,
             },
         })
         .collect();
@@ -172,14 +218,20 @@ pub fn reconcile_range(
     for op in capture_diff_slices(Algorithm::Myers, &old_keys, &new_keys) {
         // 前面的都已经对好了，位置就是 start + new_index
         match op {
-            DiffOp::Equal { new_index, len, .. } => {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => {
                 for k in 0..len {
-                    let pos = start + (new_index + k) as u32;
-                    match (parent.get(txn, pos), &groups[new_index + k]) {
-                        (Some(XmlOut::Element(el)), Child::Node(n)) => {
-                            reconcile_el(txn, &el, n, existing)
+                    let o = &old[old_index + k];
+                    match (&o.item, &groups[new_index + k]) {
+                        (XmlOut::Element(el), Child::Node(n)) => {
+                            if !o.node.as_ref().is_some_and(|on| unchanged(on, n)) {
+                                reconcile_el(txn, el, n, existing)
+                            }
                         }
-                        (Some(XmlOut::Text(t)), Child::Text(runs)) => reconcile_text(txn, &t, runs),
+                        (XmlOut::Text(t), Child::Text(runs)) => reconcile_text(txn, t, runs),
                         _ => unreachable!("key 对上了类型却不一样"),
                     }
                 }
@@ -190,8 +242,10 @@ pub fn reconcile_range(
             DiffOp::Insert {
                 new_index, new_len, ..
             } => {
-                for k in 0..new_len {
-                    parent.write_child(txn, start + (new_index + k) as u32, &groups[new_index + k]);
+                // 倒着插在同一个位置：每次只从头数到这个位置一次
+                let at = start + new_index as u32;
+                for k in (0..new_len).rev() {
+                    parent.write_child(txn, at, &groups[new_index + k]);
                 }
             }
             DiffOp::Replace {
@@ -200,9 +254,10 @@ pub fn reconcile_range(
                 new_len,
                 ..
             } => {
-                parent.remove(txn, start + new_index as u32, old_len as u32);
-                for k in 0..new_len {
-                    parent.write_child(txn, start + (new_index + k) as u32, &groups[new_index + k]);
+                let at = start + new_index as u32;
+                parent.remove(txn, at, old_len as u32);
+                for k in (0..new_len).rev() {
+                    parent.write_child(txn, at, &groups[new_index + k]);
                 }
             }
         }
@@ -305,8 +360,9 @@ fn reconcile_el(
             el.insert_attribute(txn, k.as_str(), convert::j2a(v));
         }
     }
+    // 新节点里没写的展示属性（从 Markdown 来的）保留旧的；写成 null 的才清掉
     for k in cur.keys() {
-        if !node.attrs.contains_key(k) {
+        if !node.attrs.contains_key(k) && !oad_markdown::node::is_presentation(&node.ty, k) {
             el.remove_attribute(txn, k);
         }
     }

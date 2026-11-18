@@ -1,7 +1,7 @@
 //! open-agent-docs：一个二进制，网页打在里面。
 use clap::{Parser, Subcommand, ValueEnum};
 use oad_core::storage::sqlite::Sqlite;
-use oad_core::{AuthConfig, Core, HubConfig, NotifyConfig, Role};
+use oad_core::{AuthConfig, Core, FsBlobs, HubConfig, MediaConfig, NotifyConfig, Role};
 use oad_server::{AppState, ServerConfig};
 use std::io::BufRead;
 use std::net::SocketAddr;
@@ -105,6 +105,11 @@ fn open_storage(data_dir: &Path) -> Result<Arc<Sqlite>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// 抓外部网页的配置：`OAD_FETCH_PROXY`、`OAD_FETCH_ALLOW_CIDRS`。
+fn oad_unfurl_config() -> oad_unfurl::FetchConfig {
+    oad_unfurl::FetchConfig::from_env()
+}
+
 fn env_nonempty(k: &str) -> Option<String> {
     std::env::var(k).ok().filter(|v| !v.is_empty())
 }
@@ -127,7 +132,20 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
     if notify.allow_private {
         warn!("OAD_WEBHOOK_ALLOW_PRIVATE：webhook 可以投到内网地址（只在本机开发时用）");
     }
-    let core = Core::open_with(storage, auth.clone(), HubConfig::default(), notify)
+    let max_upload_mb: usize = env_nonempty("OAD_MAX_UPLOAD_MB")
+        .map(|v| {
+            v.parse()
+                .map_err(|_| "OAD_MAX_UPLOAD_MB 要是整数".to_string())
+        })
+        .transpose()?
+        .unwrap_or(100);
+    let media = MediaConfig {
+        blobs: Arc::new(FsBlobs::new(a.data_dir.join("blobs")).map_err(|e| e.to_string())?),
+        fetch: oad_unfurl_config(),
+        max_upload: max_upload_mb << 20,
+        unfurl: true,
+    };
+    let core = Core::open_full(storage, auth.clone(), HubConfig::default(), notify, media)
         .await
         .map_err(|e| e.to_string())?;
     if matches!(auth, AuthConfig::Local) {

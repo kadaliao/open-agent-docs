@@ -155,4 +155,21 @@ pub trait Storage: Send + Sync + 'static {
     async fn unread_user_notifications(&self, user_id: &str) -> Result<i64>;
     /// 删掉早于 before 的通知。
     async fn purge_notifications(&self, before: i64) -> Result<u64>;
+
+    // 链接解析缓存
+    async fn unfurl(&self, url_key: &str) -> Result<Option<UnfurlRow>>;
+    async fn put_unfurl(&self, row: UnfurlRow) -> Result<()>;
+
+    // 文件
+    /// 记下一份内容（已有就不动）。
+    async fn put_blob(&self, b: BlobInfo) -> Result<()>;
+    async fn blob(&self, hash: &str) -> Result<Option<BlobInfo>>;
+    async fn create_file(&self, f: FileRow) -> Result<()>;
+    async fn file(&self, id: &str) -> Result<Option<FileRow>>;
+    /// 转存的外部图片：记下来源。
+    async fn put_media(&self, hash: &str, source_url: &str) -> Result<()>;
+    /// 这个网址转存过的图片。
+    async fn media_by_source(&self, source_url: &str) -> Result<Option<BlobInfo>>;
+    /// 是不是转存的图片。
+    async fn is_media(&self, hash: &str) -> Result<bool>;
 }

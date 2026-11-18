@@ -273,3 +273,104 @@ async fn login_rate_limit() {
     assert_eq!(login("other@example.com", "wrong").await.0, 401);
     s.stop().await;
 }
+
+/// 不经过任何 HTTP 客户端库（它们可能自己解压）：原样发一个 GET，拿状态、头、正文。
+async fn raw_get(
+    addr: std::net::SocketAddr,
+    path: &str,
+    headers: &[(&str, &str)],
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let mut req = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n");
+    for (k, v) in headers {
+        req.push_str(&format!("{k}: {v}\r\n"));
+    }
+    req.push_str("\r\n");
+    s.write_all(req.as_bytes()).await.unwrap();
+    let mut buf = Vec::new();
+    s.read_to_end(&mut buf).await.unwrap();
+    let split = buf.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    let head = String::from_utf8_lossy(&buf[..split]).to_string();
+    let mut body = buf[split + 4..].to_vec();
+    let mut lines = head.lines();
+    let status: u16 = lines
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap();
+    let hs: Vec<(String, String)> = lines
+        .filter_map(|l| l.split_once(':'))
+        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
+        .collect();
+    // 分块编码的拼回来
+    if hs
+        .iter()
+        .any(|(k, v)| k == "transfer-encoding" && v.contains("chunked"))
+    {
+        let mut out = Vec::new();
+        let mut rest = &body[..];
+        loop {
+            let nl = rest.windows(2).position(|w| w == b"\r\n").unwrap();
+            let n = usize::from_str_radix(std::str::from_utf8(&rest[..nl]).unwrap().trim(), 16)
+                .unwrap();
+            if n == 0 {
+                break;
+            }
+            out.extend_from_slice(&rest[nl + 2..nl + 2 + n]);
+            rest = &rest[nl + 2 + n + 2..];
+        }
+        body = out;
+    }
+    (status, hs, body)
+}
+
+fn hdr<'a>(hs: &'a [(String, String)], k: &str) -> Option<&'a str> {
+    hs.iter().find(|(x, _)| x == k).map(|(_, v)| v.as_str())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn static_web_precompressed() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Server::start(dir.path(), AuthConfig::None, fast_hub()).await;
+    let (_, hs, body) = raw_get(s.addr, "/", &[]).await;
+    let body = String::from_utf8_lossy(&body).to_string();
+    if !body.contains("<script") {
+        eprintln!("网页没构建（apps/web/dist），跳过");
+        return;
+    }
+    // 不支持压缩的客户端拿到原文
+    assert!(body.to_ascii_lowercase().starts_with("<!doctype html"));
+    assert_eq!(hdr(&hs, "content-encoding"), None);
+    let etag = hdr(&hs, "etag").unwrap().to_string();
+    let (_, hs, br) = raw_get(s.addr, "/", &[("Accept-Encoding", "gzip, br")]).await;
+    assert_eq!(hdr(&hs, "content-encoding"), Some("br"));
+    assert_eq!(hdr(&hs, "vary"), Some("Accept-Encoding"));
+    assert_eq!(hdr(&hs, "cache-control"), Some("no-cache"));
+    assert!(br.len() < body.len());
+    let (_, hs, _) = raw_get(s.addr, "/", &[("Accept-Encoding", "gzip")]).await;
+    assert_eq!(hdr(&hs, "content-encoding"), Some("gzip"));
+    let (st, _, _) = raw_get(s.addr, "/", &[("If-None-Match", &etag)]).await;
+    assert_eq!(st, 304);
+    // 前端路由回 index.html；带哈希的打包产物长缓存
+    let (_, _, b) = raw_get(s.addr, "/p/abc", &[]).await;
+    assert!(String::from_utf8_lossy(&b).contains("<script"));
+    let asset = body
+        .split("src=\"/")
+        .nth(1)
+        .and_then(|x| x.split('"').next())
+        .expect("index.html 里有脚本")
+        .to_string();
+    let (st, hs, _) = raw_get(s.addr, &format!("/{asset}"), &[("Accept-Encoding", "br")]).await;
+    assert_eq!(st, 200);
+    assert_eq!(
+        hdr(&hs, "cache-control"),
+        Some("public, max-age=31536000, immutable")
+    );
+    assert_eq!(hdr(&hs, "content-encoding"), Some("br"));
+    assert_eq!(raw_get(s.addr, "/nope.js", &[]).await.0, 404);
+    s.stop().await;
+}

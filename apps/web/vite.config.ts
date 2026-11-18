@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 
 // WASM 版 oad-markdown（packages/markdown-wasm）还没编出来时，用占位模块
 const wasm = fileURLToPath(new URL('../../packages/markdown-wasm', import.meta.url))
-const markdownAlias = existsSync(wasm + '/package.json') ? {} : { '@oad/markdown': fileURLToPath(new URL('./src/markdown-fallback.ts', import.meta.url)) }
+const markdownAlias = { '@oad/markdown': existsSync(wasm + '/dist/oad_markdown.js') ? wasm + '/dist/oad_markdown.js' : fileURLToPath(new URL('./src/markdown-fallback.ts', import.meta.url)) }
 
 const target = process.env.OAD_SERVER ?? 'http://localhost:8848'
 

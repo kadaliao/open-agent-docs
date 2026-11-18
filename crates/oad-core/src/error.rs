@@ -12,6 +12,9 @@ pub enum Error {
     Forbidden(String),
     #[error("{0}")]
     Conflict(String),
+    /// 去别的网站取东西失败了（链接解析）。
+    #[error("{0}")]
+    BadGateway(String),
     #[error("存储出错：{0}")]
     Storage(String),
     #[error("内部错误：{0}")]
@@ -27,6 +30,7 @@ impl Error {
             Error::Unauthorized(_) => "unauthorized",
             Error::Forbidden(_) => "forbidden",
             Error::Conflict(_) => "conflict",
+            Error::BadGateway(_) => "bad_gateway",
             Error::Storage(_) | Error::Internal(_) => "internal",
         }
     }

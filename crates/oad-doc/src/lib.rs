@@ -11,6 +11,7 @@ mod ids;
 pub use ids::{assign_ids, is_block, new_id};
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// 新插入的节点：去掉带来的编号，全部重新分配。编号 8 位随机（62^8 ≈ 2×10^14 种），不和整页比对。
 fn fresh(nodes: &[Node]) -> Vec<Node> {
@@ -86,6 +87,19 @@ fn check_snapshot(snap: &Snapshot, local: &StateVector) -> Result<()> {
     }
     Ok(())
 }
+
+/// [`PageDoc::observe_blocks`] 报告的事。
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlockEvent {
+    /// 这个顶层块变了（`None`：顶层有删除之类，说不清是哪块）。
+    Changed(Option<String>),
+    /// 顶层的 embed 块（新写的或改过的）的网址。
+    Embed(String),
+}
+
+/// [`PageDoc::blocks_cached`] 用的缓存：元素的 Yrs ID → (读出来时的序号, 节点)。
+#[derive(Default)]
+pub struct RenderCache(HashMap<(u64, u32), (u64, Arc<Node>)>);
 
 pub struct PageDoc {
     doc: Doc,
@@ -168,17 +182,124 @@ impl PageDoc {
         Node::new("doc").children(convert::read_children(&txn, &self.frag))
     }
 
+    /// 订阅每次提交改到了哪些顶层块（新插进来的也算），以及顶层的 embed 块现在的网址。在提交时同步调用。
+    pub fn observe_blocks(&self, f: impl Fn(BlockEvent) + Send + Sync + 'static) {
+        use yrs::DeepObservable;
+        use yrs::types::{Change, Event, PathSegment};
+        fn report(txn: &yrs::TransactionMut, el: &yrs::XmlElementRef, f: &dyn Fn(BlockEvent)) {
+            f(BlockEvent::Changed(edit::id_of(txn, el)));
+            if el.tag().as_ref() == "embed"
+                && let Some(yrs::Out::Any(yrs::Any::String(u))) =
+                    yrs::Xml::get_attribute(el, txn, "url")
+            {
+                f(BlockEvent::Embed(u.to_string()));
+            }
+        }
+        let frag = self.frag.clone();
+        self.frag.observe_deep("blocks", move |txn, events| {
+            for e in events.iter() {
+                match e.path().front() {
+                    Some(PathSegment::Index(i)) => {
+                        if let Some(yrs::XmlOut::Element(el)) =
+                            yrs::XmlFragment::get(&frag, txn, *i)
+                        {
+                            report(txn, &el, &f);
+                        }
+                    }
+                    _ => {
+                        if let Event::XmlFragment(xe) = e {
+                            for ch in xe.delta(txn) {
+                                if let Change::Added(outs) = ch {
+                                    for o in outs {
+                                        if let yrs::Out::YXmlElement(el) = o {
+                                            report(txn, el, &f);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        f(BlockEvent::Changed(None));
+                    }
+                }
+            }
+        });
+    }
+
+    /// 整页的顶层块，没变的直接用缓存里的（共享，不复制）。`changed(编号)` 是这块最后一次变时的序号，
+    /// `now` 是现在的序号；缓存按元素本身（Yrs 的 ID）认，块被换成新元素时不会用错。
+    pub fn blocks_cached(
+        &self,
+        cache: &mut RenderCache,
+        changed: impl Fn(&str) -> u64,
+        now: u64,
+    ) -> Vec<Arc<Node>> {
+        let txn = self.doc.transact();
+        let mut next = HashMap::with_capacity(cache.0.len());
+        let mut out = Vec::new();
+        for c in yrs::XmlFragment::children(&self.frag, &txn) {
+            match c {
+                yrs::XmlOut::Element(el) => {
+                    let branch: &yrs::branch::Branch = el.as_ref();
+                    let key = match branch.id() {
+                        yrs::branch::BranchID::Nested(id) => (id.client.get(), id.clock),
+                        yrs::branch::BranchID::Root(_) => (0, 0),
+                    };
+                    let since = match yrs::Xml::get_attribute(&el, &txn, "id") {
+                        Some(yrs::Out::Any(yrs::Any::String(id))) => changed(&id),
+                        _ => u64::MAX,
+                    };
+                    let node = match cache.0.remove(&key) {
+                        Some((at, n)) if since <= at => {
+                            next.insert(key, (at, n.clone()));
+                            n
+                        }
+                        _ => {
+                            let n = Arc::new(convert::read_element(&txn, &el));
+                            next.insert(key, (now, n.clone()));
+                            n
+                        }
+                    };
+                    out.push(node);
+                }
+                yrs::XmlOut::Text(t) => {
+                    out.extend(convert::read_text(&txn, &t).into_iter().map(Arc::new))
+                }
+                yrs::XmlOut::Fragment(_) => {}
+            }
+        }
+        cache.0 = next;
+        out
+    }
+
+    /// 有没有编号为 id 的块（任何一层）。
+    pub fn has_block(&self, id: &str) -> bool {
+        edit::find(&self.doc.transact(), &self.frag, id).is_some()
+    }
+
+    /// 编号为 id 的块是不是顶层块。
+    pub fn is_top_level(&self, id: &str) -> bool {
+        let txn = self.doc.transact();
+        yrs::XmlFragment::children(&self.frag, &txn).any(|c| match c {
+            yrs::XmlOut::Element(el) => edit::id_of(&txn, &el).as_deref() == Some(id),
+            _ => false,
+        })
+    }
+
     /// 编号为 id 的块。
     pub fn block(&self, id: &str) -> Option<Node> {
         let txn = self.doc.transact();
         edit::find(&txn, &self.frag, id).map(|(_, _, el)| convert::read_element(&txn, &el))
     }
 
-    /// 文档里已有的所有编号（要读整页）。
+    /// 文档里已有的所有编号（只读属性，不读文字）。
     pub fn ids(&self) -> HashSet<String> {
-        let mut set = HashSet::new();
-        ids::collect(&self.to_node(), &mut set);
-        set
+        let txn = self.doc.transact();
+        yrs::XmlFragment::successors(&self.frag, &txn)
+            .filter_map(|n| match n {
+                yrs::XmlOut::Element(el) => edit::id_of(&txn, &el),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn state_vector(&self) -> Vec<u8> {

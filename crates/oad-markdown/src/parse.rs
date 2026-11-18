@@ -1,7 +1,8 @@
 //! Markdown → 文档结构。用 comrak 解析（GFM + 提示框 + 公式 + 高亮 + 中日韩友好的强调规则），再转成节点。
 //!
 //! 约定（和 serialize.rs 对得上，保证来回不走样）：
-//! - 单独一行、什么都不包的网址（`https://…`）是 embed（链接卡片）；`<https://…>` 或 `[文字](网址)` 是普通链接。
+//! - 单独一行、什么都不包的网址（`https://…`）是 embed（链接卡片）；`<https://…>` 是行内提及 linkMention；
+//!   `[文字](网址)` 和正文里裸露的网址是普通链接。
 //! - 段落里的单个换行是 hardBreak（Agent 写的多行文字，本意就是换行）。
 //! - 只有图片的段落拆成 image 块。
 //! - `<details><summary>标题</summary> … </details>` 是折叠块；`<br>` 单独一行是空段落。
@@ -26,11 +27,33 @@ pub fn options() -> Options<'static> {
     o
 }
 
+thread_local! {
+    /// 正在解析的原文（按行），行内转换时看链接原来是不是 `<网址>` 的写法。
+    static SOURCE: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// 行内节点在原文里的第一个字符。
+fn source_char(n: N) -> Option<char> {
+    let p = n.data.borrow().sourcepos.start;
+    SOURCE.with(|s| {
+        let s = s.borrow();
+        let line = s.get(p.line.checked_sub(1)?)?;
+        line.get(p.column.checked_sub(1)?..)?.chars().next()
+    })
+}
+
 pub fn parse(md: &str) -> Node {
     let md = md.replace("\r\n", "\n");
+    SOURCE.with(|s| *s.borrow_mut() = md.lines().map(str::to_string).collect());
+    let doc = parse_inner(&md);
+    SOURCE.with(|s| s.borrow_mut().clear());
+    doc
+}
+
+fn parse_inner(md: &str) -> Node {
     let arena = Arena::new();
     let opts = options();
-    let root = parse_document(&arena, &md, &opts);
+    let root = parse_document(&arena, md, &opts);
     let lines: Vec<&str> = md.split('\n').collect();
     let cx = Cx { lines };
     Node::new("doc").children(cx.blocks(root))
@@ -444,6 +467,14 @@ fn inline(n: N, marks: &[Mark]) -> Vec<Node> {
         NodeValue::Highlight => inline_children(n, &with_mark(marks, Mark::new("highlight"))),
         NodeValue::Underline => inline_children(n, &with_mark(marks, Mark::new("underline"))),
         NodeValue::Link(l) => {
+            // `<https://…>`：行内提及
+            if source_char(n) == Some('<')
+                && is_url(&l.url)
+                && plain(n) == l.url
+                && marks.is_empty()
+            {
+                return vec![Node::new("linkMention").with("url", l.url.clone())];
+            }
             let m = Mark::new("link").with("href", l.url.clone());
             let m = if l.title.is_empty() {
                 m

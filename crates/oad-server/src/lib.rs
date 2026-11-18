@@ -2,6 +2,7 @@
 mod api;
 mod collab;
 mod error;
+mod files;
 mod guard;
 mod limit;
 mod sync;

@@ -5,15 +5,15 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-axum = { version = "0.8.9", features = ["ws"] }
+axum = { version = "0.8.9", features = ["multipart", "ws"] }
 base64 = "0.23.1"
 bytes = "1.12.2"
+flate2 = "1.1.11"
 futures-util = "0.3.34"
 mime_guess = "2.0.5"
 oad-core = { version = "0.1.0", path = "../oad-core" }
 oad-markdown = { version = "0.1.0", path = "../oad-markdown" }
 oad-mcp = { version = "0.1.0", path = "../oad-mcp" }
-rust-embed = "8.14.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "net"] }
@@ -22,9 +22,17 @@ yrs = "0.28.1"
 
 [dev-dependencies]
 hmac = "0.13.0"
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "stream"] }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+oad-unfurl = { path = "../oad-unfurl" }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "multipart", "query", "stream"] }
 rmcp = { version = "3.11.0", features = ["client", "transport-streamable-http-client-reqwest"] }
 sha2 = "0.11.1"
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
 tokio-tungstenite = "0.30.0"
+
+[build-dependencies]
+brotli = "9.1.3"
+flate2 = "1.1.11"
+mime_guess = "2.0.5"
+sha2 = "0.11.1"

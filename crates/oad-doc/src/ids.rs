@@ -15,9 +15,9 @@ pub fn new_id() -> String {
         .collect()
 }
 
-/// 行内节点（text、hardBreak、mathInline）和根节点没有编号，别的都有。
+/// 行内节点（text、hardBreak、mathInline、linkMention）和根节点没有编号，别的都有。
 pub fn is_block(ty: &str) -> bool {
-    !matches!(ty, "doc" | "text" | "hardBreak" | "mathInline")
+    !matches!(ty, "doc" | "text") && !oad_markdown::node::is_inline_atom(ty)
 }
 
 /// 只给这一个节点（不管子节点）分配编号。

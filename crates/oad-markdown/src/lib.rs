@@ -5,6 +5,8 @@
 pub mod node;
 mod parse;
 mod serialize;
+#[cfg(feature = "wasm")]
+pub mod wasm;
 
 pub use node::{Mark, Node};
 pub use parse::parse;

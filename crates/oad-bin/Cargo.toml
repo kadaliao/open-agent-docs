@@ -13,6 +13,7 @@ axum = "0.8.9"
 clap = { version = "4.6.8", features = ["derive", "env"] }
 oad-core = { version = "0.1.0", path = "../oad-core" }
 oad-server = { version = "0.1.0", path = "../oad-server" }
+oad-unfurl = { version = "0.1.0", path = "../oad-unfurl" }
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

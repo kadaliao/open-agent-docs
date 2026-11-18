@@ -72,3 +72,46 @@
 
 - `crates/oad-markdown` 加 `wasm` feature，用 wasm-bindgen 导出 `parse(md) -> JSON` 和 `serialize(JSON) -> md`；打包成 `packages/markdown-wasm`（@oad/markdown），网页按需加载。
 - 测试：同一组 Markdown 在 Rust 和 WASM 里结果一样。
+
+## 实际格式（服务器实现，网页按这个对）
+
+**文档**
+
+- `linkMention{url}` 是行内原子节点（和 hardBreak、mathInline 一样，没有块编号）。Markdown：`<https://…>` ↔ linkMention；加了格式的（`**<https://…>**`）、
+  `[文字](网址)`、正文里裸露的网址都是链接 mark。
+- 展示属性的清单是 `oad_markdown::node::PRESENTATION_ATTRS`（embed.view、image.width、image.caption、codeBlock.wrap）。reconcile 时新节点**没写**的展示属性保留旧值，
+  写成 `null` 的才清掉（网页发整页 JSON 时要清就写 null）。
+
+**链接解析**
+
+- `GET /unfurl?url=` → 200 Unfurl（不含 `attempts`）。解析失败（包括被 SSRF 检查拦下的地址）→ 502 `{ error: { code: "bad_gateway" } }`；失败也缓存，退避期内直接回 502。
+  过期了给旧的并带 `stale: true`，后台刷新；刷新失败时还用旧的，退避后再试。
+- 转存后的图片地址是 `/api/v1/media/<sha256>`（要登录，任何工作区的人都能看；`?w=` 同文件）。`thumbnail` 转存成功时补上 `width`、`height`、`blurhash`。
+  解析时最多等图片转存 1.5 秒：没转完的先给原地址（网页用 `referrerpolicy="no-referrer"` 画），后台转完更新缓存，之后再要就是本地地址。
+  转存的是 `favicon`、`author.avatar`、`thumbnail.url`、`media[]` 里图片的 `url`、视频的 `poster`、X 帖子（含引用）里的这些、公众号头像、X 链接卡片的 `image`；视频、GIF 文件本身不转存。
+- 上传的文件网址（`/api/v1/files/<id>/…`，相对或绝对）：`{ kind: "image" | "file", provider: "upload", source: "api", url, title, name, mime, size, width?, height?, blurhash?, duration_ms? }`，
+  图片另有 `thumbnail{url, width, height, blurhash}`。不是那个工作区的成员 → 404。
+- 缓存键：去掉跟踪参数（utm_*、fbclid、gclid、si、spm_id_from、vd_source、X 的 s / t…），youtu.be、m.youtube、shorts 统一成 `www.youtube.com/watch?v=`，
+  twitter.com 统一成 x.com，域名小写、去掉 #、查询参数排序（`oad_unfurl::cache_key`）。
+- 预取：顶层 embed 块（Agent 经 HTTP / MCP 写的、浏览器同步过来的都算）的网址交给后台，攒 300ms 去重后解析；同一页一次加载里同一个网址只交一次。
+- 抓取配置：`OAD_FETCH_PROXY`（代理），`OAD_FETCH_ALLOW_CIDRS`（允许的内网网段，例如开 Clash fake-ip 的本机开发机 `198.18.0.0/15`）。
+
+**文件**
+
+- 内容存 `OAD_DATA_DIR/blobs/`（按 SHA-256，同样的只存一份）；缩略图也存在那里（`<hash>.w<宽>.webp`）。
+- `POST /workspaces/{ws}/files` → 201 `{ id, url, name, mime, size, width?, height?, blurhash?, duration_ms? }`；要写权限。原始正文时文件名放 `X-Filename`（可以百分号编码）。
+  超过 `OAD_MAX_UPLOAD_MB` → 413 `too_large`。文件名去掉路径和控制字符。
+- 类型按内容判断：认不出的文本是 `text/plain`（.md → text/markdown、.csv → text/csv、.json → application/json），HTML 一律当 `text/plain`，二进制 `application/octet-stream`。
+- `GET /files/{id}/{name}`（`{name}` 只是给人看的，不参与查找）：`Cache-Control: private, max-age=31536000, immutable`，`ETag`（`If-None-Match` → 304），
+  `Accept-Ranges: bytes`、单段 `Range` → 206（不合法 → 416），`X-Content-Type-Options: nosniff`；SVG、文本、XML 带 `Content-Security-Policy: sandbox`，SVG 是 `attachment`。
+  不是工作区成员 → 404。
+- `?w=`：JPEG / PNG / WebP / BMP 给有损 webp（质量 80），宽度取 160 / 320 / 640 / 960 / 1280 / 1920 里最近的一档；原图不比这宽、SVG、GIF 直接给原图。
+- 宽高、blurhash：位图（含 GIF 第一帧）都算；`duration_ms`（和视频宽高）目前只从 MP4 / MOV / M4A 里读。
+
+**MCP**：`upload_file(name, content_base64)`（也接受 `data:…;base64,` 前缀）→ 文字里最后一行是能直接放进页面的 Markdown（图片 `![](url)`，别的是单独一行网址）。
+
+**WASM（packages/markdown-wasm，@oad/markdown）**：`wasm-bindgen --target web`，默认导出 init，另有 `parse(md) → JSON 字符串`、`serialize(JSON 字符串) → md`、
+`serializeBlock(JSON 字符串) → md`。`sh packages/markdown-wasm/build.sh` 重新编（要 wasm32-unknown-unknown 和 wasm-bindgen-cli 0.2.130）；编好的 dist 跟着提交，
+网页的 Vite alias 指向它。
+
+**网页静态文件**：打进二进制的 dist 预先压好 brotli、gzip（图片、字体放原文），按 `Accept-Encoding` 给，`Vary: Accept-Encoding`、`ETag`；`assets/` 下长缓存，别的 `no-cache`。

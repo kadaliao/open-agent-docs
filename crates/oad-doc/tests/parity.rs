@@ -54,7 +54,10 @@ fn markdown_back_equals_browser_doc() {
     let Ok(json) = std::fs::read_to_string(fixtures().join("all-nodes.json")) else {
         return;
     };
-    let want = normalize(&serde_json::from_str::<Node>(&json).unwrap()).without_ids();
+    // 展示属性（图注、宽度、embed.view、codeBlock.wrap）不进 Markdown
+    let want = normalize(&serde_json::from_str::<Node>(&json).unwrap())
+        .without_ids()
+        .without_presentation();
     let back = normalize(&oad_markdown::parse(&oad_markdown::serialize(&want))).without_ids();
     assert_eq!(
         serde_json::to_string_pretty(&back).unwrap(),

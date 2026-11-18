@@ -16,6 +16,7 @@ const TOOLS: &[&str] = &[
     "list_comments",
     "comment",
     "my_notifications",
+    "upload_file",
 ];
 
 /// 读出来的正文里 ⟦⟧ 中的块编号，按顺序。

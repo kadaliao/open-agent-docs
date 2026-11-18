@@ -12,6 +12,7 @@ use tokio::sync::oneshot;
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_init.sql"),
     include_str!("migrations/002_agents_comments.sql"),
+    include_str!("migrations/003_media.sql"),
 ];
 const READERS: usize = 4;
 
@@ -1251,6 +1252,151 @@ impl Storage for Sqlite {
         .await
     }
 
+    async fn unfurl(&self, url_key: &str) -> Result<Option<UnfurlRow>> {
+        let k = url_key.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(
+                "SELECT url_key, data, status, fetched_at, expires_at, error, failures FROM unfurls WHERE url_key = ?1",
+            )?
+            .query_row([k], |r| {
+                let data: Option<String> = r.get(1)?;
+                Ok(UnfurlRow {
+                    url_key: r.get(0)?,
+                    data: data.and_then(|d| serde_json::from_str(&d).ok()),
+                    ok: r.get::<_, String>(2)? == "ok",
+                    fetched_at: r.get(3)?,
+                    expires_at: r.get(4)?,
+                    error: r.get(5)?,
+                    failures: r.get(6)?,
+                })
+            })
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn put_unfurl(&self, row: UnfurlRow) -> Result<()> {
+        self.write(move |c| {
+            c.prepare_cached(
+                "INSERT INTO unfurls (url_key, data, status, fetched_at, expires_at, error, failures)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT (url_key) DO UPDATE SET
+                    data = coalesce(excluded.data, unfurls.data), status = excluded.status,
+                    fetched_at = excluded.fetched_at, expires_at = excluded.expires_at,
+                    error = excluded.error, failures = excluded.failures",
+            )?
+            .execute(params![
+                row.url_key,
+                row.data.map(|d| d.to_string()),
+                if row.ok { "ok" } else { "error" },
+                row.fetched_at,
+                row.expires_at,
+                row.error,
+                row.failures
+            ])?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn put_blob(&self, b: BlobInfo) -> Result<()> {
+        self.write(move |c| {
+            c.prepare_cached(
+                "INSERT OR IGNORE INTO blobs (hash, size, mime, width, height, blurhash, duration_ms, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )?
+            .execute(params![b.hash, b.size, b.mime, b.width, b.height, b.blurhash, b.duration_ms, ids::now_ms()])?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn blob(&self, hash: &str) -> Result<Option<BlobInfo>> {
+        let h = hash.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached(&format!("SELECT {BLOB_COLS} FROM blobs WHERE hash = ?1"))?
+                    .query_row([h], |r| blob_row(r, 0))
+                    .optional()?,
+            )
+        })
+        .await
+    }
+
+    async fn create_file(&self, f: FileRow) -> Result<()> {
+        self.write(move |c| {
+            c.execute(
+                "INSERT INTO files (id, workspace_id, hash, name, created_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![f.id, f.workspace_id, f.blob.hash, f.name, f.created_by, f.created_at],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn file(&self, id: &str) -> Result<Option<FileRow>> {
+        let id = id.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(&format!(
+                "SELECT f.id, f.workspace_id, f.name, f.created_by, f.created_at, {} FROM files f
+                 JOIN blobs b ON b.hash = f.hash WHERE f.id = ?1",
+                BLOB_COLS
+                    .split(", ")
+                    .map(|x| format!("b.{x}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))?
+            .query_row([id], |r| {
+                Ok(FileRow {
+                    id: r.get(0)?,
+                    workspace_id: r.get(1)?,
+                    name: r.get(2)?,
+                    created_by: r.get(3)?,
+                    created_at: r.get(4)?,
+                    blob: blob_row(r, 5)?,
+                })
+            })
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn put_media(&self, hash: &str, source_url: &str) -> Result<()> {
+        let (h, u) = (hash.to_string(), source_url.to_string());
+        self.write(move |c| {
+            c.execute(
+                "INSERT OR IGNORE INTO media (hash, source_url, created_at) VALUES (?1, ?2, ?3)",
+                params![h, u, ids::now_ms()],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn media_by_source(&self, source_url: &str) -> Result<Option<BlobInfo>> {
+        let u = source_url.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(&format!(
+                "SELECT {} FROM media m JOIN blobs b ON b.hash = m.hash WHERE m.source_url = ?1 LIMIT 1",
+                BLOB_COLS.split(", ").map(|x| format!("b.{x}")).collect::<Vec<_>>().join(", ")
+            ))?
+            .query_row([u], |r| blob_row(r, 0))
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn is_media(&self, hash: &str) -> Result<bool> {
+        let h = hash.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached("SELECT 1 FROM media WHERE hash = ?1")?
+                .query_row([h], |_| Ok(()))
+                .optional()?
+                .is_some())
+        })
+        .await
+    }
+
     async fn purge_notifications(&self, before: i64) -> Result<u64> {
         self.write(move |c| {
             let a = c.execute(
@@ -1367,4 +1513,18 @@ fn note_scope(s: &NoteScope) -> (&'static str, String) {
         NoteScope::Agent(a) => ("agent_id", a.clone()),
         NoteScope::Workspace(w) => ("workspace_id", w.clone()),
     }
+}
+
+const BLOB_COLS: &str = "hash, size, mime, width, height, blurhash, duration_ms";
+
+fn blob_row(r: &Row, at: usize) -> rusqlite::Result<BlobInfo> {
+    Ok(BlobInfo {
+        hash: r.get(at)?,
+        size: r.get(at + 1)?,
+        mime: r.get(at + 2)?,
+        width: r.get(at + 3)?,
+        height: r.get(at + 4)?,
+        blurhash: r.get(at + 5)?,
+        duration_ms: r.get(at + 6)?,
+    })
 }

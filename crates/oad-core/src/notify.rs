@@ -57,6 +57,11 @@ pub struct Notifier {
     http: reqwest::Client,
 }
 
+/// TLS 用 ring（比 aws-lc-rs 小、编译快）。进程里第一次建 HTTPS 客户端之前要装好；已经装过（或者宿主装了别的）就用已有的。
+pub fn install_tls() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 /// webhook 签名：HMAC-SHA256(secret, "<timestamp>.<body>") 的十六进制。
 pub fn sign(secret: &str, timestamp: i64, body: &str) -> String {
     let mut mac =
@@ -93,6 +98,7 @@ pub fn user_payload(row: &NotificationRow) -> Value {
 
 impl Notifier {
     pub fn new(storage: Arc<dyn Storage>, events: Events, cfg: NotifyConfig) -> Arc<Notifier> {
+        install_tls();
         let mut b = reqwest::Client::builder()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())

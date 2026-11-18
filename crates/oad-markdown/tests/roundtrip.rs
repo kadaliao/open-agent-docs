@@ -53,9 +53,26 @@ fn embed_vs_link() {
         first("https://www.youtube.com/watch?v=abc&t=10").attr_str("url"),
         Some("https://www.youtube.com/watch?v=abc&t=10")
     );
+    // <网址> 是行内提及；[文字](网址) 和正文里裸露的网址是普通链接
     let p = first("<https://x.com/a>");
     assert_eq!(p.ty, "paragraph");
-    assert_eq!(p.content[0].marks[0].ty, "link");
+    assert_eq!(p.content[0].ty, "linkMention");
+    assert_eq!(p.content[0].attr_str("url"), Some("https://x.com/a"));
+    let p = first("看 <https://github.com/a/b> 这个");
+    assert_eq!(p.content[1].ty, "linkMention");
+    assert_eq!(
+        serialize(&Node::new("doc").children(vec![p])),
+        "看 <https://github.com/a/b> 这个\n"
+    );
+    assert_eq!(
+        first("[https://x.com/a](https://x.com/a)").content[0].marks[0].ty,
+        "link"
+    );
+    assert_eq!(
+        first("**<https://x.com/a>**").content[0].marks.len(),
+        2,
+        "加了格式的还是链接"
+    );
     assert_eq!(first("[https://x.com](https://x.com)").ty, "paragraph");
     assert_eq!(
         first("看这个 https://x.com/a 链接").content[1].marks[0].ty,
@@ -245,6 +262,17 @@ fn rand_inline(r: &mut Rng, table: bool) -> Vec<Node> {
             }
         }
         out.push(Node::text(text, marks));
+        // 行内提及
+        if !table && r.below(10) == 0 {
+            let url = *r.pick(&[
+                "https://github.com/a/b",
+                "https://x.com/u/status/1",
+                "http://a.cn/p?q=1&r=2",
+            ]);
+            out.push(Node::text(" ", vec![]));
+            out.push(Node::new("linkMention").with("url", url));
+            out.push(Node::text(" ", vec![]));
+        }
     }
     out
 }

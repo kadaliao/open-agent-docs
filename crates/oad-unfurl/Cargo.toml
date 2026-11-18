@@ -1,0 +1,18 @@
+[package]
+name = "oad-unfurl"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+description = "链接解析：把网址变成卡片数据（X、YouTube、B 站、GitHub、公众号、通用 Open Graph）"
+
+[dependencies]
+encoding_rs = "0.8.44"
+regex = "1.13.2"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "http2", "gzip", "brotli", "deflate"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+scraper = "0.29.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+url = "2.5.8"

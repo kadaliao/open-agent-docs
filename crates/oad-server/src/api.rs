@@ -40,6 +40,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/sync/{page_id}", get(sync::handler))
         .merge(crate::collab::routes())
+        .merge(crate::files::routes())
         .fallback(|| async { ApiError::not_found("没有这个接口") })
 }
 

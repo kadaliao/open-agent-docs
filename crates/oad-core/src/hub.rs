@@ -7,13 +7,18 @@
 //! - 没有连接、空闲 `idle_unload` 后存好、压缩、退出。发命令和退出前检查收件箱都在表锁里做，
 //!   所以不会丢命令，也不会同时有两个 actor 管同一页。
 //! - 处理命令时 panic 不会让 actor 退出：接住后把已经确认过的改动照常广播、存盘。
+//! - 服务器替人 / Agent 写正文时用写入者自己的 client id：每个最近写过的写入者有一份和主文档同步的副本
+//!   （主文档的每个增量也合并进去），在副本上改、把增量合并回主文档，不用每次复制整份文档。
+//!   给了旧的 base 时，如果要改的块在那之后没被别人动过，结果和在当前文档上改一样，也走副本；
+//!   动过才退回到“从 base 那一刻复制一份再改”。为此每个顶层块记着最后一次变的序号，发出去的版本记着当时的序号。
+//! - 读整页时没变的顶层块用缓存（同样按序号判断），大页面读起来不占着 actor 太久。
 //! - 存盘失败会退避重试，数据一直留在存盘任务的队列里，直到写进去。
 use crate::events::{EventKind, Events};
 use crate::model::{Principal, PrincipalKind};
 use crate::storage::Storage;
 use crate::{Error, Result};
 use bytes::Bytes;
-use oad_doc::PageDoc;
+use oad_doc::{PageDoc, RenderCache};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -45,6 +50,10 @@ pub struct HubConfig {
     pub conn_inbound: usize,
     /// 每个连接每分钟最多回几次 step1（每次都要算一份差量），超过就断开。
     pub step1_per_minute: usize,
+    /// 每页最多留几个写入者的同步副本（每份和整页一样大，一万段约几十 MB）。
+    pub writer_forks: usize,
+    /// 副本多久没用就扔掉。
+    pub fork_idle: Duration,
 }
 
 impl Default for HubConfig {
@@ -57,8 +66,21 @@ impl Default for HubConfig {
             conn_buffer: 512,
             conn_inbound: 64,
             step1_per_minute: 20,
+            writer_forks: 2,
+            fork_idle: Duration::from_secs(20),
         }
     }
+}
+
+/// 一次写入会改到哪些块（判断旧的 base 能不能直接在当前文档上改）。
+#[derive(Default, Clone, Debug)]
+pub struct Targets {
+    /// 整页都可能改（整页替换）。
+    pub all: bool,
+    /// 内容要和读到的比对的块（替换）。
+    pub content: Vec<String>,
+    /// 只用来定位的块（插在它前后）。
+    pub refs: Vec<String>,
 }
 
 /// 通过 HTTP 写入的是谁、在写哪一块（替它在 awareness 里放一份）。
@@ -104,6 +126,8 @@ struct Inner {
     /// 打开着的页面；None 表示已经关闭，不再接新的。
     docs: Mutex<Option<HashMap<String, Entry>>>,
     next: AtomicU64,
+    /// 有人写了 embed 块时把网址交给这里（链接解析的后台预取）。
+    prefetch: std::sync::OnceLock<mpsc::UnboundedSender<String>>,
 }
 
 #[derive(Clone)]
@@ -154,8 +178,14 @@ impl DocHub {
                 cfg,
                 docs: Mutex::new(Some(HashMap::new())),
                 next: AtomicU64::new(1),
+                prefetch: std::sync::OnceLock::new(),
             }),
         }
+    }
+
+    /// 设预取的去处（只能设一次）。
+    pub fn set_prefetch(&self, tx: mpsc::UnboundedSender<String>) {
+        let _ = self.inner.prefetch.set(tx);
     }
 
     pub fn config(&self) -> &HubConfig {
@@ -279,6 +309,44 @@ impl DocHub {
         .map_err(|e| Error::Internal(e.to_string()))?
     }
 
+    /// 整页的节点树和当前版本。没变的块用缓存；actor 里只取共享的块，拼成整棵树在别的线程上做。
+    pub async fn content(&self, page_id: &str) -> Result<(oad_doc::Node, Vec<u8>)> {
+        let (blocks, v) = self
+            .call(page_id, |a| {
+                let v = a.issue_version();
+                let (changed, seq) = (&a.changed, a.seq);
+                let blocks = a.doc.blocks_cached(
+                    &mut a.render,
+                    |id| changed.get(id).copied().unwrap_or(0),
+                    seq,
+                );
+                (blocks, v)
+            })
+            .await?;
+        let node = tokio::task::spawn_blocking(move || {
+            oad_doc::Node::new("doc").children(blocks.iter().map(|b| (**b).clone()).collect())
+        })
+        .await
+        .map_err(|e| Error::Internal(e.to_string()))?;
+        Ok((node, v))
+    }
+
+    /// 一块和当前版本。
+    pub async fn block(
+        &self,
+        page_id: &str,
+        block_id: &str,
+    ) -> Result<(Option<oad_doc::Node>, Vec<u8>)> {
+        let b = block_id.to_string();
+        self.call(page_id, move |a| (a.doc.block(&b), a.issue_version()))
+            .await
+    }
+
+    /// 当前版本（写的时候当 base 交回来）。
+    pub async fn version(&self, page_id: &str) -> Result<Vec<u8>> {
+        self.call(page_id, |a| a.issue_version()).await
+    }
+
     /// 读正文。
     pub async fn read<R: Send + 'static>(
         &self,
@@ -297,13 +365,14 @@ impl DocHub {
         page_id: &str,
         writer: Option<Writer>,
         base: Option<Vec<u8>>,
+        targets: Targets,
         f: impl FnOnce(&PageDoc) -> Result<R> + Send + 'static,
     ) -> Result<R> {
         self.call(page_id, move |a| {
             let r = match &writer {
                 Some(w) => {
                     a.presence(w);
-                    a.edit_as(&w.principal, base.as_deref(), f)
+                    a.edit_as(&w.principal, base.as_deref(), &targets, f)
                 }
                 None if base.is_some() => Err(Error::BadRequest("base 要和写入者一起给".into())),
                 None => f(&a.doc),
@@ -465,8 +534,42 @@ pub struct Actor {
     known: HashSet<u64>,
     /// 每个 HTTP 写入者在这次加载里用的 client id。
     writers: HashMap<String, u64>,
+    /// 最近写过的写入者的同步副本。
+    forks: HashMap<String, Fork>,
+    next_fork: u64,
+    /// 每条命令改了文档就加一。
+    seq: u64,
+    /// 顶层块最后一次变时的序号（这次加载以来没变过的不在里面）。
+    changed: HashMap<String, u64>,
+    /// 提交时记下的、改到的顶层块和 embed 网址。
+    touched: Arc<Mutex<Vec<oad_doc::BlockEvent>>>,
+    prefetch: Option<mpsc::UnboundedSender<String>>,
+    /// 这次加载里交给预取过的网址。
+    prefetched: HashSet<String>,
+    /// 发出去的版本：(版本的哈希, 当时的序号)，最近的一些。
+    issued: VecDeque<(u64, u64)>,
+    render: RenderCache,
     last_active: Instant,
     cfg: HubConfig,
+}
+
+/// 一个写入者的同步副本：用它的 client id 写。
+struct Fork {
+    doc: PageDoc,
+    cid: u64,
+    /// 副本的增量合并回主文档时用的来源标记（同步时跳过它自己）。
+    tag: u64,
+    buf: Arc<Mutex<Vec<Vec<u8>>>>,
+    used: Instant,
+}
+
+const ISSUED: usize = 256;
+
+fn hash_bytes(b: &[u8]) -> u64 {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    b.hash(&mut h);
+    h.finish()
 }
 
 enum Step1 {
@@ -530,6 +633,9 @@ impl Actor {
                     .push((origin, e.update.clone()));
             })
             .map_err(|e| Error::Internal(e.to_string()))?;
+        let touched: Arc<Mutex<Vec<oad_doc::BlockEvent>>> = Arc::default();
+        let t = touched.clone();
+        doc.observe_blocks(move |e| t.lock().unwrap_or_else(PoisonError::into_inner).push(e));
         let awareness = Awareness::new(doc.ydoc().clone());
         Ok(Actor {
             page_id: page_id.to_string(),
@@ -547,6 +653,15 @@ impl Actor {
             last_active: Instant::now(),
             known,
             writers: HashMap::new(),
+            forks: HashMap::new(),
+            next_fork: 0,
+            seq: 0,
+            changed: HashMap::new(),
+            touched,
+            prefetch: inner.prefetch.get().cloned(),
+            prefetched: HashSet::new(),
+            issued: VecDeque::new(),
+            render: RenderCache::default(),
             cfg: inner.cfg.clone(),
         })
     }
@@ -604,20 +719,47 @@ impl Actor {
         }
     }
 
-    /// 写入者这次用哪个 client id：同一次加载里沿用同一个；从旧版本改、而它在那之后又写过时换一个新的，
-    /// 不然副本里会从旧时钟接着编号，和已有的撞上。
-    fn writer_client(&mut self, who: &Principal, base: Option<&[u8]>) -> u64 {
+    /// 记下发出去的版本和当时的序号。
+    fn issue_version(&mut self) -> Vec<u8> {
+        self.after();
+        let v = self.doc.version();
+        if self.issued.len() >= ISSUED {
+            self.issued.pop_front();
+        }
+        self.issued.push_back((hash_bytes(&v), self.seq));
+        v
+    }
+
+    /// base 能不能当成当前版本：就是当前版本，或者要比对内容的块在那之后都没变过、定位用的块还在。
+    fn base_fresh(&self, base: &[u8], t: &Targets) -> bool {
+        let h = hash_bytes(base);
+        let Some(&(_, s)) = self.issued.iter().rev().find(|(x, _)| *x == h) else {
+            return false;
+        };
+        if s == self.seq {
+            return true;
+        }
+        if t.all {
+            return false;
+        }
+        t.content
+            .iter()
+            .all(|id| self.changed.get(id).is_none_or(|&c| c <= s) && self.doc.is_top_level(id))
+            && t.refs.iter().all(|id| self.doc.has_block(id))
+    }
+
+    /// 从旧版本改用哪个 client id：它在那之后又写过就换一个新的，不然副本会从旧时钟接着编号，和已有的撞上。
+    fn stale_writer_client(&mut self, who: &Principal, base: &[u8]) -> u64 {
         let cid = *self
             .writers
             .entry(who.user_id.clone())
             .or_insert_with(oad_doc::server_client_id);
-        let stale = base
-            .is_some_and(|b| oad_doc::version_clock(b, cid).unwrap_or(0) != self.doc.clock(cid));
-        if !stale {
+        if oad_doc::version_clock(base, cid).unwrap_or(0) == self.doc.clock(cid) {
             return cid;
         }
         let fresh = oad_doc::server_client_id();
         self.writers.insert(who.user_id.clone(), fresh);
+        self.forks.remove(&who.user_id);
         fresh
     }
 
@@ -625,16 +767,88 @@ impl Actor {
         &mut self,
         who: &Principal,
         base: Option<&[u8]>,
+        targets: &Targets,
         f: impl FnOnce(&PageDoc) -> Result<R>,
     ) -> Result<R> {
-        let cid = self.writer_client(who, base);
-        let version = match base {
-            Some(b) => b.to_vec(),
-            None => self.doc.version(),
+        // 先把之前的改动同步进副本
+        self.after();
+        match base {
+            Some(b) if !self.base_fresh(b, targets) => self.edit_at(who, b, f),
+            _ => self.edit_on_fork(who, f),
+        }
+    }
+
+    /// 在写入者的同步副本上改，增量合并回主文档。
+    /// 改之前先把副本从表里拿出来：f 出错或 panic 时副本已经和主文档不一样了，就不放回去。
+    fn edit_on_fork<R>(
+        &mut self,
+        who: &Principal,
+        f: impl FnOnce(&PageDoc) -> Result<R>,
+    ) -> Result<R> {
+        let cid = *self
+            .writers
+            .entry(who.user_id.clone())
+            .or_insert_with(oad_doc::server_client_id);
+        let mut fork = match self.forks.remove(&who.user_id) {
+            Some(fk) if fk.cid == cid => fk,
+            _ => self.new_fork(cid)?,
         };
+        fork.buf
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        let r = f(&fork.doc)?;
+        let ups = std::mem::take(&mut *fork.buf.lock().unwrap_or_else(PoisonError::into_inner));
+        for u in &ups {
+            self.doc.apply_update_from(u, fork.tag)?;
+        }
+        fork.used = Instant::now();
+        self.forks.insert(who.user_id.clone(), fork);
+        self.record([cid], who);
+        Ok(r)
+    }
+
+    fn new_fork(&mut self, cid: u64) -> Result<Fork> {
+        if self.forks.len() >= self.cfg.writer_forks.max(1)
+            && let Some(k) = self
+                .forks
+                .iter()
+                .min_by_key(|(_, f)| f.used)
+                .map(|(k, _)| k.clone())
+        {
+            self.forks.remove(&k);
+        }
+        let doc = PageDoc::from_update(cid, &self.doc.encode_state())?;
+        let buf: Arc<Mutex<Vec<Vec<u8>>>> = Arc::default();
+        let b = buf.clone();
+        doc.ydoc()
+            .observe_update_v1("fork", move |_, e| {
+                b.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(e.update.clone());
+            })
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        self.next_fork += 1;
+        Ok(Fork {
+            doc,
+            cid,
+            tag: u64::MAX - self.next_fork,
+            buf,
+            used: Instant::now(),
+        })
+    }
+
+    /// 从旧版本 base 复制一份再改（要改的块在那之后被别人动过时）。
+    fn edit_at<R>(
+        &mut self,
+        who: &Principal,
+        base: &[u8],
+        f: impl FnOnce(&PageDoc) -> Result<R>,
+    ) -> Result<R> {
+        let cid = self.stale_writer_client(who, base);
         let fork = self
             .doc
-            .fork_at(&version, cid)
+            .fork_at(base, cid)
             .map_err(|e| Error::BadRequest(format!("base 版本不对：{e}")))?;
         let sv = fork.state_vector();
         let r = f(&fork)?;
@@ -642,6 +856,20 @@ impl Actor {
         self.doc.apply_update(&diff)?;
         self.record([cid], who);
         Ok(r)
+    }
+
+    fn evict_forks(&mut self, now: Instant) {
+        let idle = self.cfg.fork_idle;
+        let before = self.forks.len();
+        self.forks.retain(|_, f| f.used + idle > now);
+        if self.forks.len() < before {
+            debug!(page = %self.page_id, "写入者副本空闲，扔掉 {} 份", before - self.forks.len());
+        }
+    }
+
+    /// 现在留着几份写入者副本（测试用）。
+    pub fn fork_count(&self) -> usize {
+        self.forks.len()
     }
 
     fn join(&mut self, conn: u64, readonly: bool, who: Principal, out: mpsc::Sender<Bytes>) {
@@ -743,8 +971,44 @@ impl Actor {
     /// 每条命令之后：把新增量广播出去，排进待存。
     fn after(&mut self) {
         let ups = std::mem::take(&mut *self.updates.lock().unwrap_or_else(PoisonError::into_inner));
-        if ups.is_empty() {
+        let touched =
+            std::mem::take(&mut *self.touched.lock().unwrap_or_else(PoisonError::into_inner));
+        if ups.is_empty() && touched.is_empty() {
             return;
+        }
+        self.seq += 1;
+        for e in touched {
+            match e {
+                oad_doc::BlockEvent::Changed(Some(id)) => {
+                    self.changed.insert(id, self.seq);
+                }
+                oad_doc::BlockEvent::Changed(None) => {}
+                // 单独一行的网址：后台先解析一次
+                oad_doc::BlockEvent::Embed(url) => {
+                    if let Some(tx) = &self.prefetch
+                        && oad_markdown::is_bare_url(&url)
+                        && self.prefetched.len() < 10_000
+                        && self.prefetched.insert(url.clone())
+                    {
+                        let _ = tx.send(url);
+                    }
+                }
+            }
+        }
+        // 同步进各写入者的副本（来源是它自己的跳过）；合并失败的副本扔掉
+        let mut bad = Vec::new();
+        for (k, f) in &self.forks {
+            for (origin, u) in &ups {
+                if *origin != Some(f.tag) && f.doc.apply_update(u).is_err() {
+                    bad.push(k.clone());
+                    break;
+                }
+            }
+            f.buf.lock().unwrap_or_else(PoisonError::into_inner).clear();
+        }
+        for k in bad {
+            warn!(page = %self.page_id, "副本同步失败，扔掉");
+            self.forks.remove(&k);
         }
         for (origin, u) in ups {
             let msg = encode(&Message::Sync(SyncMessage::Update(u.clone())));
@@ -867,6 +1131,10 @@ impl Actor {
         [
             self.flush_at,
             self.presence.values().map(|p| p.clear_at).min(),
+            self.forks
+                .values()
+                .map(|f| f.used + self.cfg.fork_idle)
+                .min(),
             idle,
         ]
         .into_iter()
@@ -995,6 +1263,7 @@ async fn run_actor(
                         a.flush();
                     }
                     a.clear_presence(now);
+                    a.evict_forks(now);
                 });
                 if actor.conns.is_empty() && actor.last_active + actor.cfg.idle_unload <= now {
                     actor.settle().await;
@@ -1046,6 +1315,7 @@ mod tests {
     use crate::storage::sqlite::Sqlite;
     use crate::{AuthConfig, AuthRequest, Core};
     use std::sync::atomic::AtomicUsize;
+    use yrs::updates::encoder::Encode;
 
     async fn setup(dir: &std::path::Path, cfg: HubConfig) -> (Arc<Sqlite>, Arc<Core>, Principal) {
         let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
@@ -1202,6 +1472,233 @@ mod tests {
             .unwrap();
         core.hub.flush(&page).await.unwrap();
         assert_eq!(storage.page(&page).await.unwrap().unwrap().title, "新标题");
+        core.shutdown().await;
+    }
+
+    /// 模拟一个浏览器连接：自己的文档 + 把收到的增量合并进来。
+    struct Browser {
+        doc: PageDoc,
+        conn: Conn,
+    }
+
+    impl Browser {
+        async fn join(core: &Core, page: &str, who: &Principal, client: u64) -> Browser {
+            let conn = core.hub.join(page, false, who.clone()).await.unwrap();
+            let state = core.hub.read(page, |d| d.encode_state()).await.unwrap();
+            Browser {
+                doc: PageDoc::from_update(client, &state).unwrap(),
+                conn,
+            }
+        }
+        /// 收下服务器发来的增量。
+        fn pull(&mut self) {
+            while let Ok(m) = self.conn.rx.try_recv() {
+                let mut dec = DecoderV1::new(Cursor::new(&m));
+                for msg in MessageReader::new(&mut dec).flatten() {
+                    if let Message::Sync(SyncMessage::Update(u) | SyncMessage::SyncStep2(u)) = msg {
+                        self.doc.apply_update(&u).unwrap();
+                    }
+                }
+            }
+        }
+        /// 在编号为 id 的块开头打字，发给服务器。
+        async fn type_into(&mut self, id: &str, text: &str) {
+            self.pull();
+            let sv = self.doc.state_vector();
+            let b = self.doc.block(id).unwrap();
+            let t = format!("{text}{}", b.plain_text());
+            self.doc.replace_block(id, &md(&t)).unwrap();
+            let u = self.doc.encode_diff(&sv).unwrap();
+            let msg = Message::Sync(SyncMessage::Update(u)).encode_v1();
+            assert!(self.conn.handle.send(msg).await);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn writer_forks_stay_in_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let (storage, core, who) = setup(dir.path(), HubConfig::default()).await;
+        let page = new_page(&core, &who, "p").await;
+        let text: String = (0..20).map(|i| format!("第 {i} 段\n\n")).collect();
+        core.set_content(&page, &who, oad_markdown::parse(&text), None)
+            .await
+            .unwrap();
+        let (a1, _, _) = core
+            .create_agent(
+                &core.default_workspace.id,
+                &who,
+                "甲",
+                None,
+                crate::Scope::Write,
+                None,
+            )
+            .await
+            .unwrap();
+        let (a2, _, _) = core
+            .create_agent(
+                &core.default_workspace.id,
+                &who,
+                "乙",
+                None,
+                crate::Scope::Write,
+                None,
+            )
+            .await
+            .unwrap();
+        let p1 = Principal {
+            user_id: a1.id.clone(),
+            name: a1.name.clone(),
+            kind: PrincipalKind::Agent,
+        };
+        let p2 = Principal {
+            user_id: a2.id.clone(),
+            name: a2.name.clone(),
+            kind: PrincipalKind::Agent,
+        };
+        let mut b = Browser::join(&core, &page, &who, 7).await;
+        let ids: Vec<String> = core
+            .content(&page, &who)
+            .await
+            .unwrap()
+            .0
+            .content
+            .iter()
+            .map(|n| n.attr_str("id").unwrap().to_string())
+            .collect();
+        for round in 0..15 {
+            // 两个 Agent 读了版本以后，人在别的块（有时候是同一块）里打字，然后 Agent 带着旧版本改
+            let (_, base1) = core.block(&page, &ids[round], &p1).await.unwrap();
+            let base2 = core.version(&page, &p2).await.unwrap();
+            // 每三轮一次打在甲马上要改的那块里（甲的 base 里没有这些字，得留着）；别的时候打在没人改的块里
+            let human_block = if round % 3 == 0 {
+                round
+            } else {
+                15 + round % 5
+            };
+            b.type_into(&ids[human_block], &format!("人{round}")).await;
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            core.replace_block(
+                &page,
+                &ids[round],
+                &p1,
+                md(&format!("甲第 {round} 次")),
+                Some(base1),
+            )
+            .await
+            .unwrap();
+            core.edit_blocks(
+                &page,
+                &p2,
+                Some(base2),
+                vec![crate::BlockOp::InsertAfter {
+                    block: ids[19 - round].clone(),
+                    markdown: format!("乙插的 {round}"),
+                }],
+            )
+            .await
+            .unwrap();
+            // 一步出错：都不改，副本也不能留着脏数据
+            let before = core.content(&page, &p1).await.unwrap().0;
+            assert!(
+                core.edit_blocks(
+                    &page,
+                    &p1,
+                    None,
+                    vec![
+                        crate::BlockOp::Append {
+                            markdown: "不该出现".into()
+                        },
+                        crate::BlockOp::Delete {
+                            block: "nosuch".into()
+                        },
+                    ]
+                )
+                .await
+                .is_err()
+            );
+            assert_eq!(core.content(&page, &p1).await.unwrap().0, before);
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        b.pull();
+        let server = core.content(&page, &who).await.unwrap().0;
+        assert_eq!(b.doc.to_node(), server, "浏览器和服务器一致");
+        let t = server.plain_text();
+        for round in 0..15 {
+            assert!(
+                t.contains(&format!("甲第 {round} 次")) && t.contains(&format!("乙插的 {round}")),
+                "{t}"
+            );
+            assert!(t.contains(&format!("人{round}")), "人打的字丢了：{t}");
+        }
+        assert!(!t.contains("不该出现"));
+        // 每个 Agent 一直用同一个 client id（除非人改了它要改的那块，退回到从 base 复制）
+        let clients = storage.doc_clients(&page).await.unwrap();
+        let n2 = clients.iter().filter(|c| c.2 == a2.id).count();
+        assert_eq!(n2, 1, "乙只插不改，一直走同步副本：{clients:?}");
+        // 存下来的和内存里的一样
+        drop(b);
+        core.shutdown().await;
+        let core = Core::open(storage.clone(), AuthConfig::None, HubConfig::default())
+            .await
+            .unwrap();
+        assert_eq!(core.content(&page, &who).await.unwrap().0, server);
+        core.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn writer_forks_are_bounded_and_evicted() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = HubConfig {
+            writer_forks: 2,
+            fork_idle: Duration::from_millis(150),
+            ..HubConfig::default()
+        };
+        let (_storage, core, who) = setup(dir.path(), cfg).await;
+        let page = new_page(&core, &who, "p").await;
+        let mut agents = Vec::new();
+        for i in 0..3 {
+            let (a, _, _) = core
+                .create_agent(
+                    &core.default_workspace.id,
+                    &who,
+                    &format!("a{i}"),
+                    None,
+                    crate::Scope::Write,
+                    None,
+                )
+                .await
+                .unwrap();
+            agents.push(Principal {
+                user_id: a.id,
+                name: a.name,
+                kind: PrincipalKind::Agent,
+            });
+        }
+        for p in &agents {
+            core.insert_blocks(&page, None, p, md(&p.name))
+                .await
+                .unwrap();
+        }
+        let n = |core: Arc<Core>, page: String| async move {
+            core.hub.call(&page, |a| a.fork_count()).await.unwrap()
+        };
+        assert_eq!(n(core.clone(), page.clone()).await, 2, "最多 2 份");
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert_eq!(n(core.clone(), page.clone()).await, 0, "空闲后扔掉");
+        // 扔掉以后再写照常，还是同一个 client id
+        core.insert_blocks(&page, None, &agents[0], md("又写"))
+            .await
+            .unwrap();
+        let t = core.content(&page, &who).await.unwrap().0.plain_text();
+        assert!(
+            t.contains("a0") && t.contains("a2") && t.contains("又写"),
+            "{t}"
+        );
+        let clients = core.storage.doc_clients(&page).await.unwrap();
+        assert_eq!(
+            clients.iter().filter(|c| c.2 == agents[0].user_id).count(),
+            1
+        );
         core.shutdown().await;
     }
 

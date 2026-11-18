@@ -11,3 +11,10 @@ version = "0.1.0"
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# build.rs（预压缩网页）和过程宏用优化过的代码跑，不然 brotli 压 10MB 要一两分钟
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3

@@ -73,22 +73,15 @@ pub fn mark_attrs(m: &Mark) -> Any {
     j2a(&Value::Object(m.attrs.clone()))
 }
 
-/// 在 parent 的 at 位置写入一串子节点。倒着往同一个位置插：Yrs 按下标插入要从头数，正着插大文档会变成 O(n²)。
+/// 在 parent 的 at 位置写入一串子节点。倒着往同一个位置插：Yrs 按下标插入每次都要从头数，正着一个个往后插大文档会变成 O(n²)。
 pub fn write_children<F: XmlFragment>(
     txn: &mut TransactionMut,
     parent: &F,
     at: u32,
     nodes: &[Node],
 ) {
-    let groups = group(nodes);
-    if at == 0 {
-        for g in groups.iter().rev() {
-            write_child(txn, parent, 0, g);
-        }
-    } else {
-        for (k, g) in groups.iter().enumerate() {
-            write_child(txn, parent, at + k as u32, g);
-        }
+    for g in group(nodes).iter().rev() {
+        write_child(txn, parent, at, g);
     }
 }
 

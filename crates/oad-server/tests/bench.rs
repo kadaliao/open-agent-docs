@@ -149,3 +149,65 @@ fn pages_doc(s: &Server, page: &str) -> oad_core::Node {
             .block_on(async move { core.hub.read(&page, |d| d.to_node()).await.unwrap() })
     })
 }
+
+/// 服务器端写入，经 HTTP（和网页 / Agent 一样）：`cargo test --release -p oad-server --test bench writes -- --ignored --nocapture`
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
+async fn writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Server::start(dir.path(), AuthConfig::None, HubConfig::default()).await;
+    let c = http();
+    for n in [1000usize, 10000] {
+        let (_, p) = json(
+            c.post(s.api(&format!("/workspaces/{}/pages", s.ws_id())))
+                .json(&serde_json::json!({ "title": format!("{n}") })),
+        )
+        .await;
+        let page = p["id"].as_str().unwrap().to_string();
+        let body = serde_json::json!({ "markdown": md(n) });
+        let t = Instant::now();
+        let r = c
+            .put(s.api(&format!("/pages/{page}/content")))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status().as_u16(), 204);
+        let put = t.elapsed();
+        let doc = s.server_doc(&page).await;
+        let (mut plain, mut based) = (Vec::new(), Vec::new());
+        for i in 0..100 {
+            let b = block_id(&doc, (i * 97) % n);
+            let url = s.api(&format!("/pages/{page}/blocks/{b}"));
+            let t = Instant::now();
+            let (st, _) = json(
+                c.put(&url)
+                    .json(&serde_json::json!({ "markdown": format!("第 {i} 次改") })),
+            )
+            .await;
+            assert_eq!(st, 200);
+            plain.push(t.elapsed());
+            let (_, g) = json(c.get(&url)).await;
+            let base = g["version"].as_str().unwrap().to_string();
+            let t = Instant::now();
+            let (st, _) = json(c.put(&url).json(
+                &serde_json::json!({ "markdown": format!("第 {i} 次带 base 改"), "base": base }),
+            ))
+            .await;
+            assert_eq!(st, 200);
+            based.push(t.elapsed());
+        }
+        let t = Instant::now();
+        let (st, _) = json(c.get(s.api(&format!("/pages/{page}/content?format=json")))).await;
+        assert_eq!(st, 200);
+        let read = t.elapsed();
+        eprintln!(
+            "{n} 段（HTTP）：PUT content {put:?}；PUT block p50 {:?} p95 {:?}；带 base p50 {:?} p95 {:?}；GET content(json) {read:?}",
+            pct(&mut plain, 0.5),
+            pct(&mut plain, 0.95),
+            pct(&mut based, 0.5),
+            pct(&mut based, 0.95)
+        );
+    }
+    s.stop().await;
+}

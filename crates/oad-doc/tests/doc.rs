@@ -336,3 +336,53 @@ fn block_authors_and_insert_before() {
     assert_eq!(server.top_ids()[1], ids[0]);
     assert_eq!(server.to_node().content[2].plain_text(), "第二段");
 }
+
+#[test]
+fn presentation_attrs_survive_markdown_rewrite() {
+    // 网页设了图注、宽度、书签样式、自动换行；Agent 用 Markdown 改写，这些不该丢
+    let mut d = doc_with_ids(
+        "![猫](https://a.com/cat.png)\n\nhttps://www.youtube.com/watch?v=1\n\n```rust\nfn a() {}\n```\n\n一段\n",
+    );
+    d.content[0].attrs.insert("caption".into(), "一只猫".into());
+    d.content[0].attrs.insert("width".into(), 60.into());
+    d.content[1].attrs.insert("view".into(), "bookmark".into());
+    d.content[2].attrs.insert("wrap".into(), true.into());
+    let p = PageDoc::from_node(1, &d);
+    p.set_content(&parse("![猫](https://a.com/cat.png \"标题\")\n\nhttps://www.youtube.com/watch?v=1\n\n```rust\nfn b() {}\n```\n\n一段改过\n"));
+    let n = p.to_node();
+    assert_eq!(n.content[0].attr_str("caption"), Some("一只猫"));
+    assert_eq!(n.content[0].attr_i64("width"), Some(60));
+    assert_eq!(
+        n.content[0].attr_str("title"),
+        Some("标题"),
+        "Markdown 里有的照常改"
+    );
+    assert_eq!(n.content[1].attr_str("view"), Some("bookmark"));
+    assert!(n.content[2].attr_bool("wrap"));
+    assert!(n.content[2].plain_text().contains("fn b()"));
+    // 按块替换也一样
+    let id = n.content[0].attr_str("id").unwrap().to_string();
+    p.replace_block(&id, &parse("![猫](https://a.com/cat2.png)").content)
+        .unwrap();
+    let img = p.block(&id).unwrap();
+    assert_eq!(img.attr_str("src"), Some("https://a.com/cat2.png"));
+    assert_eq!(img.attr_str("caption"), Some("一只猫"));
+    // 明确写 null 才清掉
+    let mut cleared = img.clone();
+    cleared
+        .attrs
+        .insert("caption".into(), serde_json::Value::Null);
+    p.replace_block(&id, &[cleared]).unwrap();
+    assert_eq!(p.block(&id).unwrap().attr_str("caption"), None);
+}
+
+#[test]
+fn link_mention_is_inline() {
+    let d = doc_with_ids("看 <https://github.com/a/b> 这个\n");
+    assert!(
+        d.content[0].content[1].attr_str("id").is_none(),
+        "行内提及没有块编号"
+    );
+    let p = PageDoc::from_node(1, &d);
+    assert_eq!(p.to_node(), d);
+}

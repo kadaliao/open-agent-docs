@@ -1,0 +1,16 @@
+{
+  "name": "@oad/markdown",
+  "version": "0.1.0",
+  "private": true,
+  "description": "oad-markdown 的 WASM 版：Markdown 和文档（ProseMirror JSON）互转，和服务器同一份代码",
+  "type": "module",
+  "main": "dist/oad_markdown.js",
+  "module": "dist/oad_markdown.js",
+  "types": "dist/oad_markdown.d.ts",
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "sh build.sh",
+    "test": "cargo test -p oad-markdown --test wasm"
+  }
+}
