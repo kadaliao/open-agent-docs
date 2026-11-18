@@ -666,6 +666,16 @@ async def rotate_agent_secret(request: Request, aid: int):
     return {"secret": agents.rotate_secret(aid)}
 
 
+@app.post("/api/agents/{aid}/token")
+async def rotate_agent_token(request: Request, aid: int):
+    """换一个新 token，旧的立刻失效。admin 的 token 只能换非 admin 的（和它自己的）。"""
+    _managed(request, aid)
+    try:
+        return {"token": agents.rotate_token(aid)}
+    except ValueError as e:
+        _err(e)
+
+
 @app.delete("/api/agents/{aid}")
 async def revoke_agent(request: Request, aid: int):
     _managed(request, aid)
@@ -744,9 +754,13 @@ async def stream_notifications(request: Request, after: int | None = None, agent
         try:
             yield "retry: 3000\n\n"
             sent = cursor or 0
-            for n in notify.listing(aid, cursor or 0, pending=cursor is None, limit=100):
-                sent = max(sent, n["id"])
-                yield fmt(n)
+            while True:   # 积压的一页一页补完
+                page = notify.listing(aid, sent, pending=cursor is None)
+                for n in page:
+                    sent = max(sent, n["id"])
+                    yield fmt(n)
+                if len(page) < notify.MAX_LIST:
+                    break
             while True:
                 try:
                     n = await asyncio.wait_for(q.get(), PING)

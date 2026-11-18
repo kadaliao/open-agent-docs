@@ -44,6 +44,7 @@ host. With it the host can manage agents over HTTP:
 | `GET /api/agents` | List agents with `pending` (undelivered notifications). |
 | `PATCH /api/agents/{id}` `{name?, webhook?, about?}` | Rename (keep it equal to the bot's name so @mentions work), change the webhook. |
 | `GET` / `POST /api/agents/{id}/secret` | Read / rotate the webhook signing secret. |
+| `POST /api/agents/{id}/token` | Issue a new token (the old one stops working at once). Use it when the host lost the token it stored: it reconnects to the same agent, whose earlier writing stays its own. |
 | `DELETE /api/agents/{id}` | Revoke. Takes effect on the next request. The name stays on what it wrote. |
 
 All with `Authorization: Bearer <admin token>`.

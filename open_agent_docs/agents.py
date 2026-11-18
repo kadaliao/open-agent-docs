@@ -116,6 +116,19 @@ def rotate_secret(aid: int) -> str:
     return s
 
 
+def rotate_token(aid: int) -> str:
+    """换一个新 token（旧的立刻失效），返回原文。宿主丢了自己存的 token 时用它接回原来的 Agent，写过的内容还算它的。"""
+    a = get(aid)
+    if not a:
+        raise LookupError(i18n.t("没有这个 Agent"))
+    if a["revoked"] is not None:
+        raise ValueError(i18n.t("这个 Agent 已经撤销了"))
+    token = PREFIX + secrets.token_urlsafe(32)
+    conn.execute("update agents set hash=? where id=?", (_hash(token), aid))
+    conn.commit()
+    return token
+
+
 def revoke(aid: int) -> dict:
     a = get(aid)
     if not a:

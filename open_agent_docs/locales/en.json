@@ -533,5 +533,6 @@
  "页面链接：{url}": "Page link: {url}",
  "先用 read_page(page_id={id}) 看页面和这串评论；要改页面用 edit_page；处理完用 comment_page(page_id={id}, reply_to={root}) 回复，事情办完了加 resolve=true。": "First read the page and this thread with read_page(page_id={id}). Edit the page with edit_page. When done, reply with comment_page(page_id={id}, reply_to={root}), and add resolve=true once the task is finished.",
  "这是评论串 #{root} 里的回复。": "This is a reply in thread #{root}.",
- "评论的那段原文：": "The text being commented on:"
+ "评论的那段原文：": "The text being commented on:",
+ "这个 Agent 已经撤销了": "This agent has been revoked"
 }

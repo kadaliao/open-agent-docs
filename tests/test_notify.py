@@ -169,6 +169,17 @@ async def test_admin_manages_agents(client, make_agent):
             assert atlas["token"].startswith("oad_") and atlas["secret"]
             assert (await c.post("/api/agents", json={"name": "x", "scope": "admin"})).status_code == 403
             assert (await c.patch(f"/api/agents/{atlas['id']}", json={"webhook": ""})).json()["webhook"] == ""
+            # 宿主丢了 token：换一个新的接回原来的 Agent，旧的立刻失效；admin 的 token 换不了别的 admin
+            fresh = (await c.post(f"/api/agents/{atlas['id']}/token")).json()["token"]
+            assert fresh.startswith("oad_") and fresh != atlas["token"]
+            async with asgi(headers={"authorization": f"Bearer {atlas['token']}"}) as old:
+                assert (await old.get("/api/agent/me")).status_code == 401
+            async with asgi(headers={"authorization": f"Bearer {fresh}"}) as new:
+                assert (await new.get("/api/agent/me")).json()["id"] == atlas["id"]
+            other, _ = agents.create("另一个宿主", "admin")[:2]
+            assert (await c.post(f"/api/agents/{other['id']}/token")).status_code == 404
+            agents.revoke(other["id"])
+            assert (await c.post(f"/api/agents/{other['id']}/token")).status_code == 404
             names = [a["name"] for a in (await c.get("/api/agents")).json()]
             assert "Atlas" in names
             # admin 能收所有 Agent 的通知
@@ -182,3 +193,20 @@ async def test_admin_manages_agents(client, make_agent):
         assert (await client.delete(f"/api/agents/{admin['id']}")).json()["revoked"]
     finally:
         agents.revoke(admin["id"])
+
+
+async def test_stream_replays_whole_backlog(make_agent):
+    """积压超过一页（100 条）时，SSE 连上后全部补发，不丢。"""
+    a, tok = make_agent("积压的")
+    p = library.save_page(None, "很多评论", "一段。", by=f"agent:{a['id']}")
+    for i in range(notify.MAX_LIST + 5):
+        await notify.comment(a["id"], p, {"id": i + 1, "text": f"#{i}", "by": "user", "block_id": None, "parent_id": None, "ts": 0}, i + 1, "")
+    req = Request({"type": "http", "method": "GET", "path": "/api/agent/notifications/stream", "query_string": b"",
+                   "headers": [(b"authorization", f"Bearer {tok}".encode())]})
+    req.state.agent = None
+    it = (await server.stream_notifications(req)).body_iterator
+    chunks = [await asyncio.wait_for(anext(it), 2) for _ in range(notify.MAX_LIST + 6)]
+    await it.aclose()
+    texts = [json.loads(x.split("data: ", 1)[1])["comment"]["text"] for x in chunks if "data: " in x]
+    assert texts == [f"#{i}" for i in range(notify.MAX_LIST + 5)]
+    library.delete_page(p["id"], trash=False)
