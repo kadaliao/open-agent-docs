@@ -11,6 +11,9 @@ use oad_core::Role;
 use yrs::sync::Message;
 use yrs::updates::encoder::Encode;
 
+/// 一条消息最大 16MB（一万段的整页状态约 3.5MB）。
+const MAX_MESSAGE: usize = 16 << 20;
+
 pub async fn handler(
     State(s): State<AppState>,
     Path(page_id): Path<String>,
@@ -27,7 +30,8 @@ pub async fn handler(
         Ok(None) => Err("unauthorized".to_string()),
         Err(e) => Err(e.code.to_string()),
     };
-    ws.on_upgrade(move |socket| serve(socket, s, page_id, access))
+    ws.max_message_size(MAX_MESSAGE)
+        .on_upgrade(move |socket| serve(socket, s, page_id, access))
 }
 
 async fn serve(mut socket: WebSocket, s: AppState, page_id: String, access: Result<Role, String>) {
@@ -50,8 +54,13 @@ async fn serve(mut socket: WebSocket, s: AppState, page_id: String, access: Resu
     };
     let (handle, mut rx) = (conn.handle, conn.rx);
     let (mut sink, mut stream) = socket.split();
+    let mut shutdown = std::pin::pin!(s.core.on_shutdown());
     loop {
         tokio::select! {
+            _ = &mut shutdown => {
+                let _ = sink.send(WsMessage::Close(None)).await;
+                break;
+            }
             out = rx.recv() => match out {
                 Some(b) => {
                     if sink.send(WsMessage::Binary(b)).await.is_err() {
@@ -65,8 +74,9 @@ async fn serve(mut socket: WebSocket, s: AppState, page_id: String, access: Resu
                 }
             },
             inc = stream.next() => match inc {
+                // 同步中心积压时这里会等，不再读这个连接（背压）
                 Some(Ok(WsMessage::Binary(b))) => {
-                    if !handle.send(b.to_vec()) {
+                    if !handle.send(b.to_vec()).await {
                         break;
                     }
                 }

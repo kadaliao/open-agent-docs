@@ -63,6 +63,24 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// 版本得是这份文档自己出过的：每个 client 的时钟在 [1, 本地时钟] 里，删除集不超出版本里的时钟。
+/// 不检查的话，Yrs 遇到时钟 0 会溢出 panic。
+fn check_snapshot(snap: &Snapshot, local: &StateVector) -> Result<()> {
+    let bad = |m: &str| Err(Error::Decode(format!("版本不对：{m}")));
+    for (client, &clock) in snap.state_map.iter() {
+        if clock == 0 || !local.contains_client(client) || clock > local.get(client) {
+            return bad("时钟超出范围");
+        }
+    }
+    for (client, ranges) in snap.delete_set.iter() {
+        let max = snap.state_map.get(client);
+        if ranges.iter().any(|r| r.start >= r.end || r.end > max) {
+            return bad("删除集超出范围");
+        }
+    }
+    Ok(())
+}
+
 pub struct PageDoc {
     doc: Doc,
     frag: XmlFragmentRef,
@@ -184,11 +202,12 @@ impl PageDoc {
     /// 合并回来，效果和一个从那个版本开始离线编辑的客户端一样。
     pub fn fork_at(&self, version: &[u8], client: u64) -> Result<PageDoc> {
         let snap = Snapshot::decode_v1(version).map_err(|e| Error::Decode(e.to_string()))?;
+        let txn = self.doc.transact();
+        check_snapshot(&snap, &txn.state_vector())?;
         let mut enc = EncoderV1::new();
-        self.doc
-            .transact()
-            .encode_state_from_snapshot(&snap, &mut enc)
+        txn.encode_state_from_snapshot(&snap, &mut enc)
             .map_err(|e| Error::Decode(e.to_string()))?;
+        drop(txn);
         PageDoc::from_update(client, &enc.to_vec())
     }
 

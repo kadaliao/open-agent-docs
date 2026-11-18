@@ -54,6 +54,8 @@ pub struct Core {
     pub auth: Arc<dyn AuthProvider>,
     /// 默认工作区（新用户加进这里）。
     pub default_workspace: Workspace,
+    /// 关机信号：SSE、WebSocket 等长连接看到它就结束，HTTP 服务才能停下来。
+    shutdown: tokio::sync::watch::Sender<bool>,
 }
 
 /// 页面属性的修改。`Option<Option<_>>`：外层 None = 不改，Some(None) = 清空。
@@ -113,6 +115,7 @@ impl Core {
             events,
             auth: provider,
             default_workspace,
+            shutdown: tokio::sync::watch::channel(false).0,
         }))
     }
 
@@ -370,9 +373,18 @@ impl Core {
             .await
     }
 
-    /// 关机：所有打开的页面存好。
+    /// 关机：先通知长连接结束，再把所有打开的页面存好。
     pub async fn shutdown(&self) {
+        self.shutdown.send_replace(true);
         self.hub.shutdown().await;
+    }
+
+    /// 等关机信号（已经在关机就马上返回）。
+    pub fn on_shutdown(&self) -> impl Future<Output = ()> + Send + use<> {
+        let mut rx = self.shutdown.subscribe();
+        async move {
+            let _ = rx.wait_for(|&v| v).await;
+        }
     }
 }
 

@@ -269,3 +269,35 @@ fn edit_on_old_version() {
         "{t}"
     );
 }
+
+#[test]
+fn crafted_version_is_rejected() {
+    use yrs::updates::encoder::Encode;
+    use yrs::{ClientID, IdSet, ReadTxn, Snapshot, StateVector, Transact};
+    let d = doc_with_ids("第一段\n");
+    let p = PageDoc::from_node(42, &d);
+    let snap = |sv: Vec<(u64, u32)>, ds: Vec<(u64, std::ops::Range<u32>)>| {
+        Snapshot::new(
+            StateVector::from_iter(sv.into_iter().map(|(c, k)| (ClientID::new(c), k))),
+            IdSet::from_iter(ds.into_iter().map(|(c, r)| (ClientID::new(c), [r]))),
+        )
+        .encode_v1()
+    };
+    let clock = p.ydoc().transact().state_vector().get(&ClientID::new(42));
+    // 时钟 0（以前会让 Yrs 溢出 panic）、超出本地时钟、不认识的 client、删除集越界
+    assert!(p.fork_at(&snap(vec![(42, 0)], vec![]), 7).is_err());
+    assert!(p.fork_at(&snap(vec![(42, clock + 1)], vec![]), 7).is_err());
+    assert!(p.fork_at(&snap(vec![(43, 1)], vec![]), 7).is_err());
+    assert!(
+        p.fork_at(&snap(vec![(42, clock)], vec![(42, 0..clock + 5)]), 7)
+            .is_err()
+    );
+    assert!(
+        p.fork_at(&snap(vec![(42, clock)], vec![(44, 0..1)]), 7)
+            .is_err()
+    );
+    assert!(p.fork_at(b"\xff\xff\xff", 7).is_err());
+    // 正常的版本照样能用
+    assert!(p.fork_at(&p.version(), 7).is_ok());
+    assert!(p.fork_at(&snap(vec![(42, clock)], vec![]), 7).is_ok());
+}

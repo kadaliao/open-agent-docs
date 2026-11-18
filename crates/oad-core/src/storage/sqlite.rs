@@ -579,15 +579,17 @@ impl Storage for Sqlite {
     async fn load_doc(&self, page_id: &str) -> Result<DocLog> {
         let id = page_id.to_string();
         self.read(move |c| {
-            let snapshot = c
+            // 快照和增量在同一个读事务里读：中间插进来一次压缩的话，会漏掉被删的增量
+            let tx = c.unchecked_transaction()?;
+            let snapshot = tx
                 .prepare_cached("SELECT state FROM doc_snapshots WHERE page_id = ?1")?
                 .query_row([&id], |r| r.get(0))
                 .optional()?;
-            let mut st =
-                c.prepare_cached("SELECT data FROM doc_updates WHERE page_id = ?1 ORDER BY seq")?;
-            let updates = st
+            let updates = tx
+                .prepare_cached("SELECT data FROM doc_updates WHERE page_id = ?1 ORDER BY seq")?
                 .query_map([&id], |r| r.get(0))?
                 .collect::<rusqlite::Result<_>>()?;
+            tx.commit()?;
             Ok(DocLog { snapshot, updates })
         })
         .await

@@ -6,25 +6,28 @@
 //!   因为按顺序，压缩时删掉的增量一定都已经包含在快照里。
 //! - 没有连接、空闲 `idle_unload` 后存好、压缩、退出。发命令和退出前检查收件箱都在表锁里做，
 //!   所以不会丢命令，也不会同时有两个 actor 管同一页。
+//! - 处理命令时 panic 不会让 actor 退出：接住后把已经确认过的改动照常广播、存盘。
+//! - 存盘失败会退避重试，数据一直留在存盘任务的队列里，直到写进去。
 use crate::events::{EventKind, Events};
 use crate::model::Principal;
 use crate::storage::Storage;
 use crate::{Error, Result};
 use bytes::Bytes;
 use oad_doc::PageDoc;
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 use yrs::encoding::read::Cursor;
 use yrs::sync::awareness::AwarenessUpdateEntry;
 use yrs::sync::{Awareness, AwarenessUpdate, Message, MessageReader, SyncMessage};
 use yrs::updates::decoder::DecoderV1;
 use yrs::updates::encoder::Encode;
-use yrs::{ClientID, ReadTxn, Transact};
+use yrs::{ClientID, ReadTxn, StateVector, Transact};
 
 #[derive(Clone, Debug)]
 pub struct HubConfig {
@@ -38,6 +41,10 @@ pub struct HubConfig {
     pub writer_presence: Duration,
     /// 每个连接的待发消息上限，满了说明对方太慢，断开它（重连后会重新同步）。
     pub conn_buffer: usize,
+    /// 每个连接还没处理完的收到消息上限，满了就先不读这个连接（背压到 WebSocket）。
+    pub conn_inbound: usize,
+    /// 每个连接每分钟最多回几次 step1（每次都要算一份差量），超过就断开。
+    pub step1_per_minute: usize,
 }
 
 impl Default for HubConfig {
@@ -48,6 +55,8 @@ impl Default for HubConfig {
             idle_unload: Duration::from_secs(30),
             writer_presence: Duration::from_secs(3),
             conn_buffer: 512,
+            conn_inbound: 64,
+            step1_per_minute: 20,
         }
     }
 }
@@ -74,6 +83,8 @@ enum Cmd {
     Message {
         conn: u64,
         data: Vec<u8>,
+        /// 处理完才释放，给连接的读取做背压。
+        _permit: OwnedSemaphorePermit,
     },
     Run(Job),
     /// 存好、压缩、退出。
@@ -89,9 +100,9 @@ struct Inner {
     storage: Arc<dyn Storage>,
     events: Events,
     cfg: HubConfig,
-    docs: Mutex<HashMap<String, Entry>>,
+    /// 打开着的页面；None 表示已经关闭，不再接新的。
+    docs: Mutex<Option<HashMap<String, Entry>>>,
     next: AtomicU64,
-    closed: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -108,15 +119,20 @@ pub struct Conn {
 pub struct ConnHandle {
     id: u64,
     tx: mpsc::UnboundedSender<Cmd>,
+    inbound: Arc<Semaphore>,
 }
 
 impl ConnHandle {
-    /// 转交客户端发来的一条（或几条拼在一起的）y-protocol 消息。actor 已经没了返回 false。
-    pub fn send(&self, data: Vec<u8>) -> bool {
+    /// 转交客户端发来的一条（或几条拼在一起的）y-protocol 消息。积压太多时等前面的处理完。actor 已经没了返回 false。
+    pub async fn send(&self, data: Vec<u8>) -> bool {
+        let Ok(permit) = self.inbound.clone().acquire_owned().await else {
+            return false;
+        };
         self.tx
             .send(Cmd::Message {
                 conn: self.id,
                 data,
+                _permit: permit,
             })
             .is_ok()
     }
@@ -135,9 +151,8 @@ impl DocHub {
                 storage,
                 events,
                 cfg,
-                docs: Mutex::new(HashMap::new()),
+                docs: Mutex::new(Some(HashMap::new())),
                 next: AtomicU64::new(1),
-                closed: AtomicBool::new(false),
             }),
         }
     }
@@ -148,15 +163,22 @@ impl DocHub {
 
     /// 现在打开着的页面数。
     pub fn loaded(&self) -> usize {
-        self.inner.docs.lock().unwrap().len()
+        self.docs().as_ref().map_or(0, HashMap::len)
     }
 
-    /// 发一条命令（在表锁里发，见模块说明）；页面没打开就先起一个 actor。
+    fn docs(&self) -> std::sync::MutexGuard<'_, Option<HashMap<String, Entry>>> {
+        self.inner
+            .docs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// 发一条命令（在表锁里发，见模块说明）；页面没打开就先起一个 actor。关闭后（也在表锁里判断）报错。
     fn dispatch(&self, page_id: &str, cmd: Cmd) -> Result<mpsc::UnboundedSender<Cmd>> {
-        if self.inner.closed.load(Ordering::SeqCst) {
+        let mut guard = self.docs();
+        let Some(docs) = guard.as_mut() else {
             return Err(Error::Internal("服务器正在关闭".into()));
-        }
-        let mut docs = self.inner.docs.lock().unwrap();
+        };
         let cmd = match docs.get(page_id) {
             Some(e) => match e.tx.send(cmd) {
                 Ok(()) => return Ok(e.tx.clone()),
@@ -196,7 +218,7 @@ impl DocHub {
             })),
         )?;
         rx.await
-            .map_err(|_| Error::Internal(format!("页面 {page_id} 加载失败")))
+            .map_err(|_| Error::Internal(format!("页面 {page_id} 加载或处理失败")))
     }
 
     /// 加入同步。连上后 actor 先发 step1 和当前 awareness。调用方要先确认页面存在、有权限。
@@ -217,7 +239,11 @@ impl DocHub {
         wait.await
             .map_err(|_| Error::Internal(format!("页面 {page_id} 加载失败")))?;
         Ok(Conn {
-            handle: ConnHandle { id: conn, tx },
+            handle: ConnHandle {
+                id: conn,
+                tx,
+                inbound: Arc::new(Semaphore::new(self.inner.cfg.conn_inbound.max(1))),
+            },
             rx,
         })
     }
@@ -277,15 +303,12 @@ impl DocHub {
 
     /// 关闭：所有页面存好、压缩后退出，之后不再接新的。
     pub async fn shutdown(&self) {
-        self.inner.closed.store(true, Ordering::SeqCst);
+        // 在表锁里取走全部并标记关闭：之后 dispatch 不会再起新的 actor
         let txs: Vec<_> = self
-            .inner
-            .docs
-            .lock()
-            .unwrap()
-            .values()
-            .map(|e| e.tx.clone())
-            .collect();
+            .docs()
+            .take()
+            .map(|docs| docs.into_values().map(|e| e.tx).collect())
+            .unwrap_or_default();
         let mut waits = Vec::new();
         for tx in txs {
             let (done, rx) = oneshot::channel();
@@ -306,6 +329,29 @@ enum Persist {
     Barrier(oneshot::Sender<()>),
 }
 
+/// 写到成功为止：存储出错（库忙、磁盘满之类）退避重试；别的错（比如页面没了）重试也没用，放弃。
+async fn retry<T, F, Fut>(page: &str, what: &str, mut f: F) -> Option<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let mut wait = Duration::from_millis(50);
+    loop {
+        match f().await {
+            Ok(v) => return Some(v),
+            Err(e @ (Error::Storage(_) | Error::Internal(_))) => {
+                warn!(page, "{what}失败，{wait:?} 后重试：{e}");
+                tokio::time::sleep(wait).await;
+                wait = (wait * 2).min(Duration::from_secs(5));
+            }
+            Err(e) => {
+                warn!(page, "{what}失败，放弃：{e}");
+                return None;
+            }
+        }
+    }
+}
+
 /// 一页的存盘任务：按顺序写。
 async fn persister(
     storage: Arc<dyn Storage>,
@@ -313,21 +359,24 @@ async fn persister(
     page_id: String,
     mut rx: mpsc::UnboundedReceiver<Persist>,
 ) {
+    let st = &storage;
+    let id = page_id.as_str();
     while let Some(p) = rx.recv().await {
         match p {
             Persist::Append(u) => {
-                if let Err(e) = storage.append_update(&page_id, u).await {
-                    warn!(page = %page_id, "存增量失败：{e}");
+                retry(id, "存增量", || st.append_update(id, u.clone())).await;
+            }
+            Persist::Title(t) => {
+                let r = retry(id, "同步标题", || {
+                    st.update_page(id, Some(t.clone()), None)
+                })
+                .await;
+                if let Some(page) = r {
+                    events.emit(EventKind::Updated, page);
                 }
             }
-            Persist::Title(t) => match storage.update_page(&page_id, Some(t), None).await {
-                Ok(page) => events.emit(EventKind::Updated, page),
-                Err(e) => warn!(page = %page_id, "同步标题失败：{e}"),
-            },
             Persist::Compact(s) => {
-                if let Err(e) = storage.compact(&page_id, s).await {
-                    warn!(page = %page_id, "压缩失败：{e}");
-                }
+                retry(id, "压缩", || st.compact(id, s.clone())).await;
             }
             Persist::Barrier(done) => {
                 let _ = done.send(());
@@ -341,6 +390,9 @@ struct ConnState {
     readonly: bool,
     /// 这个连接带来的 awareness client id，断开时替它清掉。
     clients: HashSet<u64>,
+    /// 最近一分钟回过的 step1，和上一次的 state vector（重复的不再算差量）。
+    step1: VecDeque<Instant>,
+    last_sv: Option<(StateVector, Instant)>,
 }
 
 /// 替 HTTP 写入者放的在线状态。
@@ -369,6 +421,12 @@ pub struct Actor {
     cfg: HubConfig,
 }
 
+enum Step1 {
+    Answer,
+    Skip,
+    Kick,
+}
+
 fn encode(m: &Message) -> Bytes {
     Bytes::from(m.encode_v1())
 }
@@ -395,9 +453,9 @@ impl Actor {
         page_id: &str,
         persist: mpsc::UnboundedSender<Persist>,
     ) -> Result<Actor> {
-        if inner.storage.page(page_id).await?.is_none() {
+        let Some(page) = inner.storage.page(page_id).await? else {
             return Err(Error::NotFound(format!("页面 {page_id} 不存在")));
-        }
+        };
         let log = inner.storage.load_doc(page_id).await?;
         let doc = PageDoc::new(oad_doc::server_client_id());
         if let Some(s) = &log.snapshot {
@@ -412,13 +470,16 @@ impl Actor {
         doc.ydoc()
             .observe_update_v1("hub", move |txn, e| {
                 let origin = txn.origin().and_then(origin_conn);
-                buf.lock().unwrap().push((origin, e.update.clone()));
+                buf.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push((origin, e.update.clone()));
             })
             .map_err(|e| Error::Internal(e.to_string()))?;
         let awareness = Awareness::new(doc.ydoc().clone());
         Ok(Actor {
             page_id: page_id.to_string(),
-            title: doc.title(),
+            // 用库里的标题：上次存了增量、还没来得及同步标题就崩了的话，第一次 flush 会补上
+            title: page.title,
             doc,
             awareness,
             conns: HashMap::new(),
@@ -481,6 +542,8 @@ impl Actor {
                 out,
                 readonly,
                 clients: HashSet::new(),
+                step1: VecDeque::new(),
+                last_sv: None,
             },
         );
         let sv = self.doc.ydoc().transact().state_vector();
@@ -501,8 +564,21 @@ impl Actor {
         for m in msgs {
             match m {
                 Ok(Message::Sync(SyncMessage::SyncStep1(sv))) => {
-                    let diff = self.doc.ydoc().transact().encode_diff_v1(&sv);
-                    self.send_to(conn, encode(&Message::Sync(SyncMessage::SyncStep2(diff))));
+                    match self.allow_step1(conn, &sv) {
+                        Step1::Answer => {
+                            let diff = self.doc.ydoc().transact().encode_diff_v1(&sv);
+                            self.send_to(
+                                conn,
+                                encode(&Message::Sync(SyncMessage::SyncStep2(diff))),
+                            );
+                        }
+                        Step1::Skip => {}
+                        Step1::Kick => {
+                            warn!(page = %self.page_id, conn, "step1 太频繁，断开");
+                            self.drop_conn(conn);
+                            return;
+                        }
+                    }
                 }
                 Ok(Message::Sync(SyncMessage::SyncStep2(u) | SyncMessage::Update(u))) => {
                     if readonly {
@@ -546,7 +622,7 @@ impl Actor {
 
     /// 每条命令之后：把新增量广播出去，排进待存。
     fn after(&mut self) {
-        let ups = std::mem::take(&mut *self.updates.lock().unwrap());
+        let ups = std::mem::take(&mut *self.updates.lock().unwrap_or_else(PoisonError::into_inner));
         if ups.is_empty() {
             return;
         }
@@ -691,16 +767,59 @@ impl Actor {
                 let _ = ready.send(());
             }
             Cmd::Leave { conn } => self.drop_conn(conn),
-            Cmd::Message { conn, data } => self.on_message(conn, &data),
+            Cmd::Message { conn, data, .. } => self.on_message(conn, &data),
             Cmd::Run(f) => f(self),
             Cmd::Close(done) => return Some(done),
         }
         None
     }
 
+    /// 同一个连接 2 秒内发来一样的 state vector 不再回（差量不会变）；一分钟内太多次就断开。
+    fn allow_step1(&mut self, conn: u64, sv: &StateVector) -> Step1 {
+        let limit = self.cfg.step1_per_minute;
+        let Some(c) = self.conns.get_mut(&conn) else {
+            return Step1::Skip;
+        };
+        let now = Instant::now();
+        if let Some((last, at)) = &c.last_sv
+            && last == sv
+            && now.duration_since(*at) < Duration::from_secs(2)
+        {
+            return Step1::Skip;
+        }
+        while c
+            .step1
+            .front()
+            .is_some_and(|t| now.duration_since(*t) > Duration::from_secs(60))
+        {
+            c.step1.pop_front();
+        }
+        if c.step1.len() >= limit {
+            return Step1::Kick;
+        }
+        c.step1.push_back(now);
+        c.last_sv = Some((sv.clone(), now));
+        Step1::Answer
+    }
+
+    /// 执行一段处理，panic 了也不退出：记日志，把已经生效的改动照常广播、排进存盘。
+    fn guarded<R>(&mut self, f: impl FnOnce(&mut Actor) -> R) -> Option<R> {
+        match catch_unwind(AssertUnwindSafe(|| f(self))) {
+            Ok(r) => Some(r),
+            Err(_) => {
+                error!(page = %self.page_id, "处理命令时 panic，已接住");
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    self.after();
+                    self.flush();
+                }));
+                None
+            }
+        }
+    }
+
     /// 存好、压缩（有新增量时），等存盘任务写完。
     async fn settle(&mut self) {
-        self.flush();
+        self.guarded(|a| a.flush());
         if self.log_len > 0 {
             self.compact();
         }
@@ -726,13 +845,7 @@ async fn run_actor(
         Err(e) => {
             warn!(page = %page_id, "加载页面失败：{e}");
             // 收件箱里的命令直接丢掉，调用方会收到错误
-            let mut docs = inner.docs.lock().unwrap();
-            if docs
-                .get(&page_id)
-                .is_some_and(|e| e.generation == generation)
-            {
-                docs.remove(&page_id);
-            }
+            remove_entry(&inner, &page_id, generation);
             rx.close();
             return;
         }
@@ -744,7 +857,7 @@ async fn run_actor(
         tokio::select! {
             cmd = rx.recv() => match cmd {
                 Some(c) => {
-                    if let Some(done) = actor.handle(c) {
+                    if let Some(Some(done)) = actor.guarded(|a| a.handle(c)) {
                         closing = Some(done);
                         break;
                     }
@@ -756,19 +869,23 @@ async fn run_actor(
             },
             _ = async { tokio::time::sleep_until(deadline.unwrap()).await }, if deadline.is_some() => {
                 let now = Instant::now();
-                if actor.flush_at.is_some_and(|t| t <= now) {
-                    actor.flush();
-                }
-                actor.clear_presence(now);
+                actor.guarded(|a| {
+                    if a.flush_at.is_some_and(|t| t <= now) {
+                        a.flush();
+                    }
+                    a.clear_presence(now);
+                });
                 if actor.conns.is_empty() && actor.last_active + actor.cfg.idle_unload <= now {
                     actor.settle().await;
                     // 在表锁里确认收件箱是空的再关；不空就接着干
                     let quit = {
-                        let mut docs = inner.docs.lock().unwrap();
+                        let mut docs = inner.docs.lock().unwrap_or_else(PoisonError::into_inner);
                         let quit = rx.is_empty();
                         if quit {
-                            if docs.get(&page_id).is_some_and(|e| e.generation == generation) {
-                                docs.remove(&page_id);
+                            if let Some(d) = docs.as_mut()
+                                && d.get(&page_id).is_some_and(|e| e.generation == generation)
+                            {
+                                d.remove(&page_id);
                             }
                             rx.close();
                         }
@@ -794,18 +911,199 @@ async fn run_actor(
 }
 
 fn remove_entry(inner: &Inner, page_id: &str, generation: u64) {
-    let mut docs = inner.docs.lock().unwrap();
-    if docs
-        .get(page_id)
-        .is_some_and(|e| e.generation == generation)
+    let mut docs = inner.docs.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(d) = docs.as_mut()
+        && d.get(page_id).is_some_and(|e| e.generation == generation)
     {
-        docs.remove(page_id);
+        d.remove(page_id);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::sqlite::Sqlite;
+    use crate::{AuthConfig, AuthRequest, Core};
+    use std::sync::atomic::AtomicUsize;
+
+    async fn setup(dir: &std::path::Path, cfg: HubConfig) -> (Arc<Sqlite>, Arc<Core>, Principal) {
+        let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
+        let core = Core::open(storage.clone(), AuthConfig::None, cfg)
+            .await
+            .unwrap();
+        let headers = http::HeaderMap::new();
+        let who = core
+            .auth
+            .authenticate(&AuthRequest {
+                headers: &headers,
+                query_token: None,
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        (storage, core, who)
+    }
+
+    async fn new_page(core: &Core, who: &Principal, title: &str) -> String {
+        let ws = core.default_workspace.id.clone();
+        core.create_page(&ws, who, None, None, Some(title.into()), None)
+            .await
+            .unwrap()
+            .id
+    }
+
+    fn md(s: &str) -> Vec<oad_doc::Node> {
+        oad_markdown::parse(s).content
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn panic_in_command_keeps_actor_and_acked_edits() {
+        let dir = tempfile::tempdir().unwrap();
+        // 攒很久才存：确认过的改动还在 pending 里时 panic
+        let cfg = HubConfig {
+            flush_window: Duration::from_secs(60),
+            ..HubConfig::default()
+        };
+        let (storage, core, who) = setup(dir.path(), cfg).await;
+        let page = new_page(&core, &who, "p").await;
+        core.insert_blocks(&page, None, &who, md("确认过的改动"))
+            .await
+            .unwrap();
+        let r = core
+            .hub
+            .call(&page, |a| {
+                a.doc.append(&md("panic 前写进去的"));
+                panic!("测试用的 panic");
+            })
+            .await;
+        assert!(r.is_err());
+        // actor 还活着
+        let t = core
+            .hub
+            .read(&page, |d| d.to_node().plain_text())
+            .await
+            .unwrap();
+        assert!(
+            t.contains("确认过的改动") && t.contains("panic 前写进去的"),
+            "{t}"
+        );
+        // panic 后马上存了（不用等 60 秒）
+        for _ in 0..200 {
+            if !storage.load_doc(&page).await.unwrap().updates.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let log = storage.load_doc(&page).await.unwrap();
+        let d = PageDoc::new(1);
+        d.apply_update(log.snapshot.as_ref().unwrap()).unwrap();
+        for u in &log.updates {
+            d.apply_update(u).unwrap();
+        }
+        assert!(d.to_node().plain_text().contains("确认过的改动"));
+        core.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn acked_edits_survive_shutdown_race() {
+        let dir = tempfile::tempdir().unwrap();
+        // 很快卸载，让关机时一直有新 actor 在起
+        let cfg = HubConfig {
+            flush_window: Duration::from_millis(50),
+            idle_unload: Duration::from_millis(1),
+            ..HubConfig::default()
+        };
+        let (storage, core, who) = setup(dir.path(), cfg).await;
+        let mut pages = Vec::new();
+        for i in 0..20 {
+            pages.push(new_page(&core, &who, &format!("p{i}")).await);
+        }
+        let mut tasks = Vec::new();
+        for (i, page) in pages.iter().enumerate() {
+            let (core, who, page) = (core.clone(), who.clone(), page.clone());
+            tasks.push(tokio::spawn(async move {
+                let mut acked = Vec::new();
+                for n in 0.. {
+                    let text = format!("改动-{i}-{n}");
+                    match core.insert_blocks(&page, None, &who, md(&text)).await {
+                        Ok(_) => acked.push(text),
+                        Err(_) => break,
+                    }
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+                (page, acked)
+            }));
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        core.shutdown().await;
+        let mut results = Vec::new();
+        for t in tasks {
+            results.push(t.await.unwrap());
+        }
+        let core2 = Core::open(storage.clone(), AuthConfig::None, HubConfig::default())
+            .await
+            .unwrap();
+        let mut total = 0;
+        for (page, acked) in results {
+            let text = core2
+                .hub
+                .read(&page, |d| d.to_node().plain_text())
+                .await
+                .unwrap();
+            for a in &acked {
+                assert!(text.contains(a.as_str()), "确认过的 {a} 丢了");
+            }
+            total += acked.len();
+        }
+        assert!(total > 20);
+        core2.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stale_title_is_reconciled_on_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let (storage, core, who) = setup(dir.path(), HubConfig::default()).await;
+        let page = new_page(&core, &who, "旧标题").await;
+        core.shutdown().await;
+        // 模拟崩溃：标题的增量存进去了，pages.title 还没来得及改
+        let log = storage.load_doc(&page).await.unwrap();
+        let d = PageDoc::new(oad_doc::server_client_id());
+        d.apply_update(log.snapshot.as_ref().unwrap()).unwrap();
+        let sv = d.state_vector();
+        d.set_title("新标题");
+        storage
+            .append_update(&page, d.encode_diff(&sv).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(storage.page(&page).await.unwrap().unwrap().title, "旧标题");
+        let core = Core::open(storage.clone(), AuthConfig::None, HubConfig::default())
+            .await
+            .unwrap();
+        core.hub.flush(&page).await.unwrap();
+        assert_eq!(storage.page(&page).await.unwrap().unwrap().title, "新标题");
+        core.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn persist_retries_until_it_lands() {
+        let tries = AtomicUsize::new(0);
+        let r = retry("p", "存增量", || async {
+            if tries.fetch_add(1, Ordering::SeqCst) < 2 {
+                Err(Error::Storage("database is locked".into()))
+            } else {
+                Ok(7)
+            }
+        })
+        .await;
+        assert_eq!(r, Some(7));
+        assert_eq!(tries.load(Ordering::SeqCst), 3);
+        // 重试没用的错误直接放弃
+        let r: Option<()> = retry("p", "同步标题", || async {
+            Err(Error::NotFound("页面没了".into()))
+        })
+        .await;
+        assert_eq!(r, None);
+    }
 
     #[test]
     fn origin_roundtrip() {

@@ -4,10 +4,11 @@ use oad_core::storage::sqlite::Sqlite;
 use oad_core::{AuthConfig, Core, HubConfig, Role};
 use oad_server::{AppState, ServerConfig};
 use std::io::BufRead;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
 #[derive(Parser)]
@@ -53,6 +54,15 @@ struct ServeArgs {
     /// 会话 cookie 加 Secure（走 HTTPS 时打开）
     #[arg(long, env = "OAD_COOKIE_SECURE")]
     cookie_secure: bool,
+    /// 对外的地址，如 https://docs.example.com（它的 Host 和 Origin 都允许）
+    #[arg(long, env = "OAD_PUBLIC_URL")]
+    public_url: Option<String>,
+    /// 额外允许的 Host，逗号分隔；`*` 表示不检查
+    #[arg(long, env = "OAD_ALLOWED_HOSTS", value_delimiter = ',')]
+    allowed_hosts: Vec<String>,
+    /// 允许跨源嵌入的 Origin，逗号分隔，如 https://app.example.com
+    #[arg(long, env = "OAD_ALLOWED_ORIGINS", value_delimiter = ',')]
+    allowed_origins: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -149,6 +159,10 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
         ServerConfig {
             web_dir: a.web_dir,
             cookie_secure: a.cookie_secure,
+            public_url: a.public_url,
+            allowed_hosts: clean(a.allowed_hosts),
+            allowed_origins: clean(a.allowed_origins),
+            ..ServerConfig::default()
         },
     );
     let app = oad_server::router(state);
@@ -161,18 +175,47 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
         mode,
         started.elapsed().as_secs_f64() * 1000.0
     );
-    let c = core.clone();
-    axum::serve(listener, app)
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let mut server = tokio::spawn(
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
         .with_graceful_shutdown(async move {
-            shutdown_signal().await;
-            info!("正在关闭，保存打开的页面");
-            c.shutdown().await;
+            let _ = stopped.await;
         })
+        .into_future(),
+    );
+    tokio::select! {
+        r = &mut server => {
+            // 没收到信号服务就停了：出错
+            core.shutdown().await;
+            return r.map_err(|e| e.to_string())?.map_err(|e| e.to_string());
+        }
+        _ = shutdown_signal() => {}
+    }
+    info!("正在关闭，保存打开的页面");
+    // 先让 SSE / WebSocket 结束、页面存好，再停 HTTP；都有时限，卡住也能退出
+    if tokio::time::timeout(Duration::from_secs(30), core.shutdown())
         .await
-        .map_err(|e| e.to_string())?;
-    core.shutdown().await;
+        .is_err()
+    {
+        error!("30 秒内没存完打开的页面（存储一直出错？），强制退出");
+    }
+    let _ = stop.send(());
+    match tokio::time::timeout(Duration::from_secs(10), &mut server).await {
+        Ok(r) => r.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?,
+        Err(_) => warn!("还有连接 10 秒内没结束，强制退出"),
+    }
     info!("已关闭");
     Ok(())
+}
+
+fn clean(v: Vec<String>) -> Vec<String> {
+    v.into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 impl ServeArgs {

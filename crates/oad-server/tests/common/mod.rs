@@ -36,9 +36,19 @@ pub fn fast_hub() -> HubConfig {
 
 impl Server {
     pub async fn start(dir: &Path, auth: AuthConfig, hub: HubConfig) -> Server {
+        Self::start_with(dir, auth, hub, ServerConfig::default()).await
+    }
+
+    pub async fn start_with(
+        dir: &Path,
+        auth: AuthConfig,
+        hub: HubConfig,
+        cfg: ServerConfig,
+    ) -> Server {
         let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
         let core = Core::open(storage, auth, hub).await.unwrap();
-        let app = oad_server::router(AppState::new(core.clone(), ServerConfig::default()));
+        let app = oad_server::router(AppState::new(core.clone(), cfg))
+            .into_make_service_with_connect_info::<SocketAddr>();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, rx) = oneshot::channel::<()>();
@@ -69,11 +79,14 @@ impl Server {
         self.core.default_workspace.id.clone()
     }
 
-    /// 像关机一样：先存好所有页面，再停 HTTP。
+    /// 像关机一样：先结束长连接、存好所有页面，再停 HTTP。HTTP 5 秒内停不下来算失败。
     pub async fn stop(mut self) {
         self.core.shutdown().await;
         let _ = self.stop.take().unwrap().send(());
-        let _ = tokio::time::timeout(Duration::from_secs(5), self.task).await;
+        tokio::time::timeout(Duration::from_secs(5), self.task)
+            .await
+            .expect("HTTP 服务 5 秒内没停下来")
+            .unwrap();
     }
 
     pub async fn server_doc(&self, page: &str) -> Node {
@@ -126,6 +139,10 @@ pub async fn eventually(what: &str, mut f: impl AsyncFnMut() -> bool) {
 pub struct ClientState {
     /// 收到并合并了几条别人的增量。
     pub applied: usize,
+    /// 收到几次 step2。
+    pub step2: usize,
+    /// 服务器关了连接。
+    pub closed: bool,
     pub denied: Option<String>,
     /// 收到的 awareness 里各个状态（JSON 字符串）。
     pub awareness: Vec<String>,
@@ -176,13 +193,22 @@ impl YClient {
     }
 
     pub async fn connect(&mut self, url: &str, headers: &[(&str, &str)]) {
+        self.try_connect(url, headers).await.unwrap();
+    }
+
+    /// 握手被拒（HTTP 403 之类）时返回错误。
+    pub async fn try_connect(
+        &mut self,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<(), tokio_tungstenite::tungstenite::Error> {
         let mut req = url.into_client_request().unwrap();
         for (k, v) in headers {
             let name =
                 tokio_tungstenite::tungstenite::http::HeaderName::from_bytes(k.as_bytes()).unwrap();
             req.headers_mut().insert(name, v.parse().unwrap());
         }
-        let (ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+        let (ws, _) = tokio_tungstenite::connect_async(req).await?;
         let (mut sink, mut stream) = ws.split();
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         self.state.lock().unwrap().synced = false;
@@ -202,6 +228,7 @@ impl YClient {
             while let Some(Ok(m)) = stream.next().await {
                 let WsMsg::Binary(b) = m else {
                     if m.is_close() {
+                        state.lock().unwrap().closed = true;
                         break;
                     }
                     continue;
@@ -217,7 +244,9 @@ impl YClient {
                         }
                         Message::Sync(SyncMessage::SyncStep2(u)) => {
                             doc.apply_update_from(&u, REMOTE.to_string()).unwrap();
-                            state.lock().unwrap().synced = true;
+                            let mut st = state.lock().unwrap();
+                            st.synced = true;
+                            st.step2 += 1;
                         }
                         Message::Sync(SyncMessage::Update(u)) => {
                             doc.apply_update_from(&u, REMOTE.to_string()).unwrap();
@@ -234,7 +263,9 @@ impl YClient {
                     }
                 }
             }
+            state.lock().unwrap().closed = true;
         }));
+        Ok(())
     }
 
     /// 发一条原始消息（比如 awareness）。

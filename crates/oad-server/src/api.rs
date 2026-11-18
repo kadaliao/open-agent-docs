@@ -1,6 +1,6 @@
 //! `/api/v1` 下的 JSON 接口。
 use crate::{ApiError, AppState, sync};
-use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
+use axum::extract::{ConnectInfo, FromRequest, FromRequestParts, Path, Query, Request, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use futures_util::Stream;
+use futures_util::{Stream, StreamExt};
 use oad_core::auth::SESSION_COOKIE;
 use oad_core::{AuthRequest, Node, PagePatch, Principal};
 use serde::de::DeserializeOwned;
@@ -17,6 +17,7 @@ use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::net::SocketAddr;
 use tokio::sync::broadcast::error::RecvError;
 
 pub fn routes() -> Router<AppState> {
@@ -124,8 +125,42 @@ fn session_cookie(s: &AppState, token: &str, max_age: i64) -> HeaderValue {
     .unwrap()
 }
 
-async fn login(State(s): State<AppState>, Body(b): Body<LoginBody>) -> ApiResult<Response> {
-    let (token, user) = s.core.auth.login(&b.email, &b.password).await?;
+async fn login(
+    State(s): State<AppState>,
+    parts: Parts,
+    Body(b): Body<LoginBody>,
+) -> ApiResult<Response> {
+    let ip = parts
+        .extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip().to_string())
+        .unwrap_or_default();
+    let key = format!("{ip}|{}", b.email.trim().to_lowercase());
+    if let Some(wait) = s.login_limit.check(&key) {
+        let mut res = ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too_many_requests",
+            "失败次数太多，稍后再试",
+        )
+        .into_response();
+        res.headers_mut().insert(
+            header::RETRY_AFTER,
+            HeaderValue::from(wait.as_secs().max(1)),
+        );
+        return Ok(res);
+    }
+    let (token, user) = match s.core.auth.login(&b.email, &b.password).await {
+        Ok(v) => {
+            s.login_limit.success(&key);
+            v
+        }
+        Err(e) => {
+            if matches!(e, oad_core::Error::Unauthorized(_)) {
+                s.login_limit.fail(&key);
+            }
+            return Err(e.into());
+        }
+    };
     let me = me_json(&s, &Principal::from(&user)).await?;
     let max_age = oad_core::auth::SESSION_DAYS * 24 * 3600;
     let mut res = Json(me).into_response();
@@ -391,5 +426,7 @@ async fn events(
             }
         }
     });
+    // 关机时结束，不然 HTTP 服务停不下来
+    let stream = stream.take_until(s.core.on_shutdown());
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

@@ -46,17 +46,26 @@ pub struct AuthRequest<'a> {
 }
 
 impl AuthRequest<'_> {
-    /// 会话令牌：cookie、`Authorization: Bearer`、`?token=` 依次找。
-    pub fn session_token(&self) -> Option<&str> {
-        cookie(self.headers, SESSION_COOKIE)
-            .or_else(|| {
-                self.headers
-                    .get(http::header::AUTHORIZATION)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.strip_prefix("Bearer "))
-            })
-            .or(self.query_token)
-            .filter(|t| !t.is_empty())
+    /// 带来的会话令牌，按优先级：`Authorization: Bearer`、`?token=`、cookie。
+    /// 明确给的排前面，浏览器里过期的 cookie 不会挡住它们；认证时依次试。
+    pub fn session_tokens(&self) -> Vec<&str> {
+        let bearer = self
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "));
+        let mut out: Vec<&str> = [
+            bearer,
+            self.query_token,
+            cookie(self.headers, SESSION_COOKIE),
+        ]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .collect();
+        out.dedup();
+        out
     }
 }
 
@@ -142,14 +151,16 @@ impl AuthProvider for LocalAuth {
     }
 
     async fn authenticate(&self, req: &AuthRequest<'_>) -> Result<Option<Principal>> {
-        let Some(token) = req.session_token() else {
-            return Ok(None);
-        };
-        let user = self
-            .storage
-            .session_user(&ids::hash_token(token), ids::now_ms())
-            .await?;
-        Ok(user.as_ref().map(Principal::from))
+        for token in req.session_tokens() {
+            let user = self
+                .storage
+                .session_user(&ids::hash_token(token), ids::now_ms())
+                .await?;
+            if let Some(u) = user {
+                return Ok(Some(Principal::from(&u)));
+            }
+        }
+        Ok(None)
     }
 
     async fn login(&self, email: &str, password: &str) -> Result<(String, User)> {
@@ -174,7 +185,7 @@ impl AuthProvider for LocalAuth {
     }
 
     async fn logout(&self, req: &AuthRequest<'_>) -> Result<()> {
-        if let Some(token) = req.session_token() {
+        for token in req.session_tokens() {
             self.storage.delete_session(&ids::hash_token(token)).await?;
         }
         Ok(())
