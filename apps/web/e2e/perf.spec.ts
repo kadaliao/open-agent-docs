@@ -188,6 +188,84 @@ test('打字延迟（1000 段的页面，最后一段）', async ({ browser }) =
   await ctx.close()
 })
 
+// 10 个视频嵌入的页面：滚动的帧间隔、打开时间（和同样长短、没有嵌入的页面比）
+test('10 个视频嵌入的页面：滚动帧率、打开时间', async ({ browser, request }) => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const fx = JSON.parse(readFileSync(join(here, 'fixtures/unfurl.json'), 'utf8'))
+  const yt = fx['https://www.youtube.com/watch?v=dQw4w9WgXcQ']
+  const thumb = readFileSync(join(here, 'fixtures/yt.jpg'))
+  const para = (i: number) => ({ type: 'paragraph', content: [{ type: 'text', text: `第 ${i} 段：嵌入的视频只画封面，点了才加载播放器，滚动时不该掉帧。`.repeat(3) }] })
+  const ids = Array.from({ length: 10 }, (_, i) => `dQw4w9WgX${String.fromCharCode(97 + i)}${i}`)
+  const withEmbeds: any[] = []
+  const without: any[] = []
+  ids.forEach((id, i) => {
+    withEmbeds.push(para(i), para(i + 0.5), { type: 'embed', attrs: { url: `https://www.youtube.com/watch?v=${id}`, view: 'embed' } })
+    without.push(para(i), para(i + 0.5), para(i + 0.7))
+  })
+  withEmbeds.push({ type: 'paragraph', content: [{ type: 'text', text: '最后一段：在这里打字测延迟。' }] })
+  without.push({ type: 'paragraph', content: [{ type: 'text', text: '最后一段：在这里打字测延迟。' }] })
+  const a = await createPage(request, '10 个视频')
+  const b = await createPage(request, '没有视频')
+  expect((await request.put(`/api/v1/pages/${a.id}/content`, { data: { doc: { type: 'doc', content: withEmbeds } } })).ok()).toBeTruthy()
+  expect((await request.put(`/api/v1/pages/${b.id}/content`, { data: { doc: { type: 'doc', content: without } } })).ok()).toBeTruthy()
+
+  const ctx = await browser.newContext()
+  // 解析结果和封面图用本地的（不依赖外网；服务器的 /unfurl 有了以后也一样）
+  await ctx.route('**/api/v1/unfurl?**', (r) => {
+    const u = new URL(r.request().url()).searchParams.get('url')!
+    const id = new URL(u).searchParams.get('v')
+    return r.fulfill({ json: { ...yt, url: u, embed: { ...yt.embed, video_id: id }, thumbnail: { url: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`, width: 1280, height: 720 } } })
+  })
+  await ctx.route('https://i.ytimg.com/**', (r) => r.fulfill({ body: thumb, contentType: 'image/jpeg' }))
+  const page = await ctx.newPage()
+  const open = async (id: string) => {
+    const t: number[] = []
+    for (let i = 0; i < 5; i++) t.push((await timeToContent(page, id)).full)
+    return summary(t)
+  }
+  const openWithout = await open(b.id)
+  const openWith = await open(a.id)
+  // 等卡片都画出来（离视口近了才画）
+  await page.waitForTimeout(800)
+
+  // 从上滚到下再滚回来，每帧 24px，记下每一帧的间隔。第一趟卡片边滚边画，第二趟是画好以后
+  const pass = () => page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const el = document.querySelector('.page-scroll') as HTMLElement
+        el.scrollTop = 0
+        const out: number[] = []
+        let dir = 1
+        let last = performance.now()
+        const step = (now: number) => {
+          out.push(now - last)
+          last = now
+          el.scrollTop += 24 * dir
+          // 卡片画出来以后页面会变高，每帧重新算底在哪
+          if (dir > 0 && el.scrollTop >= el.scrollHeight - el.clientHeight - 1) dir = -1
+          else if (dir < 0 && el.scrollTop <= 0) return resolve(out.slice(2))
+          requestAnimationFrame(step)
+        }
+        requestAnimationFrame(step)
+      }),
+  )
+  const stat = (frames: number[]) => ({
+    frames: frames.length,
+    frameMs: summary(frames),
+    fps: +(1000 / (frames.reduce((x, y) => x + y, 0) / frames.length)).toFixed(1),
+    droppedOver25ms: frames.filter((f) => f > 25).length,
+  })
+  const first = stat(await pass())
+  await page.waitForTimeout(600)
+  const second = stat(await pass())
+  results.embedScroll = { firstPass: first, secondPass: second }
+  results.embedOpen = { with10Videos: openWith, withoutVideos: openWithout }
+  results.embedScroll = { ...(results.embedScroll as object), cards: await page.locator('.c-video').count() }
+  console.log('10 个视频：', results.embedScroll, results.embedOpen)
+  expect(await page.locator('.c-video').count()).toBe(10)
+  await ctx.close()
+})
+
 test('主包大小（gzip）', async () => {
   const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../dist')
   const html = readFileSync(join(dist, 'index.html'), 'utf8')

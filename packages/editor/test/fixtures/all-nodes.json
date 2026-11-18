@@ -147,7 +147,17 @@
         },
         {
           "type": "text",
-          "text": " 结束 😀"
+          "text": " 结束 😀，提及 "
+        },
+        {
+          "type": "linkMention",
+          "attrs": {
+            "url": "https://github.com/rust-lang/rust"
+          }
+        },
+        {
+          "type": "text",
+          "text": " 之后"
         }
       ]
     },
@@ -429,7 +439,8 @@
       "type": "codeBlock",
       "attrs": {
         "id": "blk00032",
-        "language": "rust"
+        "language": "rust",
+        "wrap": true
       },
       "content": [
         {
@@ -457,38 +468,49 @@
         "id": "blk00035",
         "src": "https://example.com/cat.png",
         "alt": "一只猫",
-        "title": "猫"
+        "title": "猫",
+        "width": 60,
+        "caption": "一只猫在晒太阳"
       }
     },
     {
       "type": "embed",
       "attrs": {
         "id": "blk00036",
-        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "view": "embed"
+      }
+    },
+    {
+      "type": "embed",
+      "attrs": {
+        "id": "blk00037",
+        "url": "https://blog.rust-lang.org/",
+        "view": "bookmark"
       }
     },
     {
       "type": "table",
       "attrs": {
-        "id": "blk00037"
+        "id": "blk00038"
       },
       "content": [
         {
           "type": "tableRow",
           "attrs": {
-            "id": "blk00038"
+            "id": "blk00039"
           },
           "content": [
             {
               "type": "tableHeader",
               "attrs": {
-                "id": "blk00039"
+                "id": "blk00040"
               },
               "content": [
                 {
                   "type": "paragraph",
                   "attrs": {
-                    "id": "blk00040"
+                    "id": "blk00041"
                   },
                   "content": [
                     {
@@ -502,13 +524,13 @@
             {
               "type": "tableHeader",
               "attrs": {
-                "id": "blk00041"
+                "id": "blk00042"
               },
               "content": [
                 {
                   "type": "paragraph",
                   "attrs": {
-                    "id": "blk00042"
+                    "id": "blk00043"
                   },
                   "content": [
                     {
@@ -524,19 +546,19 @@
         {
           "type": "tableRow",
           "attrs": {
-            "id": "blk00043"
+            "id": "blk00044"
           },
           "content": [
             {
               "type": "tableCell",
               "attrs": {
-                "id": "blk00044"
+                "id": "blk00045"
               },
               "content": [
                 {
                   "type": "paragraph",
                   "attrs": {
-                    "id": "blk00045"
+                    "id": "blk00046"
                   },
                   "content": [
                     {
@@ -555,13 +577,13 @@
             {
               "type": "tableCell",
               "attrs": {
-                "id": "blk00046"
+                "id": "blk00047"
               },
               "content": [
                 {
                   "type": "paragraph",
                   "attrs": {
-                    "id": "blk00047"
+                    "id": "blk00048"
                   },
                   "content": [
                     {
@@ -579,14 +601,14 @@
     {
       "type": "details",
       "attrs": {
-        "id": "blk00048",
+        "id": "blk00049",
         "open": true
       },
       "content": [
         {
           "type": "detailsSummary",
           "attrs": {
-            "id": "blk00049"
+            "id": "blk00050"
           },
           "content": [
             {
@@ -598,13 +620,13 @@
         {
           "type": "detailsContent",
           "attrs": {
-            "id": "blk00050"
+            "id": "blk00051"
           },
           "content": [
             {
               "type": "paragraph",
               "attrs": {
-                "id": "blk00051"
+                "id": "blk00052"
               },
               "content": [
                 {
@@ -620,7 +642,7 @@
     {
       "type": "paragraph",
       "attrs": {
-        "id": "blk00052"
+        "id": "blk00053"
       },
       "content": [
         {

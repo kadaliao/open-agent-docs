@@ -24,3 +24,43 @@ export const LiveBlock = Extension.create({
     ]
   },
 })
+
+// 闪一下某一块（打开带 #块编号 的链接时）：用 decoration，节点重画了也还在
+const flashKey = new PluginKey<{ id: string; until: number } | null>('oadFlash')
+export const FlashBlock = Extension.create({
+  name: 'oadFlash',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<{ id: string; until: number } | null>({
+        key: flashKey,
+        state: {
+          init: () => null,
+          apply: (tr, v) => (tr.getMeta(flashKey) !== undefined ? tr.getMeta(flashKey) : v),
+        },
+        props: {
+          decorations(state) {
+            const f = flashKey.getState(state)
+            if (!f) return null
+            let deco: Decoration | null = null
+            state.doc.descendants((n, pos) => {
+              if (deco) return false
+              if (n.attrs.id === f.id) deco = Decoration.node(pos, pos + n.nodeSize, { class: 'oad-flash' })
+              return !n.isTextblock
+            })
+            return deco ? DecorationSet.create(state.doc, [deco]) : null
+          },
+        },
+      }),
+    ]
+  },
+})
+
+/** 滚到某一块并闪一下；找不到返回 false */
+export function flashBlock(editor: import('@tiptap/core').Editor, id: string) {
+  const el = editor.view.dom.querySelector(`[data-id="${id}"]`) as HTMLElement | null
+  if (!el) return false
+  el.scrollIntoView({ block: 'center' })
+  editor.view.dispatch(editor.state.tr.setMeta(flashKey, { id, until: Date.now() + 1600 }))
+  setTimeout(() => !editor.isDestroyed && editor.view.dispatch(editor.state.tr.setMeta(flashKey, null)), 1700)
+  return true
+}

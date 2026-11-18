@@ -1,10 +1,17 @@
 import react from '@vitejs/plugin-react'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+
+// WASM 版 oad-markdown（packages/markdown-wasm）还没编出来时，用占位模块
+const wasm = fileURLToPath(new URL('../../packages/markdown-wasm', import.meta.url))
+const markdownAlias = existsSync(wasm + '/package.json') ? {} : { '@oad/markdown': fileURLToPath(new URL('./src/markdown-fallback.ts', import.meta.url)) }
 
 const target = process.env.OAD_SERVER ?? 'http://localhost:8848'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: { alias: markdownAlias },
   server: {
     port: 5173,
     proxy: {

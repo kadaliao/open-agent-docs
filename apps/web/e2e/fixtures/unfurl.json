@@ -1,0 +1,600 @@
+{
+ "https://blog.rust-lang.org/": {
+  "kind": "bookmark",
+  "provider": "generic",
+  "source": "html",
+  "url": "https://blog.rust-lang.org/",
+  "canonical_url": "https://blog.rust-lang.org/",
+  "title": "The Rust Programming Language Blog",
+  "description": "Empowering everyone to build reliable and efficient software.",
+  "site_name": "blog.rust-lang.org",
+  "favicon": "https://blog.rust-lang.org/images/favicon.svg",
+  "lang": "en",
+  "author": {
+   "handle": "rustlang"
+  },
+  "thumbnail": {
+   "url": "https://www.rust-lang.org/static/images/rust-social-wide.jpg"
+  }
+ },
+ "https://github.com/rust-lang/rust": {
+  "kind": "repo",
+  "provider": "github",
+  "source": "api",
+  "url": "https://github.com/rust-lang/rust",
+  "canonical_url": "https://github.com/rust-lang/rust",
+  "title": "rust-lang/rust",
+  "description": "Empowering everyone to build reliable and efficient software.",
+  "site_name": "GitHub",
+  "favicon": "https://github.githubassets.com/favicons/favicon.svg",
+  "author": {
+   "name": "rust-lang",
+   "handle": "rust-lang",
+   "url": "https://github.com/rust-lang",
+   "avatar": "https://avatars.githubusercontent.com/u/5430905?v=4"
+  },
+  "thumbnail": {
+   "url": "https://opengraph.githubassets.com/1/rust-lang/rust",
+   "width": 1200,
+   "height": 600
+  },
+  "published_at": "2010-06-16T20:39:03Z",
+  "embed": {
+   "type": "github_repo",
+   "owner": "rust-lang",
+   "repo": "rust",
+   "stars": 122208,
+   "forks": 16672,
+   "language": "Rust",
+   "license": "Apache-2.0",
+   "topics": [
+    "compiler",
+    "language",
+    "rust"
+   ],
+   "pushed_at": "2026-11-18T15:52:42Z"
+  }
+ },
+ "https://github.com/tokio-rs/axum/pull/1000": {
+  "kind": "issue",
+  "provider": "github",
+  "source": "api",
+  "url": "https://github.com/tokio-rs/axum/pull/1000",
+  "canonical_url": "https://github.com/tokio-rs/axum/issues/1000",
+  "title": "parking_lot RwLock for Extension ? · #1000",
+  "description": "## Feature Request Like to understand if it is possible to use parking_lot RwLock for Extension somehow ? ### Motivation std::sync::RwLock relies on pthread, which relys on the operating system. This means: [On Linux, they choose a reader preference. On OSX/BSD they choose a writer preference.](http…",
+  "site_name": "GitHub",
+  "favicon": "https://github.githubassets.com/favicons/favicon.svg",
+  "author": {
+   "name": "cameronelliott",
+   "handle": "cameronelliott",
+   "url": "https://github.com/cameronelliott",
+   "avatar": "https://avatars.githubusercontent.com/u/868689?v=4"
+  },
+  "thumbnail": {
+   "url": "https://opengraph.githubassets.com/1/tokio-rs/axum/issues/1000",
+   "width": 1200,
+   "height": 600
+  },
+  "published_at": "2022-05-05T20:28:30Z",
+  "embed": {
+   "type": "github_issue",
+   "owner": "tokio-rs",
+   "repo": "axum",
+   "number": 1000,
+   "is_pull_request": false,
+   "state": "closed",
+   "state_reason": "completed",
+   "comments": 2,
+   "closed_at": "2022-05-05T20:43:27Z"
+  }
+ },
+ "https://github.com/tokio-rs/tokio/issues/1": {
+  "kind": "pull_request",
+  "provider": "github",
+  "source": "api",
+  "url": "https://github.com/tokio-rs/tokio/issues/1",
+  "canonical_url": "https://github.com/tokio-rs/tokio/pull/1",
+  "title": "Fix spelling mistake · #1",
+  "description": "Removed an extra 'a'.",
+  "site_name": "GitHub",
+  "favicon": "https://github.githubassets.com/favicons/favicon.svg",
+  "author": {
+   "name": "Ported",
+   "handle": "Ported",
+   "url": "https://github.com/Ported",
+   "avatar": "https://avatars.githubusercontent.com/u/34881?v=4"
+  },
+  "thumbnail": {
+   "url": "https://opengraph.githubassets.com/1/tokio-rs/tokio/pull/1",
+   "width": 1200,
+   "height": 600
+  },
+  "published_at": "2016-09-17T15:36:31Z",
+  "embed": {
+   "type": "github_issue",
+   "owner": "tokio-rs",
+   "repo": "tokio",
+   "number": 1,
+   "is_pull_request": true,
+   "state": "merged",
+   "comments": 1,
+   "closed_at": "2016-09-25T20:50:34Z",
+   "merged_at": "2016-09-25T20:50:34Z"
+  }
+ },
+ "https://mp.weixin.qq.com/s/ZA-_BARVAWe0Q4eM0lYgwg": {
+  "kind": "article",
+  "provider": "wechat",
+  "source": "html",
+  "url": "https://mp.weixin.qq.com/s/ZA-_BARVAWe0Q4eM0lYgwg",
+  "canonical_url": "https://mp.weixin.qq.com/s/ZA-_BARVAWe0Q4eM0lYgwg",
+  "title": "透过 Rust 探索系统的本原：编程语言",
+  "description": "连续写了好几篇和 Rust 相关的文章，有朋友说：你好像还没有写过一篇比较正式的介绍 Rust 的文章哦。想了想确实如此，那就来一篇，从语言的世界观和设计思路来谈谈 Rust。",
+  "site_name": "程序人生",
+  "favicon": "https://res.wx.qq.com/a/wx_fed/assets/res/OTE0YTAw.png",
+  "lang": "zh-CN",
+  "author": {
+   "name": "陈小天",
+   "avatar": "http://mmbiz.qpic.cn/mmbiz_png/SER9L29WQ0icplaKYa4qHBGfHoibWDRuDfz3gm2s89oF61GQReEfAC9uMyF6O0lVIQt05stuicdrnBSqRA8DMaIlQ/0?wx_fmt=png"
+  },
+  "thumbnail": {
+   "url": "http://mmbiz.qpic.cn/mmbiz_jpg/SER9L29WQ0icslKBVgrt43ia93j0vTicrhRx7ibdeFK5cyX95SsS4ibTrO1XPoWDf6LFCCvaog3PsicNXuCQarUAV4bw/0?wx_fmt=jpeg"
+  },
+  "published_at": "2021-04-12T00:05:00Z",
+  "embed": {
+   "type": "wechat",
+   "account": "程序人生",
+   "account_avatar": "http://mmbiz.qpic.cn/mmbiz_png/SER9L29WQ0icplaKYa4qHBGfHoibWDRuDfz3gm2s89oF61GQReEfAC9uMyF6O0lVIQt05stuicdrnBSqRA8DMaIlQ/0?wx_fmt=png"
+  }
+ },
+ "https://www.bilibili.com/video/BV1GJ411x7h7": {
+  "kind": "video",
+  "provider": "bilibili",
+  "source": "api",
+  "url": "https://www.bilibili.com/video/BV1GJ411x7h7",
+  "canonical_url": "https://www.bilibili.com/video/BV1GJ411x7h7",
+  "title": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+  "site_name": "哔哩哔哩",
+  "favicon": "https://www.bilibili.com/favicon.ico",
+  "lang": "zh-CN",
+  "author": {
+   "name": "索尼音乐中国",
+   "handle": "486906719",
+   "url": "https://space.bilibili.com/486906719",
+   "avatar": "https://i2.hdslb.com/bfs/face/6bc95d0670863d36bf9167a37b825c39ce258506.jpg"
+  },
+  "thumbnail": {
+   "url": "https://i1.hdslb.com/bfs/archive/5242750857121e05146d5d5b13a47a2a6dd36e98.jpg",
+   "width": 1920,
+   "height": 1080
+  },
+  "published_at": "2019-12-31T23:43:23Z",
+  "embed": {
+   "type": "bilibili",
+   "bvid": "BV1GJ411x7h7",
+   "aid": 80433022,
+   "cid": 137649199,
+   "page": 1,
+   "duration_seconds": 213,
+   "view_count": 108676726,
+   "like_count": 2983337,
+   "danmaku_count": 152255,
+   "embed_url": "https://player.bilibili.com/player.html?bvid=BV1GJ411x7h7&page=1&autoplay=0"
+  }
+ },
+ "https://www.theverge.com/": {
+  "kind": "bookmark",
+  "provider": "generic",
+  "source": "html",
+  "url": "https://www.theverge.com/",
+  "canonical_url": "https://www.theverge.com/",
+  "title": "The Verge",
+  "description": "The Verge is about technology and how it makes us feel. Founded in 2011, we offer our audience everything from breaking news to reviews to award-winning features and investigations, on our site, in video, and in podcasts.",
+  "site_name": "The Verge",
+  "favicon": "https://www.theverge.com/static-assets/icons/android-chrome-192x192.png",
+  "lang": "en-US",
+  "thumbnail": {
+   "url": "https://platform.theverge.com/wp-content/uploads/sites/2/2024/10/the_verge_social_share.png"
+  }
+ },
+ "https://www.youtube.com/watch?v=dQw4w9WgXcQ": {
+  "kind": "video",
+  "provider": "youtube",
+  "source": "oembed",
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "canonical_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+  "site_name": "YouTube",
+  "favicon": "https://www.youtube.com/favicon.ico",
+  "author": {
+   "name": "Rick Astley",
+   "handle": "RickAstleyYT",
+   "url": "https://www.youtube.com/@RickAstleyYT"
+  },
+  "thumbnail": {
+   "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+   "width": 1280,
+   "height": 720
+  },
+  "embed": {
+   "type": "youtube",
+   "video_id": "dQw4w9WgXcQ",
+   "is_short": false,
+   "is_live": false,
+   "embed_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"
+  }
+ },
+ "https://x.com/TheEllenShow/status/440322224407314432": {
+  "kind": "post",
+  "provider": "x",
+  "source": "syndication",
+  "url": "https://x.com/TheEllenShow/status/440322224407314432",
+  "canonical_url": "https://x.com/TheEllenShow/status/440322224407314432",
+  "title": "The Ellen Show on X",
+  "description": "If only Bradley's arm was longer. Best photo ever. #oscars",
+  "site_name": "X",
+  "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "lang": "en",
+  "author": {
+   "name": "The Ellen Show",
+   "handle": "TheEllenShow",
+   "url": "https://x.com/TheEllenShow",
+   "avatar": "https://pbs.twimg.com/profile_images/1909090851592273920/UutmZxGI_bigger.jpg"
+  },
+  "thumbnail": {
+   "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+   "width": 1920,
+   "height": 1080
+  },
+  "media": [
+   {
+    "kind": "image",
+    "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+    "width": 1920,
+    "height": 1080
+   }
+  ],
+  "published_at": "2014-03-03T03:06:13.000Z",
+  "embed": {
+   "type": "x",
+   "id": "440322224407314432",
+   "text": "If only Bradley's arm was longer. Best photo ever. #oscars",
+   "lang": "en",
+   "created_at": "2014-03-03T03:06:13.000Z",
+   "author": {
+    "name": "The Ellen Show",
+    "handle": "TheEllenShow",
+    "url": "https://x.com/TheEllenShow",
+    "avatar": "https://pbs.twimg.com/profile_images/1909090851592273920/UutmZxGI_bigger.jpg"
+   },
+   "hashtags": [
+    "oscars"
+   ],
+   "media": [
+    {
+     "kind": "image",
+     "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+     "width": 1920,
+     "height": 1080
+    }
+   ],
+   "like_count": 1891024,
+   "reply_count": 158703
+  }
+ },
+ "https://x.com/elonmusk/status/1585341984679469056": {
+  "kind": "post",
+  "provider": "x",
+  "source": "syndication",
+  "url": "https://x.com/elonmusk/status/1585341984679469056",
+  "canonical_url": "https://x.com/elonmusk/status/1585341984679469056",
+  "title": "Elon Musk on X",
+  "description": "Entering Twitter HQ – let that sink in!",
+  "site_name": "X",
+  "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "lang": "en",
+  "author": {
+   "name": "Elon Musk",
+   "handle": "elonmusk",
+   "url": "https://x.com/elonmusk",
+   "avatar": "https://pbs.twimg.com/profile_images/2122506092437504001/NSS4RHyZ_bigger.jpg"
+  },
+  "thumbnail": {
+   "url": "https://pbs.twimg.com/ext_tw_video_thumb/1585341912877146112/pu/img/DwJ7wlGIe9iryk6N.jpg",
+   "width": 1920,
+   "height": 1080
+  },
+  "media": [
+   {
+    "kind": "video",
+    "url": "https://video.twimg.com/ext_tw_video/1585341912877146112/pu/vid/1920x1080/aeoVUvTgj4wHShhN.mp4?tag=14",
+    "mime": "video/mp4",
+    "width": 1920,
+    "height": 1080,
+    "poster": "https://pbs.twimg.com/ext_tw_video_thumb/1585341912877146112/pu/img/DwJ7wlGIe9iryk6N.jpg",
+    "duration_ms": 9301
+   }
+  ],
+  "published_at": "2022-10-26T18:45:58.000Z",
+  "embed": {
+   "type": "x",
+   "id": "1585341984679469056",
+   "text": "Entering Twitter HQ – let that sink in!",
+   "lang": "en",
+   "created_at": "2022-10-26T18:45:58.000Z",
+   "author": {
+    "name": "Elon Musk",
+    "handle": "elonmusk",
+    "url": "https://x.com/elonmusk",
+    "avatar": "https://pbs.twimg.com/profile_images/2122506092437504001/NSS4RHyZ_bigger.jpg"
+   },
+   "author_verified": true,
+   "media": [
+    {
+     "kind": "video",
+     "url": "https://video.twimg.com/ext_tw_video/1585341912877146112/pu/vid/1920x1080/aeoVUvTgj4wHShhN.mp4?tag=14",
+     "mime": "video/mp4",
+     "width": 1920,
+     "height": 1080,
+     "poster": "https://pbs.twimg.com/ext_tw_video_thumb/1585341912877146112/pu/img/DwJ7wlGIe9iryk6N.jpg",
+     "duration_ms": 9301
+    }
+   ],
+   "like_count": 1222537,
+   "reply_count": 58052
+  }
+ },
+ "https://x.com/jack/status/20": {
+  "kind": "post",
+  "provider": "x",
+  "source": "syndication",
+  "url": "https://x.com/jack/status/20",
+  "canonical_url": "https://x.com/jack/status/20",
+  "title": "jack on X",
+  "description": "just setting up my twttr",
+  "site_name": "X",
+  "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "lang": "en",
+  "author": {
+   "name": "jack",
+   "handle": "jack",
+   "url": "https://x.com/jack",
+   "avatar": "https://pbs.twimg.com/profile_images/1661201415899951105/azNjKOSH_bigger.jpg"
+  },
+  "published_at": "2006-03-21T20:50:14.000Z",
+  "embed": {
+   "type": "x",
+   "id": "20",
+   "text": "just setting up my twttr",
+   "lang": "en",
+   "created_at": "2006-03-21T20:50:14.000Z",
+   "author": {
+    "name": "jack",
+    "handle": "jack",
+    "url": "https://x.com/jack",
+    "avatar": "https://pbs.twimg.com/profile_images/1661201415899951105/azNjKOSH_bigger.jpg"
+   },
+   "author_verified": true,
+   "like_count": 327495,
+   "reply_count": 19260
+  }
+ },
+ "https://x.com/vercel/status/1683920951807971329": {
+  "kind": "post",
+  "provider": "x",
+  "source": "syndication",
+  "url": "https://x.com/vercel/status/1683920951807971329",
+  "canonical_url": "https://x.com/vercel/status/1683920951807971329",
+  "title": "Vercel on X",
+  "description": "Introducing `react-tweet`: ◆ 35x less client-side JavaScript than the Twitter <iframe> ◆ React Server Components for built-in data fetching ◆ Works with Next.js, Vite, CRA, and more https://vercel.com/blog/introducing-react-tweet",
+  "site_name": "X",
+  "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "lang": "en",
+  "author": {
+   "name": "Vercel",
+   "handle": "vercel",
+   "url": "https://x.com/vercel",
+   "avatar": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_bigger.png"
+  },
+  "thumbnail": {
+   "url": "https://pbs.twimg.com/card_img/2122624694444560384/I6I8XHlH?format=png&name=600x600"
+  },
+  "published_at": "2023-07-25T19:23:35.000Z",
+  "embed": {
+   "type": "x",
+   "id": "1683920951807971329",
+   "text": "Introducing `react-tweet`:\n\n◆ 35x less client-side JavaScript than the Twitter <iframe>\n◆ React Server Components for built-in data fetching\n◆ Works with Next.js, Vite, CRA, and more\n\nhttps://vercel.com/blog/introducing-react-tweet",
+   "lang": "en",
+   "created_at": "2023-07-25T19:23:35.000Z",
+   "author": {
+    "name": "Vercel",
+    "handle": "vercel",
+    "url": "https://x.com/vercel",
+    "avatar": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_bigger.png"
+   },
+   "urls": [
+    {
+     "url": "https://t.co/CMH9A1IGjV",
+     "expanded_url": "https://vercel.com/blog/introducing-react-tweet",
+     "display_url": "vercel.com/blog/introduci…"
+    }
+   ],
+   "like_count": 1699,
+   "reply_count": 67,
+   "card": {
+    "url": "https://vercel.com/blog/introducing-react-tweet",
+    "title": "Introducing React Tweet",
+    "description": "Embed tweets into your React application without sacrificing performance.",
+    "domain": "vercel.com",
+    "image": "https://pbs.twimg.com/card_img/2122624694444560384/I6I8XHlH?format=png&name=600x600"
+   }
+  }
+ },
+ "https://x.com/oad_demo/status/1900000000000000001": {
+  "kind": "post",
+  "provider": "x",
+  "source": "syndication",
+  "url": "https://x.com/oad_demo/status/1900000000000000001",
+  "canonical_url": "https://x.com/oad_demo/status/1900000000000000001",
+  "title": "The Ellen Show on X",
+  "description": "If only Bradley's arm was longer. Best photo ever. #oscars",
+  "site_name": "X",
+  "favicon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "lang": "en",
+  "author": {
+   "name": "The Ellen Show",
+   "handle": "TheEllenShow",
+   "url": "https://x.com/TheEllenShow",
+   "avatar": "https://pbs.twimg.com/profile_images/1909090851592273920/UutmZxGI_bigger.jpg"
+  },
+  "thumbnail": {
+   "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+   "width": 1920,
+   "height": 1080
+  },
+  "media": [
+   {
+    "kind": "image",
+    "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+    "width": 1920,
+    "height": 1080
+   }
+  ],
+  "published_at": "2014-03-03T03:06:13.000Z",
+  "embed": {
+   "type": "x",
+   "id": "1900000000000000001",
+   "text": "这张照片现在还是被转发最多的之一 👇 #Oscars 两张图放一起看 https://t.co/abc123",
+   "lang": "en",
+   "created_at": "2026-11-18T08:30:00.000Z",
+   "author": {
+    "name": "Open Agent Docs",
+    "handle": "oad_demo",
+    "url": "https://x.com/oad_demo",
+    "avatar": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_bigger.png"
+   },
+   "hashtags": [
+    "Oscars"
+   ],
+   "media": [
+    {
+     "kind": "image",
+     "url": "https://pbs.twimg.com/media/BhxWutnCEAAtEQ6.jpg",
+     "width": 1920,
+     "height": 1080
+    },
+    {
+     "kind": "image",
+     "url": "https://pbs.twimg.com/card_img/2122624694444560384/I6I8XHlH?format=png&name=600x600",
+     "width": 1920,
+     "height": 1080
+    }
+   ],
+   "like_count": 12800,
+   "reply_count": 342,
+   "author_verified": true,
+   "quoted": {
+    "id": "1683920951807971329",
+    "text": "Introducing `react-tweet`:\n\n◆ 35x less client-side JavaScript than the Twitter <iframe>\n◆ React Server Components for built-in data fetching\n◆ Works with Next.js, Vite, CRA, and more\n\nhttps://vercel.com/blog/introducing-react-tweet",
+    "lang": "en",
+    "created_at": "2023-07-25T19:23:35.000Z",
+    "author": {
+     "name": "Vercel",
+     "handle": "vercel",
+     "url": "https://x.com/vercel",
+     "avatar": "https://pbs.twimg.com/profile_images/1767351110228918272/3Pndc5OT_bigger.png"
+    },
+    "urls": [
+     {
+      "url": "https://t.co/CMH9A1IGjV",
+      "expanded_url": "https://vercel.com/blog/introducing-react-tweet",
+      "display_url": "vercel.com/blog/introduci…"
+     }
+    ],
+    "like_count": 1699,
+    "reply_count": 67,
+    "card": {
+     "url": "https://vercel.com/blog/introducing-react-tweet",
+     "title": "Introducing React Tweet",
+     "description": "Embed tweets into your React application without sacrificing performance.",
+     "domain": "vercel.com",
+     "image": "https://pbs.twimg.com/card_img/2122624694444560384/I6I8XHlH?format=png&name=600x600"
+    }
+   }
+  }
+ },
+ "https://github.com/tokio-rs/axum/pull/2999": {
+  "kind": "pull_request",
+  "provider": "github",
+  "source": "api",
+  "url": "https://github.com/tokio-rs/axum/pull/2999",
+  "canonical_url": "https://github.com/tokio-rs/axum/pull/2999",
+  "title": "Add typed routing for nested routers · Pull Request #2999",
+  "description": "Removed an extra 'a'.",
+  "site_name": "GitHub",
+  "favicon": "https://github.githubassets.com/favicons/favicon.svg",
+  "author": {
+   "name": "Ported",
+   "handle": "Ported",
+   "url": "https://github.com/Ported",
+   "avatar": "https://avatars.githubusercontent.com/u/34881?v=4"
+  },
+  "thumbnail": {
+   "url": "https://opengraph.githubassets.com/1/tokio-rs/tokio/pull/1",
+   "width": 1200,
+   "height": 600
+  },
+  "published_at": "2016-09-17T15:36:31Z",
+  "embed": {
+   "type": "github_issue",
+   "owner": "tokio-rs",
+   "repo": "axum",
+   "number": 2999,
+   "is_pull_request": true,
+   "state": "open",
+   "comments": 18,
+   "additions": 482,
+   "deletions": 97,
+   "changed_files": 12,
+   "labels": [
+    {
+     "name": "enhancement",
+     "color": "a2eeef"
+    },
+    {
+     "name": "breaking change",
+     "color": "d93f0b"
+    },
+    {
+     "name": "A-routing",
+     "color": "5319e7"
+    }
+   ]
+  }
+ },
+ "/api/v1/files/f_4030/季度报告.pdf": {
+  "kind": "file",
+  "provider": "generic",
+  "url": "/api/v1/files/f_4030/季度报告.pdf",
+  "name": "季度报告.pdf",
+  "mime": "application/pdf",
+  "size": 2483012
+ },
+ "/api/v1/files/f_24342/会议录音.m4a": {
+  "kind": "file",
+  "provider": "generic",
+  "url": "/api/v1/files/f_24342/会议录音.m4a",
+  "name": "会议录音.m4a",
+  "mime": "audio/mp4",
+  "size": 8123456
+ },
+ "/api/v1/files/f_97921/数据导出.zip": {
+  "kind": "file",
+  "provider": "generic",
+  "url": "/api/v1/files/f_97921/数据导出.zip",
+  "name": "数据导出.zip",
+  "mime": "application/zip",
+  "size": 53120000
+ }
+}

@@ -6,16 +6,16 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { t } from '../strings'
 import { renderMath } from './katex'
 
-type Props = NodeViewRendererProps
+export type Props = NodeViewRendererProps
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, attrs?: Record<string, string>) {
+export function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, attrs?: Record<string, string>) {
   const e = document.createElement(tag)
   if (cls) e.className = cls
   if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v)
   return e
 }
 
-function setAttr(p: Props, key: string, value: unknown) {
+export function setAttr(p: Props, key: string, value: unknown) {
   const pos = typeof p.getPos === 'function' ? p.getPos() : undefined
   if (typeof pos !== 'number') return
   const { view } = p.editor
@@ -24,47 +24,9 @@ function setAttr(p: Props, key: string, value: unknown) {
   view.dispatch(view.state.tr.setNodeAttribute(pos, key, value))
 }
 
-function blockAttrs(dom: HTMLElement, node: PMNode) {
+export function blockAttrs(dom: HTMLElement, node: PMNode) {
   if (node.attrs.id) dom.setAttribute('data-id', node.attrs.id)
   else dom.removeAttribute('data-id')
-}
-
-// ---------- 代码块：右上角显示语言，可改 ----------
-export const codeBlockView: NodeViewRenderer = (p) => {
-  let node = p.node
-  const dom = el('div', 'oad-code')
-  const bar = el('div', 'oad-code-bar', { contenteditable: 'false' })
-  const lang = el('input', 'oad-code-lang', { spellcheck: 'false', 'aria-label': t('codeLanguage') })
-  lang.placeholder = t('plainText')
-  lang.value = node.attrs.language ?? ''
-  lang.readOnly = !p.editor.isEditable
-  lang.addEventListener('change', () => setAttr(p, 'language', lang.value.trim() || null))
-  lang.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      e.preventDefault()
-      lang.blur()
-      p.editor.commands.focus()
-    }
-  })
-  bar.append(lang)
-  const pre = el('pre')
-  const code = el('code')
-  pre.append(code)
-  dom.append(bar, pre)
-  blockAttrs(dom, node)
-  return {
-    dom,
-    contentDOM: code,
-    update(n) {
-      if (n.type !== node.type) return false
-      node = n
-      if (document.activeElement !== lang) lang.value = n.attrs.language ?? ''
-      blockAttrs(dom, n)
-      return true
-    },
-    stopEvent: (e) => bar.contains(e.target as Node),
-    ignoreMutation: (m) => bar.contains(m.target),
-  }
 }
 
 // ---------- 折叠块 ----------
@@ -191,52 +153,6 @@ export const calloutView: NodeViewRenderer = (p) => {
     },
     stopEvent: (e) => head.contains(e.target as Node),
     ignoreMutation: (m) => head.contains(m.target) || m.target === dom,
-  }
-}
-
-// ---------- 链接卡片（第 3 阶段换成真正的卡片） ----------
-function hostOf(url: string) {
-  try {
-    return new URL(url).host.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}
-
-export const embedView: NodeViewRenderer = (p) => {
-  let node = p.node
-  const dom = el('div', 'oad-embed', { 'data-type': 'embed', contenteditable: 'false' })
-  const a = el('a', 'oad-embed-card', { target: '_blank', rel: 'noopener noreferrer nofollow' })
-  const badge = el('span', 'oad-embed-badge')
-  const text = el('span', 'oad-embed-text')
-  const host = el('span', 'oad-embed-host')
-  const url = el('span', 'oad-embed-url')
-  text.append(host, url)
-  a.append(badge, text)
-  dom.append(a)
-  const sync = (n: PMNode) => {
-    const u = n.attrs.url || ''
-    a.href = /^https?:\/\//i.test(u) ? u : '#'
-    host.textContent = hostOf(u)
-    url.textContent = u
-    badge.textContent = (hostOf(u)[0] || '↗').toUpperCase()
-    blockAttrs(dom, n)
-  }
-  sync(node)
-  // 编辑时单击选中这一块，按住 Cmd/Ctrl 点才打开
-  a.addEventListener('click', (e) => {
-    if (p.editor.isEditable && !(e.metaKey || e.ctrlKey)) e.preventDefault()
-  })
-  return {
-    dom,
-    update(n) {
-      if (n.type !== node.type) return false
-      node = n
-      sync(n)
-      return true
-    },
-    selectNode: () => dom.classList.add('is-selected'),
-    deselectNode: () => dom.classList.remove('is-selected'),
   }
 }
 
@@ -405,46 +321,5 @@ export function openMathAt(view: import('@tiptap/pm/view').EditorView, pos: numb
   if (target) {
     view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)))
     target.click()
-  }
-}
-
-// ---------- 图片：加载失败时显示一个带说明文字的占位框 ----------
-export const imageView: NodeViewRenderer = (p) => {
-  let node = p.node
-  const dom = el('figure', 'oad-image', { 'data-type': 'image' })
-  const img = el('img', '', { loading: 'lazy', decoding: 'async', draggable: 'false' })
-  const broken = el('div', 'oad-image-broken')
-  broken.hidden = true
-  dom.append(img, broken)
-  const sync = (n: PMNode) => {
-    const src = n.attrs.src || ''
-    if (img.getAttribute('src') !== src) {
-      dom.classList.remove('is-broken')
-      broken.hidden = true
-      img.hidden = false
-      img.src = src
-    }
-    img.alt = n.attrs.alt ?? ''
-    if (n.attrs.title) img.title = n.attrs.title
-    else img.removeAttribute('title')
-    broken.textContent = n.attrs.alt || n.attrs.title || src
-    blockAttrs(dom, n)
-  }
-  img.addEventListener('error', () => {
-    dom.classList.add('is-broken')
-    img.hidden = true
-    broken.hidden = false
-  })
-  sync(node)
-  return {
-    dom,
-    update(n) {
-      if (n.type !== node.type) return false
-      node = n
-      sync(n)
-      return true
-    },
-    selectNode: () => dom.classList.add('is-selected'),
-    deselectNode: () => dom.classList.remove('is-selected'),
   }
 }

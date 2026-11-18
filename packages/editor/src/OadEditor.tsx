@@ -8,6 +8,9 @@ import type * as Y from 'yjs'
 import { editorExtensions, type OadUser } from './extensions'
 import type { AuthorInfo } from './extensions/block-author'
 import { selectionToAnchor, type CommentAnchor } from './extensions/comments'
+import type { MediaServices } from './extensions/media'
+import { BlockMenu } from './ui/BlockMenu'
+import { PasteMenu } from './ui/PasteMenu'
 import type { SlashStorage } from './extensions/slash'
 import { findCell } from './schema/tables'
 import { BubbleToolbar } from './ui/BubbleToolbar'
@@ -39,6 +42,8 @@ export interface OadEditorProps {
   // 块作者对照表（服务器 /pages/{id}/authors 的 clients）
   authors?: Record<string, AuthorInfo>
   onUnknownAuthor?: (clientId: string) => void
+  // 链接解析、上传、Markdown 解析（见 extensions/media.ts）
+  media?: Partial<MediaServices>
 }
 
 export function OadEditor(props: OadEditorProps) {
@@ -57,6 +62,7 @@ export function OadEditor(props: OadEditorProps) {
         onOpenThreads: (ids) => live.current.onOpenThreads?.(ids),
         authors: () => live.current.authors ?? {},
         onUnknownAuthor: (c) => live.current.onUnknownAuthor?.(c),
+        media: () => live.current.media ?? {},
       }),
     // user 变了走 updateUser，不重建编辑器
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,6 +150,8 @@ export function OadEditor(props: OadEditorProps) {
             : undefined
         }
       />
+      <PasteMenu editor={editor} />
+      <BlockMenu editor={editor} />
       {prompt && <UrlPrompt state={prompt} onClose={() => setPrompt(null)} />}
       {inTable && (
         <Suspense fallback={null}>

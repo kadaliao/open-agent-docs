@@ -164,6 +164,8 @@ export const api = {
   reissueToken: (id: string) => req<{ token: string }>('POST', `/agents/${id}/token`),
   reissueWebhookSecret: (id: string) => req<{ webhook_secret: string }>('POST', `/agents/${id}/webhook-secret`),
 
+  members: (ws: string) =>
+    req<{ members: { role: string; user: { id: string; name: string; email?: string | null } }[] }>('GET', `/workspaces/${ws}/members`).then((r) => r.members ?? []),
   inbox: (after?: number | string, limit = 50) =>
     req<{ notifications: InboxItem[] } | InboxItem[]>('GET', `/me/notifications?limit=${limit}${after !== undefined ? `&after=${after}` : ''}`).then((r) =>
       (Array.isArray(r) ? r : r.notifications).map(flatInbox),

@@ -25,6 +25,7 @@ import {
   Image,
   Link,
   MathBlock,
+  LinkMention,
   MathInline,
   OrderedList,
   Table,
@@ -66,6 +67,7 @@ export const NODE_NAMES = [
   'detailsContent',
   'hardBreak',
   'mathInline',
+  'linkMention',
 ] as const
 
 export const MARK_NAMES = ['bold', 'italic', 'strike', 'code', 'link', 'underline', 'highlight'] as const
@@ -90,6 +92,7 @@ export function schemaExtensions(): AnyExtension[] {
     Callout,
     MathBlock,
     MathInline,
+    LinkMention,
     Table,
     TableRow,
     TableHeader,

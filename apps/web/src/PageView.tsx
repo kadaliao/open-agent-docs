@@ -2,6 +2,7 @@
 import {
   OadEditor,
   OadTitle,
+  flashBlock,
   focusStart,
   scrollToThread,
   setCommentThreads,
@@ -16,6 +17,7 @@ import type { WebsocketProvider } from 'y-websocket'
 import { api, ApiError, threadAnchor, type Me } from './api'
 import { CommentsPanel, usePageComments } from './comments/CommentsPanel'
 import { Inbox } from './Inbox'
+import { mediaServices } from './media'
 import { usePeople } from './people'
 import { closePage, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
@@ -99,6 +101,26 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
   }, [ready, loadAuthors])
 
   const people = usePeople(store.ws, me, authors, threads)
+  const services = useMemo(() => mediaServices(store.ws), [store.ws])
+
+  // 打开带 #块编号 的链接：滚到那一块并闪一下
+  useEffect(() => {
+    if (!editor || !ready) return
+    const go = () => {
+      const id = decodeURIComponent(location.hash.slice(1))
+      if (!/^[0-9a-zA-Z]{8}$/.test(id)) return
+      // 内容可能还在路上（服务器同步），找不到就等一会儿再试
+      let tries = 0
+      const attempt = () => {
+        if (editor.isDestroyed) return
+        if (!flashBlock(editor, id) && tries++ < 20) setTimeout(attempt, 150)
+      }
+      attempt()
+    }
+    go()
+    window.addEventListener('hashchange', go)
+    return () => window.removeEventListener('hashchange', go)
+  }, [editor, ready])
   const openCount = threads.filter((x) => !x.resolved_at).length
 
   useEffect(() => {
@@ -240,6 +262,7 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
                   setActive(id)
                 }}
                 authors={allAuthors}
+                media={services}
                 onUnknownAuthor={loadAuthors}
               />
             </div>

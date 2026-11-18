@@ -10,7 +10,11 @@ import { AgentPresence } from './agent-presence'
 import { BlockAuthor, type AuthorInfo } from './block-author'
 import { Comments } from './comments'
 import { OadCaret, OadCollaboration } from './collaboration'
-import { LiveBlock } from './live-block'
+import { BlockHandle } from './block-handle'
+import { CodeHighlight } from './code-highlight'
+import { FlashBlock, LiveBlock } from './live-block'
+import { MediaServicesExt, type MediaServices } from './media'
+import { Paste } from './paste'
 import { OadPlaceholder } from './placeholder'
 import { SlashCommands } from './slash'
 
@@ -31,6 +35,7 @@ export interface EditorExtensionOptions {
   // 块作者：client id → 人 / Agent
   authors?: () => Record<string, AuthorInfo>
   onUnknownAuthor?: (clientId: string) => void
+  media?: () => Partial<MediaServices>
 }
 
 function caret(user: { name: string; color: string; kind?: string }) {
@@ -54,6 +59,11 @@ export function editorExtensions(o: EditorExtensionOptions): AnyExtension[] {
     OadPlaceholder.configure({ empty: () => t('emptyPlaceholder'), line: () => t('placeholder') }),
     SlashCommands,
     LiveBlock,
+    FlashBlock,
+    MediaServicesExt.configure({ get: () => o.media?.() ?? {} }),
+    CodeHighlight,
+    Paste,
+    BlockHandle,
     Comments.configure({ onOpen: (ids) => o.onOpenThreads?.(ids) }),
     BlockAuthor.configure({
       authors: () => o.authors?.() ?? {},

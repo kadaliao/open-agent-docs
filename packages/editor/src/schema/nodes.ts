@@ -6,7 +6,11 @@ import { Details as TiptapDetails, DetailsContent as TiptapDetailsContent, Detai
 import TiptapImage from '@tiptap/extension-image'
 import TiptapLink from '@tiptap/extension-link'
 import { OrderedList as TiptapOrderedList } from '@tiptap/extension-list'
-import { calloutView, codeBlockView, detailsView, embedView, imageView, mathBlockView, mathInlineView } from '../views/node-views'
+import { calloutView, detailsView, mathBlockView, mathInlineView } from '../views/node-views'
+import { codeBlockView } from '../views/code'
+import { embedView } from '../views/embed'
+import { imageView } from '../views/image'
+import { linkMentionView } from '../views/link-mention'
 import TiptapCodeBlock from '@tiptap/extension-code-block'
 
 export const CALLOUT_KINDS = ['note', 'tip', 'important', 'warning', 'caution'] as const
@@ -35,6 +39,20 @@ export const Image = TiptapImage.extend({
       src: { default: null },
       alt: { default: null, parseHTML: (el) => str(el.getAttribute('alt')) },
       title: { default: null, parseHTML: (el) => str(el.getAttribute('title')) },
+      // 展示属性（Markdown 里没有）：占正文宽度的百分比 10–100，不写 = 原始大小但不超过正文宽；图注
+      width: {
+        default: null,
+        parseHTML: (el) => {
+          const w = parseInt(el.getAttribute('data-width') || '', 10)
+          return w >= 10 && w <= 100 ? w : null
+        },
+        renderHTML: (a) => (a.width ? { 'data-width': a.width } : {}),
+      },
+      caption: {
+        default: null,
+        parseHTML: (el) => str(el.getAttribute('data-caption')),
+        renderHTML: (a) => (a.caption ? { 'data-caption': a.caption } : {}),
+      },
     }
   },
   renderHTML({ HTMLAttributes }) {
@@ -58,6 +76,17 @@ export const OrderedList = TiptapOrderedList.extend({
 })
 
 export const CodeBlock = TiptapCodeBlock.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      // 展示属性：自动换行
+      wrap: {
+        default: false,
+        parseHTML: (el) => el.hasAttribute('data-wrap'),
+        renderHTML: (a) => (a.wrap ? { 'data-wrap': '' } : {}),
+      },
+    }
+  },
   addNodeView() {
     return codeBlockView
   },
@@ -149,6 +178,12 @@ export const Embed = Node.create({
   addAttributes() {
     return {
       url: { default: null, parseHTML: (el) => el.getAttribute('data-url') },
+      // 展示属性：embed = 按网站画富卡片 / 播放器，bookmark = 书签卡片
+      view: {
+        default: 'embed',
+        parseHTML: (el) => (el.getAttribute('data-view') === 'bookmark' ? 'bookmark' : 'embed'),
+        renderHTML: (a) => ({ 'data-view': a.view }),
+      },
     }
   },
   parseHTML() {
@@ -164,6 +199,36 @@ export const Embed = Node.create({
   },
   addNodeView() {
     return embedView
+  },
+})
+
+// 行内提及：网站图标 + 标题的小块。Markdown 写成 <url>
+export const LinkMention = Node.create({
+  name: 'linkMention',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      url: { default: null, parseHTML: (el) => el.getAttribute('data-url') ?? el.getAttribute('href') },
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'a[data-type="linkMention"]' }]
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const url = node.attrs.url || ''
+    return [
+      'a',
+      mergeAttributes(HTMLAttributes, { 'data-type': 'linkMention', 'data-url': url, href: url, class: 'oad-link-mention', target: '_blank', rel: 'noopener noreferrer nofollow' }),
+      url,
+    ]
+  },
+  addNodeView() {
+    return linkMentionView
   },
 })
 
