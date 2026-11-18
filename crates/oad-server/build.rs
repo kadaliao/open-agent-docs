@@ -48,7 +48,8 @@ fn main() {
             .unwrap()
             .to_string_lossy()
             .replace('\\', "/");
-        let data = std::fs::read(p).unwrap();
+        // 网页正在重新构建时文件可能刚被删掉：跳过（构建完 dist 变了会再跑一次）
+        let Ok(data) = std::fs::read(p) else { continue };
         let mime = mime_guess::from_path(p).first_or_octet_stream().to_string();
         let mime = if mime.starts_with("text/") || mime.contains("javascript") {
             format!("{mime}; charset=utf-8")

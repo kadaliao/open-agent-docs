@@ -17,6 +17,11 @@ const TOOLS: &[&str] = &[
     "comment",
     "my_notifications",
     "upload_file",
+    "db_create",
+    "db_schema",
+    "db_query",
+    "db_add",
+    "db_update",
 ];
 
 /// 读出来的正文里 ⟦⟧ 中的块编号，按顺序。

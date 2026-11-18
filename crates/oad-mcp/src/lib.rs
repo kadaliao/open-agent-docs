@@ -36,6 +36,8 @@ const INSTRUCTIONS: &str = "这是 Open Agent Docs：人和 Agent 一起写的�
 - 小改用 edit_page（按块替换、插入、删除，几步一起执行）；大改才用 rewrite_page（整页换，没变的块沿用编号，评论还挂着）。\n\
 - 改一个列表、表格时，把整块的新 Markdown 给出来，服务器会沿用没变的项的编号。\n\
 - 有人在评论里叫你时，用 my_notifications 取通知；回复和标成已解决用 comment。\n\
+- 数据库（表格）：db_create 建库，db_schema 改列，db_add 加行，db_update 改格子，db_query 按条件查。属性和值都写名字（“状态”: “进行中”），不用写编号。\n\
+  库里的每一行也是一个页面：行的正文照样用 read_page / edit_page（page_id 就是行 id），read_page 读行时先列属性。\n\
 - 写给人看的内容用页面原来的语言。";
 
 pub struct OadMcp {
@@ -287,6 +289,67 @@ pub struct UploadArgs {
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbCreateArgs {
+    pub title: String,
+    /// 属性（列），按顺序：`[{ "name": "状态", "type": "status" }, { "name": "价格", "type": "number", "format": "cny" },
+    /// { "name": "标签", "type": "multi_select", "options": ["急", "慢"] }, { "name": "总价", "type": "formula", "formula": "prop(\"价格\") * 2" }]`。
+    /// 类型：title、text、number、select、multi_select、status、date、person、checkbox、url、email、phone、files、
+    /// created_time、updated_time、created_by、updated_by、relation（给 db_id，twoway: true 是双向）、rollup（给 relation、prop、fn）、formula、unique_id、button。
+    /// 标题列自动有（叫“名称”）；想换名字就放一个 type 为 title 的。
+    pub props: Option<Vec<serde_json::Value>>,
+    /// 建在哪个页面下面；不给就在最外层。
+    pub parent_id: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbSchemaArgs {
+    pub db_id: String,
+    /// 依次执行的改动，一步出错就都不改：
+    /// `{op: "add", name, type, options?, formula?, format?, after?}`、`{op: "rename", prop, name}`、`{op: "change_type", prop, type}`（能转的值转过去）、
+    /// `{op: "delete", prop}`、`{op: "set_options", prop, options}`、`{op: "set_formula", prop, formula}`、`{op: "update", prop, ...}`、`{op: "move", prop, after?}`、
+    /// `{op: "undo", seq}`（撤销第 seq 次表结构改动，seq 是之前 db_schema 返回的）。prop 写属性名。
+    pub ops: Vec<serde_json::Value>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbQueryArgs {
+    pub db_id: String,
+    /// 筛选：`{ "op": "and", "items": [{ "prop": "状态", "cond": "eq", "value": "进行中" }, { "prop": "价格", "cond": "gt", "value": 100 }] }`，
+    /// 可以嵌套 `{ op: "or", items: [...] }`。cond：eq、neq、contains、not_contains、starts_with、gt、gte、lt、lte、empty、not_empty、is_within（past_week、next_month…）、checked…
+    pub filter: Option<serde_json::Value>,
+    /// 排序：`[{ "prop": "价格", "dir": "desc" }]`。
+    pub sorts: Option<serde_json::Value>,
+    /// 从这个视图（名字或 id）的筛选、排序出发。
+    pub view: Option<String>,
+    /// 搜索：任一格包含这些字。
+    pub search: Option<String>,
+    /// 最多几行，默认 50（最多 500）。
+    pub limit: Option<usize>,
+    /// 跳过前几行（翻页）。
+    pub offset: Option<usize>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbAddArgs {
+    pub db_id: String,
+    /// 每行一个对象：`{ "名称": "写周报", "状态": "进行中", "截止": "2026-11-20", "负责人": "张三" }`；
+    /// 可以带 `body`（行的正文，Markdown）和 `after`（排在这一行后面）。
+    pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbUpdateRow {
+    pub row_id: String,
+    /// 要改的格子：`{ "状态": "已完成" }`；写 null 清空。
+    pub set: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct DbUpdateArgs {
+    pub rows: Vec<DbUpdateRow>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
 pub struct NotesArgs {
     /// 上次处理到的通知编号：编号不大于它的会标成已处理，只返回它之后的。不给就返回所有还没处理的。
     pub after: Option<i64>,
@@ -364,14 +427,30 @@ impl OadMcp {
         let threads = tri!(self.core.threads(&id, &who, Some(false)).await);
         let max = a.max_blocks.unwrap_or(200).clamp(1, 2000) as usize;
         let from = opt_id(a.from_block);
-        ok(tri!(render_page(
+        let text = tri!(render_page(
             &page,
             &doc,
             &b64(&version),
             &threads,
             from.as_deref(),
             max
-        )))
+        ));
+        // 行：先列属性；库：先给表结构
+        let head = match page.kind.as_str() {
+            "row" => match tri!(self.core.row_props_text(&id, &who).await) {
+                Some((db, props)) => render_row_props(&db, &props),
+                None => String::new(),
+            },
+            "database" => {
+                let (_, meta, schema) = tri!(self.core.schema_text(&id, &who).await);
+                format!(
+                    "这是一个数据库（db_id: {id}，共 {} 次改动）。属性：\n{schema}查行用 db_query(db_id: \"{id}\")，加行 db_add，改行 db_update。\n\n",
+                    meta.seq
+                )
+            }
+            _ => String::new(),
+        };
+        ok(format!("{head}{text}"))
     }
 
     #[tool(description = "建一个新页面（可以带正文 Markdown），返回 page_id、网页链接和 base。")]
@@ -687,6 +766,240 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
     }
 
     #[tool(
+        description = "建一个数据库（表格）。返回 db_id 和表结构。之后用 db_add 加行、db_query 查。"
+    )]
+    async fn db_create(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<DbCreateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let who = tri!(caller(&parts));
+        let ws = tri!(self.workspace(&who).await);
+        let db = tri!(
+            self.core
+                .create_database(
+                    &ws,
+                    &who,
+                    oad_core::db::NewDb {
+                        title: Some(a.title),
+                        parent_id: opt_id(a.parent_id),
+                        ..Default::default()
+                    }
+                )
+                .await
+        );
+        let title_key = db.schema["props"][0]["key"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let mut ops = Vec::new();
+        for p in a.props.unwrap_or_default() {
+            let mut p = match p {
+                serde_json::Value::Object(o) => o,
+                _ => {
+                    return fail(CoreError::BadRequest(
+                        "props 里每一项要是 { name, type, ... }".into(),
+                    ));
+                }
+            };
+            let is_title = p
+                .get("type")
+                .and_then(|t| t.as_str())
+                .is_some_and(oad_core::dbengine::is_title_type);
+            if is_title {
+                if let Some(n) = p.get("name").cloned() {
+                    ops.push(serde_json::json!({ "op": "rename", "prop": title_key, "name": n }));
+                }
+                continue;
+            }
+            p.insert("op".into(), "add".into());
+            ops.push(serde_json::Value::Object(p));
+        }
+        let mut seq_note = String::new();
+        if !ops.is_empty() {
+            match self.core.change_schema(&db.page.id, &who, ops).await {
+                Ok(r) => seq_note = warnings_text(&r),
+                Err(e) => {
+                    // 表结构不对：库不留着
+                    let _ = self.core.delete_page(&db.page.id, &who).await;
+                    return fail(e);
+                }
+            }
+        }
+        let (_, _, text) = tri!(self.core.schema_text(&db.page.id, &who).await);
+        ok(format!(
+            "已建数据库《{}》\ndb_id: {}\n网页：{}\n属性：\n{text}{seq_note}",
+            db.page.title,
+            db.page.id,
+            self.core.notes.page_url(&db.page.id)
+        ))
+    }
+
+    #[tool(
+        description = "改数据库的表结构（加列、改名、改类型、删列、改选项、改公式），属性写名字。一批改动一起提交。\
+返回新的表结构和这次改动的 seq（撤销：db_schema(ops: [{op: \"undo\", seq}])，删掉的列和值都能放回来）。"
+    )]
+    async fn db_schema(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<DbSchemaArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let who = tri!(caller(&parts));
+        let id = bid(&a.db_id);
+        let undo: Vec<i64> = a
+            .ops
+            .iter()
+            .filter(|o| o["op"] == "undo")
+            .filter_map(|o| o["seq"].as_i64())
+            .collect();
+        let rest: Vec<serde_json::Value> =
+            a.ops.into_iter().filter(|o| o["op"] != "undo").collect();
+        let mut notes = String::new();
+        for s in undo {
+            let r = tri!(self.core.undo_schema(&id, &who, s).await);
+            notes.push_str(&format!("已撤销第 {s} 次改动（新的 seq: {}）\n", r["seq"]));
+        }
+        if !rest.is_empty() {
+            let r = tri!(self.core.change_schema(&id, &who, rest).await);
+            let changes = r["changes"].as_array().map(|a| a.len()).unwrap_or(0);
+            if changes == 0 {
+                notes.push_str("没有变化\n");
+            } else {
+                notes.push_str(&format!(
+                    "已改表结构（{changes} 处，seq: {}；撤销用这个 seq）\n",
+                    r["seq"]
+                ));
+            }
+            notes.push_str(&warnings_text(&r));
+        }
+        let (page, _, text) = tri!(self.core.schema_text(&id, &who).await);
+        ok(format!("{notes}《{}》现在的属性：\n{text}", page.title))
+    }
+
+    #[tool(
+        description = "查数据库的行：按条件筛选、排序、搜索，返回 Markdown 表格（值是名字，不是编号），每行带 row_id，末尾是总数。\
+不给条件就是全部（按库里的顺序）。行的正文用 read_page(row_id) 读。"
+    )]
+    async fn db_query(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<DbQueryArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let who = tri!(caller(&parts));
+        let id = bid(&a.db_id);
+        let view_id = match a.view.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+            Some(v) => {
+                let info = tri!(self.core.database_info(&id, &who).await);
+                let found = info.views.as_array().and_then(|vs| {
+                    vs.iter()
+                        .find(|x| {
+                            x["id"] == v
+                                || x["name"]
+                                    .as_str()
+                                    .is_some_and(|n| n.eq_ignore_ascii_case(v))
+                        })
+                        .and_then(|x| x["id"].as_str().map(str::to_string))
+                });
+                match found {
+                    Some(f) => Some(f),
+                    None => return fail(CoreError::NotFound(format!("没有视图「{v}」"))),
+                }
+            }
+            None => None,
+        };
+        let limit = a.limit.unwrap_or(50).clamp(1, 500);
+        let q = oad_core::db::QueryReq {
+            view_id,
+            filter: a.filter,
+            sorts: a.sorts,
+            search: a.search,
+            limit: Some(limit),
+            offset: a.offset,
+            ..Default::default()
+        };
+        let (page, shown) = tri!(self.core.query_shown(&id, &who, q).await);
+        ok(render_db_table(&page, &shown))
+    }
+
+    #[tool(
+        description = "往数据库里加行。属性写名字，值也写名字（选项名、人名、行的名称、日期 2026-11-20、勾选 是 / 否）；\
+单选、多选里没有的选项会新加上。返回新行的 row_id。"
+    )]
+    async fn db_add(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<DbAddArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let who = tri!(caller(&parts));
+        let id = bid(&a.db_id);
+        if a.rows.is_empty() {
+            return fail(CoreError::BadRequest("rows 是空的".into()));
+        }
+        let rows = a
+            .rows
+            .into_iter()
+            .map(|mut r| {
+                let body = r
+                    .remove("body")
+                    .and_then(|b| b.as_str().map(str::to_string));
+                let after = r.remove("after").and_then(|b| b.as_str().map(bid));
+                oad_core::db::RowInput {
+                    props: r,
+                    after,
+                    body,
+                }
+            })
+            .collect();
+        let (ids, _) = tri!(self.core.add_db_rows(&id, &who, rows).await);
+        let list: Vec<String> = ids.iter().map(|i| format!("- {i}")).collect();
+        ok(format!(
+            "已加 {} 行，row_id：\n{}",
+            ids.len(),
+            list.join("\n")
+        ))
+    }
+
+    #[tool(
+        description = "改数据库里的行：`[{ row_id, set: { \"状态\": \"已完成\", \"价格\": 120 } }]`，属性和值写名字，null 清空。\
+只改给了的格子（别人同时改别的格子不受影响）。公式、汇总这些算出来的不能改。"
+    )]
+    async fn db_update(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(a): Parameters<DbUpdateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let who = tri!(caller(&parts));
+        // 按库分开
+        let mut by_db: Vec<(String, Vec<oad_core::CellOp>)> = Vec::new();
+        for r in a.rows {
+            let row = bid(&r.row_id);
+            let (page, _) = tri!(self.core.page_for(&row, &who, true).await);
+            let Some(db) = page.parent_id.filter(|_| page.kind == "row") else {
+                return fail(CoreError::BadRequest(format!("{row} 不是数据库里的行")));
+            };
+            let op = oad_core::CellOp {
+                row_id: row,
+                set: r.set,
+                after: None,
+            };
+            match by_db.iter_mut().find(|(d, _)| *d == db) {
+                Some((_, v)) => v.push(op),
+                None => by_db.push((db, vec![op])),
+            }
+        }
+        let mut n = 0;
+        for (db, ops) in by_db {
+            let (_, ch) = tri!(self.core.patch_db_rows(&db, &who, ops).await);
+            n += ch.len();
+        }
+        ok(if n == 0 {
+            "没有变化（值和原来一样）".into()
+        } else {
+            format!("已改 {n} 格")
+        })
+    }
+
+    #[tool(
         description = "取发给你的通知（比如有人在评论里叫你）。每条带一段说明：哪个页面、哪一段、评论内容、该怎么回复。\
 处理完后下次调用时把最后一条的编号作为 after 传进来，它和之前的会标成已处理。可以用 wait 等新通知（最多 60 秒）。"
     )]
@@ -718,5 +1031,22 @@ impl ServerHandler for OadMcp {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(INSTRUCTIONS)
+    }
+}
+
+fn warnings_text(r: &serde_json::Value) -> String {
+    match r["warnings"].as_array() {
+        Some(w) if !w.is_empty() => {
+            let lines: Vec<String> = w
+                .iter()
+                .filter_map(|x| x.as_str())
+                .map(|x| format!("- {x}"))
+                .collect();
+            format!(
+                "注意，这些公式 / 汇总现在算不出来：\n{}\n",
+                lines.join("\n")
+            )
+        }
+        _ => String::new(),
     }
 }

@@ -94,8 +94,13 @@ pub fn render_tree(pages: &[Page], root: Option<&str>) -> String {
                 .as_deref()
                 .map(|i| format!("{i} "))
                 .unwrap_or_default();
+            let kind = if p.kind == "database" {
+                "［数据库］"
+            } else {
+                ""
+            };
             out.push_str(&format!(
-                "{}- {icon}{} （page_id: {}，更新于 {}）\n",
+                "{}- {icon}{kind}{} （page_id: {}，更新于 {}）\n",
                 "  ".repeat(depth),
                 title(p),
                 p.id,
@@ -300,6 +305,75 @@ pub fn render_notes(notes: &[Value]) -> String {
         "\n处理完后调用 my_notifications(after: {last}) 把这些标成已处理并取新的。"
     ));
     s
+}
+
+/// 一格放进 Markdown 表格：去掉换行，`|` 转义，太长的截断。
+fn md_cell(s: &str) -> String {
+    let one: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut t: String = one.chars().take(120).collect();
+    if one.chars().count() > 120 {
+        t.push('…');
+    }
+    t.replace('|', "\\|")
+}
+
+/// db_query 的结果：Markdown 表格，第一列是 row_id，末尾是总数和翻页提示。
+pub fn render_db_table(page: &Page, s: &oad_core::db::Shown) -> String {
+    let mut out = format!("《{}》（db_id: {}）\n\n", title(page), page.id);
+    if s.rows.is_empty() {
+        out.push_str(if s.total == 0 {
+            "没有符合条件的行。\n"
+        } else {
+            "这一段没有行。\n"
+        });
+        out.push_str(&format!("\n共 {} 行\n", s.total));
+        return out;
+    }
+    out.push_str("| row_id |");
+    for c in &s.columns {
+        out.push_str(&format!(" {} |", md_cell(c)));
+    }
+    out.push_str("\n|---|");
+    for _ in &s.columns {
+        out.push_str("---|");
+    }
+    out.push('\n');
+    for r in &s.rows {
+        out.push_str(&format!("| {} |", r.id));
+        for c in &r.cells {
+            out.push_str(&format!(" {} |", md_cell(c)));
+        }
+        out.push('\n');
+    }
+    let end = s.offset + s.rows.len();
+    out.push_str(&format!(
+        "\n共 {} 行，这里是第 {}–{} 行",
+        s.total,
+        s.offset + 1,
+        end
+    ));
+    if end < s.total {
+        out.push_str(&format!("。下一段：offset: {end}"));
+    }
+    out.push('\n');
+    out
+}
+
+/// 行页面的属性（read_page 读行时放在最前面）。
+pub fn render_row_props(db: &Page, props: &[(String, String)]) -> String {
+    let mut out = format!(
+        "这是数据库《{}》（db_id: {}）里的一行。属性：\n",
+        title(db),
+        db.id
+    );
+    if props.is_empty() {
+        out.push_str("（都是空的）\n");
+    }
+    for (k, v) in props {
+        out.push_str(&format!("- {k}：{v}\n"));
+    }
+    out.push_str("改属性用 db_update；下面是这一行的正文。\n\n");
+    out
 }
 
 #[cfg(test)]

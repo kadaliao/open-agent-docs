@@ -105,6 +105,35 @@ pub struct PageDoc {
     doc: Doc,
     frag: XmlFragmentRef,
     title: TextRef,
+    /// 不为 0 时，写入用这个 client id（见 [`PageDoc::as_client`]）。
+    writer: std::sync::atomic::AtomicU64,
+}
+
+/// 写事务：开的时候换成 `writer` 的 client id，结束（提交）前换回来。
+struct WriteTxn<'a> {
+    txn: yrs::TransactionMut<'a>,
+    restore: Option<ClientID>,
+}
+
+impl<'a> std::ops::Deref for WriteTxn<'a> {
+    type Target = yrs::TransactionMut<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.txn
+    }
+}
+
+impl std::ops::DerefMut for WriteTxn<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.txn
+    }
+}
+
+impl Drop for WriteTxn<'_> {
+    fn drop(&mut self) {
+        if let Some(id) = self.restore {
+            self.txn.set_client_id(id);
+        }
+    }
 }
 
 impl PageDoc {
@@ -119,7 +148,12 @@ impl PageDoc {
         });
         let frag = doc.get_or_insert_xml_fragment(FIELD);
         let title = doc.get_or_insert_text(TITLE);
-        PageDoc { doc, frag, title }
+        PageDoc {
+            doc,
+            frag,
+            title,
+            writer: Default::default(),
+        }
     }
 
     pub fn from_update(client: u64, update: &[u8]) -> Result<Self> {
@@ -132,7 +166,7 @@ impl PageDoc {
     pub fn from_node(client: u64, doc: &Node) -> Self {
         let d = PageDoc::new(client);
         {
-            let mut txn = d.doc.transact_mut();
+            let mut txn = d.write_txn();
             convert::write_children(&mut txn, &d.frag, 0, &doc.content);
         }
         d
@@ -140,6 +174,31 @@ impl PageDoc {
 
     pub fn ydoc(&self) -> &Doc {
         &self.doc
+    }
+
+    fn write_txn(&self) -> WriteTxn<'_> {
+        let mut txn = self.doc.transact_mut();
+        let w = self.writer.load(std::sync::atomic::Ordering::SeqCst);
+        let restore = (w != 0).then(|| {
+            let old = txn.current_client_id();
+            txn.set_client_id(ClientID::new(w));
+            old
+        });
+        WriteTxn { txn, restore }
+    }
+
+    /// 在 f 里的写入都记成 `client` 写的（服务器替不同的人 / Agent 写同一个文档时用，各用各的 client id）。
+    /// 同一个 client id 别在别的文档副本上同时写。
+    pub fn as_client<R>(&self, client: u64, f: impl FnOnce(&PageDoc) -> R) -> R {
+        use std::sync::atomic::Ordering::SeqCst;
+        struct Reset<'a>(&'a std::sync::atomic::AtomicU64, u64);
+        impl Drop for Reset<'_> {
+            fn drop(&mut self) {
+                self.0.store(self.1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _reset = Reset(&self.writer, self.writer.swap(client, SeqCst));
+        f(self)
     }
 
     pub fn client_id(&self) -> u64 {
@@ -166,7 +225,7 @@ impl PageDoc {
             .count();
         let u16 = |cs: &[char]| cs.iter().map(|c| c.len_utf16() as u32).sum::<u32>();
         let at = u16(&old[..pre]);
-        let mut txn = self.doc.transact_mut();
+        let mut txn = self.write_txn();
         let del = u16(&old[pre..old.len() - suf]);
         if del > 0 {
             self.title.remove_range(&mut txn, at, del);
@@ -358,31 +417,31 @@ impl PageDoc {
     /// 把编号为 id 的块换成 nodes（Agent 改一段）。和原来对得上的节点就地改：沿用编号、只动变了的字。
     /// 新节点没有编号的会自动分配。返回替换后这几块的编号。
     pub fn replace_block(&self, id: &str, nodes: &[Node]) -> Result<Vec<String>> {
-        let mut txn = self.doc.transact_mut();
+        let mut txn = self.write_txn();
         let (parent, idx, el) =
-            edit::find(&txn, &self.frag, id).ok_or_else(|| Error::NoBlock(id.into()))?;
+            edit::find(&*txn, &self.frag, id).ok_or_else(|| Error::NoBlock(id.into()))?;
         // 只认被替换的这一块里原有的编号，别的编号去掉重新分配（避免和页面别处重复，又不用扫整页）
         let mut existing = HashSet::new();
-        ids::collect(&convert::read_element(&txn, &el), &mut existing);
+        ids::collect(&convert::read_element(&*txn, &el), &mut existing);
         let nodes: Vec<Node> = nodes.iter().map(|n| ids::keep_only(n, &existing)).collect();
         edit::reconcile_range(&mut txn, &parent, idx, 1, &nodes, &mut existing);
         // 块级节点不会被合并，替换后的就是 [idx, idx + n)
         let n = convert::group(&nodes).len() as u32;
         Ok((idx..idx + n)
-            .filter_map(|i| parent.element(&txn, i))
-            .filter_map(|el| edit::id_of(&txn, &el))
+            .filter_map(|i| parent.element(&*txn, i))
+            .filter_map(|el| edit::id_of(&*txn, &el))
             .collect())
     }
 
     /// 在编号为 after 的块后面插入；after 为 None 时插到最前面。
     pub fn insert_after(&self, after: Option<&str>, nodes: &[Node]) -> Result<Vec<String>> {
         let nodes = fresh(nodes);
-        let mut txn = self.doc.transact_mut();
+        let mut txn = self.write_txn();
         let (parent, idx) = match after {
             None => (edit::Parent::Root(self.frag.clone()), 0),
             Some(a) => {
                 let (p, i, _) =
-                    edit::find(&txn, &self.frag, a).ok_or_else(|| Error::NoBlock(a.into()))?;
+                    edit::find(&*txn, &self.frag, a).ok_or_else(|| Error::NoBlock(a.into()))?;
                 (p, i + 1)
             }
         };
@@ -396,9 +455,9 @@ impl PageDoc {
     /// 在编号为 before 的块前面插入（同一层）。
     pub fn insert_before(&self, before: &str, nodes: &[Node]) -> Result<Vec<String>> {
         let nodes = fresh(nodes);
-        let mut txn = self.doc.transact_mut();
+        let mut txn = self.write_txn();
         let (parent, idx, _) =
-            edit::find(&txn, &self.frag, before).ok_or_else(|| Error::NoBlock(before.into()))?;
+            edit::find(&*txn, &self.frag, before).ok_or_else(|| Error::NoBlock(before.into()))?;
         parent.write(&mut txn, idx, &nodes);
         Ok(nodes
             .iter()
@@ -457,8 +516,8 @@ impl PageDoc {
     /// 加到最后。
     pub fn append(&self, nodes: &[Node]) -> Vec<String> {
         let nodes = fresh(nodes);
-        let mut txn = self.doc.transact_mut();
-        let len = yrs::XmlFragment::len(&self.frag, &txn);
+        let mut txn = self.write_txn();
+        let len = yrs::XmlFragment::len(&self.frag, &*txn);
         convert::write_children(&mut txn, &self.frag, len, &nodes);
         nodes
             .iter()
@@ -467,9 +526,9 @@ impl PageDoc {
     }
 
     pub fn delete_block(&self, id: &str) -> Result<()> {
-        let mut txn = self.doc.transact_mut();
+        let mut txn = self.write_txn();
         let (parent, idx, _) =
-            edit::find(&txn, &self.frag, id).ok_or_else(|| Error::NoBlock(id.into()))?;
+            edit::find(&*txn, &self.frag, id).ok_or_else(|| Error::NoBlock(id.into()))?;
         parent.remove(&mut txn, idx, 1);
         Ok(())
     }
@@ -477,8 +536,8 @@ impl PageDoc {
     /// 整页换成 doc（Agent 重写整页）：对得上的块沿用编号、只改变了的地方。
     pub fn set_content(&self, doc: &Node) {
         let mut existing = self.ids();
-        let mut txn = self.doc.transact_mut();
-        let len = yrs::XmlFragment::len(&self.frag, &txn);
+        let mut txn = self.write_txn();
+        let len = yrs::XmlFragment::len(&self.frag, &*txn);
         edit::reconcile_range(
             &mut txn,
             &edit::Parent::Root(self.frag.clone()),

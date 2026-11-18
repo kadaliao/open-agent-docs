@@ -7,7 +7,7 @@
 //! - 上传的文件网址直接从库里给 kind、文件名、大小、类型、宽高、blurhash、时长。
 //! - 有人写了单独一行网址（embed 块）时，同步中心把网址交过来，攒一小会儿后在后台解析。
 use crate::ids::now_ms;
-use crate::media::{Media, file_url, own_file_id};
+use crate::media::{Media, file_url, own_file_id, own_page_ref};
 use crate::model::*;
 use crate::storage::Storage;
 use crate::{Error, Result};
@@ -289,7 +289,7 @@ async fn prefetcher(svc: std::sync::Weak<UnfurlService>, mut rx: mpsc::Unbounded
                 Err(_) => {
                     let Some(s) = svc.upgrade() else { return };
                     for url in batch.drain() {
-                        if own_file_id(&url).is_some() {
+                        if own_file_id(&url).is_some() || own_page_ref(&url).is_some() {
                             continue;
                         }
                         let s = s.clone();
@@ -326,6 +326,38 @@ impl crate::Core {
                 return Err(Error::NotFound("文件不存在".into()));
             }
             return Ok(file_card(&f));
+        }
+        // 本站的库：嵌入成可交互的视图
+        if let Some((id, view)) = own_page_ref(url)
+            && let Some(p) = self.storage.page(&id).await?
+            && p.kind == "database"
+            && p.deleted_at.is_none()
+        {
+            if self.require(&p.workspace_id, who, false).await.is_err() {
+                return Err(Error::NotFound("页面不存在".into()));
+            }
+            let info = self.database_info(&id, who).await?;
+            let views: Vec<Value> = info
+                .views
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|v| json!({ "id": v["id"], "name": v["name"], "type": v["type"] }))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let view = view.filter(|v| views.iter().any(|x| x["id"] == v.as_str()));
+            return Ok(json!({
+                "kind": "database",
+                "provider": "oad",
+                "source": "api",
+                "url": url,
+                "db_id": id,
+                "view_id": view,
+                "title": info.page.title,
+                "icon": info.page.icon,
+                "views": views,
+            }));
         }
         match &self.unfurls {
             Some(u) => u.get(url).await,

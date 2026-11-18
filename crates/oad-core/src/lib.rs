@@ -5,6 +5,10 @@ pub mod agents;
 pub mod auth;
 pub mod blob;
 pub mod comments;
+pub mod db;
+pub mod dbcsv;
+pub mod dbengine;
+pub mod dbschema;
 mod error;
 pub mod events;
 pub mod hub;
@@ -98,6 +102,10 @@ pub struct Core {
     shutdown: tokio::sync::watch::Sender<bool>,
     /// Agent 最后一次记使用时间的时刻（少写库）。
     touched: Mutex<HashMap<String, i64>>,
+    /// 数据库的计算引擎（缓存）。
+    pub dbcache: dbengine::DbCache,
+    /// 数据库算日期（今天、相对日期、创建时间的显示）用的时区：比 UTC 快几分钟。`OAD_TZ_OFFSET`，默认 480（北京时间）。
+    pub db_tz: i32,
 }
 
 /// 页面属性的修改。`Option<Option<_>>`：外层 None = 不改，Some(None) = 清空。
@@ -207,6 +215,12 @@ impl Core {
             notes: notes.clone(),
             shutdown: tokio::sync::watch::channel(false).0,
             touched: Mutex::new(HashMap::new()),
+            dbcache: Default::default(),
+            db_tz: std::env::var("OAD_TZ_OFFSET")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|m: &i32| m.abs() <= 14 * 60)
+                .unwrap_or(480),
         });
         tokio::spawn(notes.run(Box::pin(core.on_shutdown())));
         Ok(core)
@@ -323,6 +337,7 @@ impl Core {
                 icon,
                 created_by: Some(who.user_id.clone()),
                 initial_state: doc.encode_state(),
+                kind: "page".into(),
             })
             .await?;
         self.events.page(EventKind::Created, page.clone());
@@ -356,10 +371,22 @@ impl Core {
     }
 
     pub async fn delete_page(&self, id: &str, who: &Principal) -> Result<Vec<Page>> {
-        self.page_for(id, who, true).await?;
+        let (page, _) = self.page_for(id, who, true).await?;
         let gone = self.storage.delete_page(id).await?;
-        for p in &gone {
+        // 库里的行不在侧栏里，不发 page.deleted；删的是一行就发 db.changed
+        for p in gone.iter().filter(|p| p.kind != "row") {
             self.events.page(EventKind::Deleted, p.clone());
+        }
+        if page.kind == "row"
+            && let Some(db) = &page.parent_id
+            && let Some(m) = self.storage.database(db).await?
+        {
+            self.events.emit(Event {
+                workspace_id: page.workspace_id.clone(),
+                name: "db.changed",
+                data: serde_json::json!({ "db_id": db, "seq": m.seq }),
+                user_id: None,
+            });
         }
         Ok(gone)
     }
@@ -521,6 +548,18 @@ impl Core {
         }
         self.hub
             .edit(id, Some(w), base, targets, move |d| {
+                // 直接写在文档上、没法撤回：先检查一遍，有一步不行就都不改
+                let mut gone = std::collections::HashSet::new();
+                for (i, op) in ops.iter().enumerate() {
+                    if let Some(b) = op.block()
+                        && (gone.contains(b) || !d.has_block(b))
+                    {
+                        return Err(Error::NotFound(format!("第 {} 步：找不到块 {b}", i + 1)));
+                    }
+                    if let BlockOp::Delete { block } = op {
+                        gone.insert(block.clone());
+                    }
+                }
                 let md = |m: &str| oad_markdown::parse(m).content;
                 let mut out = Vec::new();
                 for (i, op) in ops.iter().enumerate() {

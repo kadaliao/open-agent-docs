@@ -13,6 +13,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_init.sql"),
     include_str!("migrations/002_agents_comments.sql"),
     include_str!("migrations/003_media.sql"),
+    include_str!("migrations/004_databases.sql"),
 ];
 const READERS: usize = 4;
 
@@ -112,7 +113,7 @@ impl Sqlite {
     }
 }
 
-const PAGE_COLS: &str = "id, workspace_id, parent_id, position, title, icon, created_by, created_at, updated_at, deleted_at";
+const PAGE_COLS: &str = "id, workspace_id, parent_id, position, title, icon, created_by, created_at, updated_at, deleted_at, kind";
 
 fn page_row(r: &Row) -> rusqlite::Result<Page> {
     Ok(Page {
@@ -126,6 +127,7 @@ fn page_row(r: &Row) -> rusqlite::Result<Page> {
         created_at: r.get(7)?,
         updated_at: r.get(8)?,
         deleted_at: r.get(9)?,
+        kind: r.get(10)?,
     })
 }
 
@@ -174,7 +176,7 @@ fn siblings(
 ) -> Result<Vec<(String, String)>> {
     let mut st = c.prepare_cached(
         "SELECT id, position FROM pages
-         WHERE workspace_id = ?1 AND parent_id IS ?2 AND deleted_at IS NULL AND id != ?3
+         WHERE workspace_id = ?1 AND parent_id IS ?2 AND deleted_at IS NULL AND id != ?3 AND kind != 'row'
          ORDER BY position, id",
     )?;
     let rows = st.query_map(params![ws, parent, except], |r| Ok((r.get(0)?, r.get(1)?)))?;
@@ -422,53 +424,7 @@ impl Storage for Sqlite {
     async fn create_page(&self, p: NewPage) -> Result<Page> {
         self.write(move |c| {
             let tx = c.transaction()?;
-            let ws_ok: bool = tx
-                .query_row(
-                    "SELECT 1 FROM workspaces WHERE id = ?1",
-                    [&p.workspace_id],
-                    |_| Ok(true),
-                )
-                .optional()?
-                .unwrap_or(false);
-            if !ws_ok {
-                return Err(Error::NotFound(format!("工作区 {} 不存在", p.workspace_id)));
-            }
-            if let Some(parent) = &p.parent_id {
-                check_parent(&tx, &p.workspace_id, parent)?;
-            }
-            let id = ids::new_id();
-            let sib = siblings(&tx, &p.workspace_id, p.parent_id.as_deref(), &id)?;
-            let now = ids::now_ms();
-            let page = Page {
-                position: tree::position_for(&sib, &p.place)?,
-                id,
-                workspace_id: p.workspace_id,
-                parent_id: p.parent_id,
-                title: p.title,
-                icon: p.icon,
-                created_by: p.created_by,
-                created_at: now,
-                updated_at: now,
-                deleted_at: None,
-            };
-            tx.execute(
-                &format!("INSERT INTO pages ({PAGE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL)"),
-                params![
-                    page.id,
-                    page.workspace_id,
-                    page.parent_id,
-                    page.position,
-                    page.title,
-                    page.icon,
-                    page.created_by,
-                    page.created_at,
-                    page.updated_at
-                ],
-            )?;
-            tx.execute(
-                "INSERT INTO doc_snapshots (page_id, state, updated_at) VALUES (?1, ?2, ?3)",
-                params![page.id, p.initial_state, now],
-            )?;
+            let page = insert_page(&tx, p, None)?;
             tx.commit()?;
             Ok(page)
         })
@@ -484,7 +440,7 @@ impl Storage for Sqlite {
         let w = workspace_id.to_string();
         self.read(move |c| {
             let mut st = c.prepare_cached(&format!(
-                "SELECT {PAGE_COLS} FROM pages WHERE workspace_id = ?1 AND deleted_at IS NULL
+                "SELECT {PAGE_COLS} FROM pages WHERE workspace_id = ?1 AND deleted_at IS NULL AND kind != 'row'
                  ORDER BY parent_id, position, id"
             ))?;
             let rows = st.query_map([w], page_row)?;
@@ -501,7 +457,9 @@ impl Storage for Sqlite {
     ) -> Result<Page> {
         let id = id.to_string();
         self.write(move |c| {
-            let mut p = live_page(c, &id)?;
+            let tx = c.transaction()?;
+            let mut p = live_page(&tx, &id)?;
+            let old_title = p.title.clone();
             if let Some(t) = title {
                 p.title = t;
             }
@@ -509,10 +467,52 @@ impl Storage for Sqlite {
                 p.icon = i;
             }
             p.updated_at = ids::now_ms();
-            c.execute(
+            tx.execute(
                 "UPDATE pages SET title = ?2, icon = ?3, updated_at = ?4 WHERE id = ?1",
                 params![p.id, p.title, p.icon, p.updated_at],
             )?;
+            // 行的标题就是标题那一格：跟着改，记一条改动
+            if p.kind == "row"
+                && p.title != old_title
+                && let Some(db) = &p.parent_id
+                && let Some(meta) = get_db_meta(&tx, db)?
+                && let Some(key) = title_key_of(&meta.schema)
+                && let Some(mut row) = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1"))?
+                    .query_row([&p.id], db_row_of)
+                    .optional()?
+            {
+                let seq = bump_seq(&tx, db)?;
+                let old = row.props.get(&key).cloned();
+                let new = (!p.title.is_empty()).then(|| serde_json::Value::String(p.title.clone()));
+                match &new {
+                    Some(v) => row.props.insert(key.clone(), v.clone()),
+                    None => row.props.remove(&key),
+                };
+                tx.execute(
+                    "UPDATE db_rows SET props = ?2, seq = ?3, updated_at = ?4 WHERE row_id = ?1",
+                    params![
+                        p.id,
+                        serde_json::Value::Object(row.props).to_string(),
+                        seq,
+                        p.updated_at
+                    ],
+                )?;
+                log_op(
+                    &tx,
+                    &At {
+                        db,
+                        seq,
+                        by: "",
+                        at: p.updated_at,
+                    },
+                    &p.id,
+                    &key,
+                    &old,
+                    &new,
+                )?;
+            }
+            tx.commit()?;
             Ok(p)
         })
         .await
@@ -550,8 +550,37 @@ impl Storage for Sqlite {
         let id = id.to_string();
         self.write(move |c| {
             let tx = c.transaction()?;
-            live_page(&tx, &id)?;
+            let root = live_page(&tx, &id)?;
             let now = ids::now_ms();
+            // 删的是库里的一行：库里也去掉（记一条改动）
+            if root.kind == "row"
+                && let Some(db) = &root.parent_id
+                && let Some(row) = tx
+                    .prepare_cached(&format!(
+                        "SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1 AND deleted_at IS NULL"
+                    ))?
+                    .query_row([&id], db_row_of)
+                    .optional()?
+            {
+                let seq = bump_seq(&tx, db)?;
+                tx.execute(
+                    "UPDATE db_rows SET deleted_at = ?2, seq = ?3 WHERE row_id = ?1",
+                    params![id, now, seq],
+                )?;
+                log_op(
+                    &tx,
+                    &At {
+                        db,
+                        seq,
+                        by: "",
+                        at: now,
+                    },
+                    &id,
+                    "*",
+                    &Some(serde_json::Value::Object(row.props)),
+                    &None,
+                )?;
+            }
             let ids: Vec<String> = {
                 let mut st = tx.prepare(
                     "WITH RECURSIVE sub(id, depth) AS (
@@ -1252,6 +1281,328 @@ impl Storage for Sqlite {
         .await
     }
 
+    async fn create_database(
+        &self,
+        page: NewPage,
+        schema: serde_json::Value,
+        views: serde_json::Value,
+    ) -> Result<Page> {
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let page = insert_page(&tx, page, None)?;
+            tx.execute(
+                "INSERT INTO databases (db_id, schema, views, seq, next_unique) VALUES (?1, ?2, ?3, 0, 1)",
+                params![page.id, schema.to_string(), views.to_string()],
+            )?;
+            tx.commit()?;
+            Ok(page)
+        })
+        .await
+    }
+
+    async fn database(&self, db_id: &str) -> Result<Option<DbMeta>> {
+        let id = db_id.to_string();
+        self.read(move |c| get_db_meta(c, &id)).await
+    }
+
+    async fn db_rows(
+        &self,
+        db_id: &str,
+        since: Option<i64>,
+    ) -> Result<(i64, Vec<DbRow>, Vec<String>)> {
+        let id = db_id.to_string();
+        self.read(move |c| {
+            let tx = c.unchecked_transaction()?;
+            let meta = get_db_meta(&tx, &id)?.ok_or_else(|| Error::NotFound(format!("数据库 {id} 不存在")))?;
+            let (rows, deleted) = match since {
+                None => {
+                    let mut st = tx.prepare_cached(&format!(
+                        "SELECT {ROW_COLS} FROM db_rows WHERE db_id = ?1 AND deleted_at IS NULL ORDER BY position, row_id"
+                    ))?;
+                    let rows: Vec<DbRow> = st.query_map([&id], db_row_of)?.collect::<rusqlite::Result<_>>()?;
+                    (rows, Vec::new())
+                }
+                Some(s) => {
+                    let mut st = tx.prepare_cached(&format!(
+                        "SELECT {ROW_COLS} FROM db_rows WHERE db_id = ?1 AND seq > ?2 ORDER BY position, row_id"
+                    ))?;
+                    let all: Vec<DbRow> = st.query_map(params![id, s], db_row_of)?.collect::<rusqlite::Result<_>>()?;
+                    let (gone, live): (Vec<DbRow>, Vec<DbRow>) = all.into_iter().partition(|r| r.deleted_at.is_some());
+                    (live, gone.into_iter().map(|r| r.id).collect())
+                }
+            };
+            tx.commit()?;
+            Ok((meta.seq, rows, deleted))
+        })
+        .await
+    }
+
+    async fn db_row(&self, row_id: &str) -> Result<Option<DbRow>> {
+        let id = row_id.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1"))?
+                    .query_row([id], db_row_of)
+                    .optional()?,
+            )
+        })
+        .await
+    }
+
+    async fn add_db_rows(
+        &self,
+        db_id: &str,
+        rows: Vec<NewRow>,
+        by: &str,
+    ) -> Result<(Vec<String>, i64)> {
+        let (id, by) = (db_id.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let db = live_page(&tx, &id)?;
+            let seq = bump_seq(&tx, &id)?;
+            let mut next: i64 = tx.query_row("SELECT next_unique FROM databases WHERE db_id = ?1", [&id], |r| r.get(0))?;
+            // 现有行的位置（按顺序），新行插进去
+            let mut order: Vec<(String, String)> = tx
+                .prepare_cached("SELECT row_id, position FROM db_rows WHERE db_id = ?1 AND deleted_at IS NULL ORDER BY position, row_id")?
+                .query_map([&id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            let now = ids::now_ms();
+            let mut out = Vec::with_capacity(rows.len());
+            for r in rows {
+                let place = match &r.after {
+                    Some(a) => Placement::After(a.clone()),
+                    None => Placement::Last,
+                };
+                let position = tree::position_for(&order, &place)?;
+                let page = insert_page(
+                    &tx,
+                    NewPage {
+                        workspace_id: db.workspace_id.clone(),
+                        parent_id: Some(id.clone()),
+                        place: Placement::Last,
+                        title: r.title.clone(),
+                        icon: None,
+                        created_by: Some(by.clone()),
+                        initial_state: r.initial_state,
+                        kind: "row".into(),
+                    },
+                    Some(position.clone()),
+                )?;
+                let props = serde_json::Value::Object(r.props);
+                tx.prepare_cached(&format!(
+                    "INSERT INTO db_rows ({ROW_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?7, ?8, NULL)"
+                ))?
+                .execute(params![page.id, id, seq, position, props.to_string(), next, now, by])?;
+                log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &page.id, "*", &None, &Some(props))?;
+                next += 1;
+                // 维持顺序（插在 after 后面或者最后）
+                let at = match &r.after {
+                    Some(a) => order.iter().position(|(rid, _)| rid == a).map_or(order.len(), |i| i + 1),
+                    None => order.len(),
+                };
+                order.insert(at, (page.id.clone(), position));
+                out.push(page.id);
+            }
+            tx.execute("UPDATE databases SET next_unique = ?2 WHERE db_id = ?1", params![id, next])?;
+            tx.commit()?;
+            Ok((out, seq))
+        })
+        .await
+    }
+
+    async fn patch_db_rows(
+        &self,
+        db_id: &str,
+        title_key: &str,
+        ops: Vec<CellOp>,
+        by: &str,
+    ) -> Result<(i64, Vec<CellChange>)> {
+        let (id, tk, by) = (db_id.to_string(), title_key.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let cur: i64 = tx
+                .query_row("SELECT seq FROM databases WHERE db_id = ?1", [&id], |r| r.get(0))
+                .optional()?
+                .ok_or_else(|| Error::NotFound(format!("数据库 {id} 不存在")))?;
+            let seq = cur + 1;
+            let now = ids::now_ms();
+            let mut changes = Vec::new();
+            for op in ops {
+                let mut row = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1 AND db_id = ?2 AND deleted_at IS NULL"))?
+                    .query_row(params![op.row_id, id], db_row_of)
+                    .optional()?
+                    .ok_or_else(|| Error::NotFound(format!("库里没有行 {}", op.row_id)))?;
+                let mut changed = false;
+                for (k, v) in op.set {
+                    let old = row.props.get(&k).cloned();
+                    let new = (!v.is_null()).then_some(v);
+                    if old == new {
+                        continue;
+                    }
+                    match &new {
+                        Some(v) => row.props.insert(k.clone(), v.clone()),
+                        None => row.props.remove(&k),
+                    };
+                    if k == tk {
+                        let t = new.as_ref().and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        tx.execute("UPDATE pages SET title = ?2, updated_at = ?3 WHERE id = ?1", params![row.id, t, now])?;
+                    }
+                    log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &row.id, &k, &old, &new)?;
+                    changes.push(CellChange { row_id: row.id.clone(), prop: k, old, new });
+                    changed = true;
+                }
+                // 挪位置：排在 after 后面（None 是最前面）
+                if let Some(after) = op.after {
+                    let order: Vec<(String, String)> = tx
+                        .prepare_cached("SELECT row_id, position FROM db_rows WHERE db_id = ?1 AND deleted_at IS NULL AND row_id != ?2 ORDER BY position, row_id")?
+                        .query_map(params![id, row.id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                        .collect::<rusqlite::Result<_>>()?;
+                    let place = match after {
+                        Some(a) => Placement::After(a),
+                        None => Placement::First,
+                    };
+                    let pos = tree::position_for(&order, &place).map_err(|_| Error::BadRequest("after 不是这个库里的行".into()))?;
+                    if pos != row.position {
+                        let (old, new) = (Some(row.position.clone().into()), Some(pos.clone().into()));
+                        tx.execute("UPDATE db_rows SET position = ?2 WHERE row_id = ?1", params![row.id, pos])?;
+                        tx.execute("UPDATE pages SET position = ?2 WHERE id = ?1", params![row.id, pos])?;
+                        log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &row.id, "@position", &old, &new)?;
+                        changes.push(CellChange { row_id: row.id.clone(), prop: "@position".into(), old, new });
+                        tx.execute("UPDATE db_rows SET seq = ?2 WHERE row_id = ?1", params![row.id, seq])?;
+                    }
+                }
+                if changed {
+                    tx.prepare_cached("UPDATE db_rows SET props = ?2, seq = ?3, updated_at = ?4, updated_by = ?5 WHERE row_id = ?1")?
+                        .execute(params![row.id, serde_json::Value::Object(row.props).to_string(), seq, now, by])?;
+                }
+            }
+            let seq = if changes.is_empty() {
+                cur
+            } else {
+                tx.execute("UPDATE databases SET seq = ?2 WHERE db_id = ?1", params![id, seq])?;
+                seq
+            };
+            tx.commit()?;
+            Ok((seq, changes))
+        })
+        .await
+    }
+
+    async fn delete_db_rows(&self, db_id: &str, ids: Vec<String>, by: &str) -> Result<i64> {
+        let (id, by) = (db_id.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let seq = bump_seq(&tx, &id)?;
+            let now = ids::now_ms();
+            for rid in ids {
+                let Some(row) = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1 AND db_id = ?2 AND deleted_at IS NULL"))?
+                    .query_row(params![rid, id], db_row_of)
+                    .optional()?
+                else {
+                    continue;
+                };
+                tx.execute("UPDATE db_rows SET deleted_at = ?2, seq = ?3 WHERE row_id = ?1", params![rid, now, seq])?;
+                tx.execute("UPDATE pages SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL", params![rid, now])?;
+                log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &rid, "*", &Some(serde_json::Value::Object(row.props)), &None)?;
+            }
+            tx.commit()?;
+            Ok(seq)
+        })
+        .await
+    }
+
+    async fn set_db_schema(&self, db_id: &str, w: SchemaWrite, by: &str) -> Result<i64> {
+        let (id, by) = (db_id.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let seq = bump_seq(&tx, &id)?;
+            let now = ids::now_ms();
+            tx.execute("UPDATE databases SET schema = ?2 WHERE db_id = ?1", params![id, w.schema.to_string()])?;
+            if let Some(v) = &w.views {
+                tx.execute("UPDATE databases SET views = ?2 WHERE db_id = ?1", params![id, v.to_string()])?;
+            }
+            tx.execute(
+                "INSERT INTO db_schema_ops (db_id, seq, op, before, after, by, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![id, seq, w.op, w.before.to_string(), w.after.to_string(), by, now],
+            )?;
+            // 按行分好，一行读一次写一次
+            let mut by_row: Vec<(String, Vec<CellSet>)> = Vec::new();
+            for cs in w.cells {
+                match by_row.last_mut() {
+                    Some((r, v)) if *r == cs.row_id => v.push(cs),
+                    _ => by_row.push((cs.row_id.clone(), vec![cs])),
+                }
+            }
+            for (rid, sets) in by_row {
+                let Some(mut row) = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1 AND db_id = ?2"))?
+                    .query_row(params![rid, id], db_row_of)
+                    .optional()?
+                else {
+                    continue;
+                };
+                let mut changed = false;
+                for cs in sets {
+                    let cur = row.props.get(&cs.key).cloned();
+                    if cs.only_if.as_ref().is_some_and(|e| *e != cur) || cur == cs.value {
+                        continue;
+                    }
+                    match &cs.value {
+                        Some(v) => row.props.insert(cs.key.clone(), v.clone()),
+                        None => row.props.remove(&cs.key),
+                    };
+                    log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &rid, &cs.key, &cur, &cs.value)?;
+                    changed = true;
+                }
+                if changed {
+                    tx.prepare_cached("UPDATE db_rows SET props = ?2, seq = ?3 WHERE row_id = ?1")?
+                        .execute(params![rid, serde_json::Value::Object(row.props).to_string(), seq])?;
+                }
+            }
+            tx.commit()?;
+            Ok(seq)
+        })
+        .await
+    }
+
+    async fn db_schema_op(&self, db_id: &str, seq: i64) -> Result<Option<SchemaOpRow>> {
+        let id = db_id.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached("SELECT seq, op, before, after, by, at FROM db_schema_ops WHERE db_id = ?1 AND seq = ?2")?
+                .query_row(params![id, seq], |r| {
+                    let b: Option<String> = r.get(2)?;
+                    let a: Option<String> = r.get(3)?;
+                    Ok(SchemaOpRow {
+                        seq: r.get(0)?,
+                        op: r.get(1)?,
+                        before: b.and_then(|x| serde_json::from_str(&x).ok()).unwrap_or_default(),
+                        after: a.and_then(|x| serde_json::from_str(&x).ok()).unwrap_or_default(),
+                        by: r.get(4)?,
+                        at: r.get(5)?,
+                    })
+                })
+                .optional()?)
+        })
+        .await
+    }
+
+    async fn set_db_views(&self, db_id: &str, views: serde_json::Value) -> Result<()> {
+        let id = db_id.to_string();
+        self.write(move |c| {
+            let n = c.execute(
+                "UPDATE databases SET views = ?2 WHERE db_id = ?1",
+                params![id, views.to_string()],
+            )?;
+            if n == 0 {
+                return Err(Error::NotFound(format!("数据库 {id} 不存在")));
+            }
+            Ok(())
+        })
+        .await
+    }
+
     async fn unfurl(&self, url_key: &str) -> Result<Option<UnfurlRow>> {
         let k = url_key.to_string();
         self.read(move |c| {
@@ -1527,4 +1878,146 @@ fn blob_row(r: &Row, at: usize) -> rusqlite::Result<BlobInfo> {
         blurhash: r.get(at + 5)?,
         duration_ms: r.get(at + 6)?,
     })
+}
+
+/// 插一个页面（含正文的第一份快照）。position 不给就按 p.place 在同级里算。
+fn insert_page(tx: &Connection, p: NewPage, position: Option<String>) -> Result<Page> {
+    let ws_ok = tx
+        .query_row(
+            "SELECT 1 FROM workspaces WHERE id = ?1",
+            [&p.workspace_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    if !ws_ok {
+        return Err(Error::NotFound(format!("工作区 {} 不存在", p.workspace_id)));
+    }
+    let id = ids::new_id();
+    let position = match position {
+        Some(pos) => pos,
+        None => {
+            if let Some(parent) = &p.parent_id {
+                check_parent(tx, &p.workspace_id, parent)?;
+            }
+            let sib = siblings(tx, &p.workspace_id, p.parent_id.as_deref(), &id)?;
+            tree::position_for(&sib, &p.place)?
+        }
+    };
+    let now = ids::now_ms();
+    let page = Page {
+        position,
+        id,
+        workspace_id: p.workspace_id,
+        parent_id: p.parent_id,
+        title: p.title,
+        icon: p.icon,
+        created_by: p.created_by,
+        created_at: now,
+        updated_at: now,
+        deleted_at: None,
+        kind: p.kind,
+    };
+    tx.prepare_cached(&format!(
+        "INSERT INTO pages ({PAGE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10)"
+    ))?
+    .execute(params![
+        page.id,
+        page.workspace_id,
+        page.parent_id,
+        page.position,
+        page.title,
+        page.icon,
+        page.created_by,
+        page.created_at,
+        page.updated_at,
+        page.kind
+    ])?;
+    tx.prepare_cached(
+        "INSERT INTO doc_snapshots (page_id, state, updated_at) VALUES (?1, ?2, ?3)",
+    )?
+    .execute(params![page.id, p.initial_state, now])?;
+    Ok(page)
+}
+
+fn get_db_meta(c: &Connection, db_id: &str) -> Result<Option<DbMeta>> {
+    Ok(
+        c.prepare_cached("SELECT db_id, schema, views, seq FROM databases WHERE db_id = ?1")?
+            .query_row([db_id], |r| {
+                let schema: String = r.get(1)?;
+                let views: String = r.get(2)?;
+                Ok(DbMeta {
+                    db_id: r.get(0)?,
+                    schema: serde_json::from_str(&schema).unwrap_or_default(),
+                    views: serde_json::from_str(&views).unwrap_or_default(),
+                    seq: r.get(3)?,
+                })
+            })
+            .optional()?,
+    )
+}
+
+const ROW_COLS: &str = "row_id, db_id, seq, position, props, unique_id, created_at, created_by, updated_at, updated_by, deleted_at";
+
+fn db_row_of(r: &Row) -> rusqlite::Result<DbRow> {
+    let props: String = r.get(4)?;
+    Ok(DbRow {
+        id: r.get(0)?,
+        db_id: r.get(1)?,
+        seq: r.get(2)?,
+        position: r.get(3)?,
+        props: serde_json::from_str(&props).unwrap_or_default(),
+        unique_id: r.get(5)?,
+        created_at: r.get(6)?,
+        created_by: r.get(7)?,
+        updated_at: r.get(8)?,
+        updated_by: r.get(9)?,
+        deleted_at: r.get(10)?,
+    })
+}
+
+/// 库的 seq 加一，返回新的。
+fn bump_seq(tx: &Connection, db_id: &str) -> Result<i64> {
+    let seq: Option<i64> = tx
+        .prepare_cached("UPDATE databases SET seq = seq + 1 WHERE db_id = ?1 RETURNING seq")?
+        .query_row([db_id], |r| r.get(0))
+        .optional()?;
+    seq.ok_or_else(|| Error::NotFound(format!("数据库 {db_id} 不存在")))
+}
+
+fn json_opt(v: &Option<serde_json::Value>) -> Option<String> {
+    v.as_ref().map(|v| v.to_string())
+}
+
+/// 记一格改动时的公共部分：哪个库、第几版、谁、什么时候。
+struct At<'a> {
+    db: &'a str,
+    seq: i64,
+    by: &'a str,
+    at: i64,
+}
+
+fn log_op(
+    tx: &Connection,
+    w: &At,
+    row: &str,
+    prop: &str,
+    old: &Option<serde_json::Value>,
+    new: &Option<serde_json::Value>,
+) -> Result<()> {
+    tx.prepare_cached(
+        "INSERT INTO db_ops (db_id, seq, row_id, prop, old, new, by, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )?
+    .execute(params![w.db, w.seq, row, prop, json_opt(old), json_opt(new), w.by, w.at])?;
+    Ok(())
+}
+
+/// 表结构里标题属性的 key（第一个 type = title 的）。
+fn title_key_of(schema: &serde_json::Value) -> Option<String> {
+    schema["props"]
+        .as_array()?
+        .iter()
+        .find(|p| p["type"] == "title")
+        .and_then(|p| p["key"].as_str())
+        .map(str::to_string)
 }

@@ -75,6 +75,29 @@ pub fn own_file_id(url: &str) -> Option<String> {
     (id.len() == 12 && id.bytes().all(|b| b.is_ascii_alphanumeric())).then(|| id.to_string())
 }
 
+/// 本站页面的网址（`/p/<id>`，可带 `?view=<视图>`）→ (页面 id, 视图 id)。任何主机都认，是不是库、能不能看由调用方查。
+pub fn own_page_ref(url: &str) -> Option<(String, Option<String>)> {
+    let u = if url.starts_with('/') {
+        url::Url::parse(&format!("http://x{url}")).ok()?
+    } else {
+        let u = url::Url::parse(url).ok()?;
+        if !matches!(u.scheme(), "http" | "https") {
+            return None;
+        }
+        u
+    };
+    let id = u.path().strip_prefix("/p/")?.trim_end_matches('/');
+    if id.len() != 12 || !id.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let view = u
+        .query_pairs()
+        .find(|(k, _)| k == "view")
+        .map(|(_, v)| v.to_string())
+        .filter(|v| !v.is_empty());
+    Some((id.to_string(), view))
+}
+
 fn sha256_hex(data: &[u8]) -> String {
     Sha256::digest(data)
         .iter()

@@ -1,6 +1,7 @@
 //! HTTP 层：`router(state)` 返回 axum Router，别的 Rust 服务可以直接挂进去。接口见 docs/phase1-contract.md。
 mod api;
 mod collab;
+mod dbs;
 mod error;
 mod files;
 mod guard;

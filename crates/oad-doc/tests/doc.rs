@@ -386,3 +386,32 @@ fn link_mention_is_inline() {
     let p = PageDoc::from_node(1, &d);
     assert_eq!(p.to_node(), d);
 }
+
+#[test]
+fn writes_as_another_client() {
+    let d = doc_with_ids("第一段\n\n第二段\n");
+    let p = PageDoc::from_node(1 << 40, &d);
+    let id = d.content[0].attr_str("id").unwrap().to_string();
+    let agent = (1u64 << 40) + 7;
+    p.as_client(agent, |p| {
+        p.replace_block(&id, &parse("Agent 改写了第一段的全部文字").content)
+            .unwrap()
+    });
+    let a = p.block_authors(&id).unwrap();
+    // 没变的“第一段”三个字还是原来的作者，新写的字都记在 agent 名下
+    assert_eq!(a.get(&(1 << 40)), Some(&3), "{a:?}");
+    assert!(a[&agent] > 10, "{a:?}");
+    // 之后又是自己写
+    let second = d.content[1].attr_str("id").unwrap().to_string();
+    p.replace_block(&second, &parse("服务器自己改的第二段").content)
+        .unwrap();
+    let b = p.block_authors(&second).unwrap();
+    assert!(
+        b.contains_key(&(1 << 40)) && !b.contains_key(&agent),
+        "{b:?}"
+    );
+    // 合并到别的副本里，作者不变
+    let q = PageDoc::from_update(5, &p.encode_state()).unwrap();
+    assert_eq!(q.block_authors(&id).unwrap(), a);
+    assert_eq!(q.to_node(), p.to_node());
+}

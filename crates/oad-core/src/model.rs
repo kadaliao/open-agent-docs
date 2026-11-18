@@ -100,6 +100,13 @@ pub struct Page {
     pub updated_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<i64>,
+    /// page / database / row。
+    #[serde(default = "page_kind")]
+    pub kind: String,
+}
+
+fn page_kind() -> String {
+    "page".into()
 }
 
 /// 放在同级的哪里。
@@ -119,6 +126,8 @@ pub struct NewPage {
     pub created_by: Option<String>,
     /// 正文的初始状态（Yrs v1），存成第一份快照。
     pub initial_state: Vec<u8>,
+    /// page / database / row。
+    pub kind: String,
 }
 
 pub struct NewUser {
@@ -309,4 +318,96 @@ pub struct FileRow {
     pub created_by: Option<String>,
     pub created_at: i64,
     pub blob: BlobInfo,
+}
+
+/// 一个数据库的表结构、视图和版本号。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DbMeta {
+    pub db_id: String,
+    pub schema: serde_json::Value,
+    pub views: serde_json::Value,
+    pub seq: i64,
+}
+
+/// 库里的一行。`props` 是存的样子（键是属性的 key），标题也在里面（和行页面的标题同步）。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DbRow {
+    pub id: String,
+    pub db_id: String,
+    pub seq: i64,
+    pub position: String,
+    pub props: serde_json::Map<String, serde_json::Value>,
+    pub unique_id: i64,
+    pub created_at: i64,
+    pub created_by: Option<String>,
+    pub updated_at: i64,
+    pub updated_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
+}
+
+/// 新的一行。
+pub struct NewRow {
+    pub props: serde_json::Map<String, serde_json::Value>,
+    /// 排在这一行后面（不给就放最后）。
+    pub after: Option<String>,
+    pub title: String,
+    /// 行页面正文的初始状态。
+    pub initial_state: Vec<u8>,
+}
+
+/// 改一行的几格：值为 null 的清掉。给了 `after` 是挪位置（排在那一行后面，null 是最前面）。
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct CellOp {
+    pub row_id: String,
+    #[serde(default)]
+    pub set: serde_json::Map<String, serde_json::Value>,
+    #[serde(default, deserialize_with = "some_or_null")]
+    pub after: Option<Option<String>>,
+}
+
+/// 区分“没给”（None）和“给了 null”（Some(None)）。
+fn some_or_null<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(d).map(Some)
+}
+
+/// 一格的改动。
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct CellChange {
+    pub row_id: String,
+    pub prop: String,
+    pub old: Option<serde_json::Value>,
+    pub new: Option<serde_json::Value>,
+}
+
+/// 一次表结构改动的记录。
+#[derive(Serialize, Clone, Debug)]
+pub struct SchemaOpRow {
+    pub seq: i64,
+    pub op: String,
+    pub before: serde_json::Value,
+    pub after: serde_json::Value,
+    pub by: Option<String>,
+    pub at: i64,
+}
+
+/// 改表结构时顺带改的一格。`only_if` 给了的话，只有现在的值等于它才改（撤销时不盖掉之后别人写的）。
+#[derive(Clone, Debug)]
+pub struct CellSet {
+    pub row_id: String,
+    pub key: String,
+    pub value: Option<serde_json::Value>,
+    pub only_if: Option<Option<serde_json::Value>>,
+}
+
+/// 一次表结构改动：新表结构、新视图（不改就 None）、记进历史的 (op, before, after)、顺带改的格子。
+pub struct SchemaWrite {
+    pub schema: serde_json::Value,
+    pub views: Option<serde_json::Value>,
+    pub op: String,
+    pub before: serde_json::Value,
+    pub after: serde_json::Value,
+    pub cells: Vec<CellSet>,
 }

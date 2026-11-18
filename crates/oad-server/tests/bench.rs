@@ -211,3 +211,179 @@ async fn writes() {
     }
     s.stop().await;
 }
+
+/// 1 万行的库：加行、全量取行（原始 / gzip / br 大小和时间）、增量、服务器查询、改一格的延迟。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
+async fn db_10k() {
+    use serde_json::{Value, json};
+    let dir = tempfile::tempdir().unwrap();
+    let c = http();
+    let s = Server::start(dir.path(), AuthConfig::None, HubConfig::default()).await;
+    let schema = json!({ "props": [
+        { "name": "名称", "type": "title" },
+        { "name": "状态", "type": "status" },
+        { "name": "价格", "type": "number" },
+        { "name": "截止", "type": "date" },
+        { "name": "完成", "type": "checkbox" },
+        { "name": "标签", "type": "multi_select", "options": ["甲", "乙", "丙", "丁"] },
+        { "name": "备注", "type": "text" },
+        { "name": "网址", "type": "url" },
+        { "name": "双倍", "type": "formula", "formula": "prop(\"价格\") * 2" },
+    ]});
+    let (_, v) = json(
+        c.post(s.api(&format!("/workspaces/{}/databases", s.ws_id())))
+            .json(&json!({ "title": "一万行", "schema": schema })),
+    )
+    .await;
+    let db = v["page"]["id"].as_str().unwrap().to_string();
+    let t = Instant::now();
+    let mut ids: Vec<String> = Vec::new();
+    for chunk in 0..10 {
+        let rows: Vec<Value> = (0..1000)
+            .map(|j| {
+                let i = chunk * 1000 + j;
+                let state = ["未开始", "进行中", "已完成"][i % 3];
+                let tags = [vec!["甲"], vec!["乙", "丙"], vec!["丁"]][i % 3].clone();
+                json!({ "props": {
+                    "名称": format!("第 {i} 行的任务"),
+                    "状态": state,
+                    "价格": (i * 37) % 1000,
+                    "截止": format!("2026-{:02}-{:02}", i % 12 + 1, i % 28 + 1),
+                    "完成": i % 2 == 0,
+                    "标签": tags,
+                    "备注": format!("一些备注文字 {i}"),
+                    "网址": format!("https://example.com/{i}"),
+                }})
+            })
+            .collect();
+        let (st, v) = json(
+            c.post(s.api(&format!("/databases/{db}/rows")))
+                .json(&json!({ "rows": rows })),
+        )
+        .await;
+        assert_eq!(st, 201, "{v}");
+        ids.extend(
+            v["ids"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|x| x.as_str().unwrap().to_string()),
+        );
+    }
+    println!("加 1 万行（10 批）：{:?}", t.elapsed());
+
+    let path = format!("/api/v1/databases/{db}/rows");
+    for enc in ["identity", "gzip", "br"] {
+        let mut times = vec![];
+        let mut size = 0;
+        for _ in 0..5 {
+            let t = Instant::now();
+            let (st, _, body) = raw_get(s.addr, &path, &[("Accept-Encoding", enc)]).await;
+            times.push(t.elapsed());
+            assert_eq!(st, 200);
+            size = body.len();
+        }
+        println!(
+            "全量取行 {enc}：{} KB，p50 {:?}",
+            size / 1024,
+            pct(&mut times, 0.5)
+        );
+    }
+    // 增量：改了一行
+    let (_, p) = json(
+        c.patch(s.api(&format!("/databases/{db}/rows")))
+            .json(&json!({ "ops": [{ "row_id": ids[5], "set": { "价格": 1 } }] })),
+    )
+    .await;
+    let since = p["seq"].as_i64().unwrap() - 1;
+    let t = Instant::now();
+    let (_, d) = json(c.get(s.api(&format!("/databases/{db}/rows?since={since}")))).await;
+    println!(
+        "增量（1 行）：{:?}，{} 行",
+        t.elapsed(),
+        d["rows"].as_array().unwrap().len()
+    );
+
+    // 服务器查询：第一次要把行装进引擎，之后是缓存的
+    let q = json!({ "filter": { "op": "and", "items": [{ "prop": "状态", "cond": "eq", "value": "进行中" }, { "prop": "价格", "cond": "gt", "value": 500 }] },
+                    "sorts": [{ "prop": "截止", "dir": "desc" }], "limit": 50 });
+    s.core.dbcache.forget(&db);
+    let t = Instant::now();
+    let (st, r) = json(c.post(s.api(&format!("/databases/{db}/query"))).json(&q)).await;
+    assert_eq!(st, 200, "{r}");
+    println!(
+        "查询（冷，含装引擎）：{:?}，符合 {} 行",
+        t.elapsed(),
+        r["total"]
+    );
+    let mut times = vec![];
+    for _ in 0..20 {
+        let t = Instant::now();
+        json(c.post(s.api(&format!("/databases/{db}/query"))).json(&q)).await;
+        times.push(t.elapsed());
+    }
+    println!(
+        "查询（热）：p50 {:?}，p95 {:?}",
+        pct(&mut times, 0.5),
+        pct(&mut times, 0.95)
+    );
+    let t = Instant::now();
+    let (_, r) = json(
+        c.post(s.api(&format!("/databases/{db}/query")))
+            .json(&json!({ "group_by": "状态", "totals": {}, "limit": 10 })),
+    )
+    .await;
+    println!(
+        "分组查询：{:?}，{} 组",
+        t.elapsed(),
+        r["groups"].as_array().map(|g| g.len()).unwrap_or(0)
+    );
+
+    // 改一格（HTTP 往返）：数字、选项名、标题（标题还要改行页面）
+    for (what, set) in [
+        ("数字", json!({ "价格": 0 })),
+        ("选项名", json!({ "状态": "已完成" })),
+        ("标题", json!({ "名称": "" })),
+    ] {
+        let mut times = vec![];
+        for i in 0..100 {
+            let mut set = set.clone();
+            if what == "数字" {
+                set["价格"] = json!(i);
+            } else if what == "标题" {
+                set["名称"] = json!(format!("改过的标题 {i}"));
+            }
+            let t = Instant::now();
+            let (st, v) = json(
+                c.patch(s.api(&format!("/databases/{db}/rows")))
+                    .json(&json!({ "ops": [{ "row_id": ids[i * 97], "set": set }] })),
+            )
+            .await;
+            times.push(t.elapsed());
+            assert_eq!(st, 200, "{v}");
+        }
+        println!(
+            "改一格（{what}）：p50 {:?}，p95 {:?}",
+            pct(&mut times, 0.5),
+            pct(&mut times, 0.95)
+        );
+    }
+    let t = Instant::now();
+    let res = c
+        .get(s.api(&format!("/databases/{db}/export.csv")))
+        .send()
+        .await
+        .unwrap();
+    let n = res.bytes().await.unwrap().len();
+    println!("导出 CSV：{:?}，{} KB", t.elapsed(), n / 1024);
+    let t = Instant::now();
+    let (st, v) = json(
+        c.patch(s.api(&format!("/databases/{db}/schema")))
+            .json(&json!({ "ops": [{ "op": "change_type", "prop": "备注", "type": "select" }] })),
+    )
+    .await;
+    assert_eq!(st, 200, "{v}");
+    println!("改类型（文字 → 单选，1 万行）：{:?}", t.elapsed());
+    s.stop().await;
+}

@@ -163,3 +163,63 @@ eng.normalize(key, input) -> value                    // 用户输入 / 粘贴�
 （`cargo test -p oad-db --release --test bench -- --ignored --nocapture`、`node packages/db-wasm/test/bench.mjs`。）
 
 **还没做**：中文按拼音排序；行内格式的文字；按状态组（todo / doing / done）分组、数字按区间分组；正则（test / match）、formatNumber、link / style 这些 Notion 函数；按钮（不存值，服务器管）。
+
+## 服务器（实际的样子）
+
+- **页面** 多了 `kind`（page / database / row）。`GET /workspaces/{ws}/pages` 不列行；行不发 page.created / page.deleted，行的标题改了照样发 page.updated（`kind = "row"`，侧栏自己跳过）。
+  删库就是删页面（行跟着进回收站）；`DELETE /pages/{row}` 删一行，库里也删掉、发 db.changed。
+- **行**（`rows` 里的每一项）：`{ id, db_id, seq, position, props, unique_id, created_at, created_by, updated_at, updated_by }`，时间是毫秒，
+  `created_by` / `updated_by` 和 db_ops.by 写成人员属性的样子（`user:<id>` / `agent:<id>`）。`position` 是分数索引，按字符串排。
+- `POST /databases/{id}/rows`：每行可以多给 `body`（行正文，Markdown），一次最多 1 万行。写了单选 / 多选里没有的名字就新加选项（存回表结构，记一条表结构改动，发 db.schema）。
+- `PATCH /databases/{id}/rows` → `{ seq, changes: [{ row_id, prop, old, new }] }`；没变的格子不算，全都没变时 seq 不涨。op 里给 `after`（行 id，null 是最前面）是挪位置，
+  记成 `prop = "@position"` 的改动。一批里有一个不行整批不改（400 / 404）。改标题那一格同时改行页面的标题（经同步中心，打开着的行页面马上看到）；反过来在行页面改标题，标题那一格跟着改、发 db.changed。
+  也有 `DELETE /databases/{id}/rows/{row}`。
+- **改表结构** `PATCH /databases/{id}/schema` 的 op：`add { name, type, options?, format?, precision?, date_format?, formula?, db_id? / relation?, twoway?, pair_name?, rollup? / relation + prop + fn, prefix?, after? }`、
+  `rename { prop, name }`（公式里的 `prop("旧名")` 跟着改）、`change_type { prop, type, options?... }`、`delete { prop }`、`set_options { prop, options }`（选项写名字或 `{ id?, name, color?, group? }`，按 id / 名字沿用；去掉的选项从格子里清掉）、
+  `set_formula { prop, formula }`、`update { prop, name?, type?, options?, formula?, format?... }`、`move { prop, after? }`。`prop` 写 key 或名字；类型也认中文名。按钮的设置：`label`、`set: { 属性: 值 }`、`comment`、`agent`。
+  → `{ schema, seq, changes: [{ op, key, name, ... }], warnings? }`。这批动过的公式 / 汇总写错了 400（说哪里错）；别的属性因此算不出来（比如删了公式用到的列）只在 `warnings` 里提醒。
+  一批记一条 db_schema_ops：before / after 是 `{ schema, views, cells: [[row_id, key, 值]] }`（因此改了的格子）。
+- `POST /databases/{id}/schema/undo { seq }` → `{ schema, views, seq }`：那次动过的属性换回去（加的去掉、删的放回、改的还原），别的保持现在的；格子放回原来的值，之后又被人改过的格子不动；
+  视图没人再改过就整个放回去。撤销也记一条（能再撤销）。双向关联：加的时候在对方库加反向的那一半（`relation: { db_id, mirror_of }`），删 / 撤销时去掉，放回时再加。
+- **视图**：`PUT` 收 `[...]` 或 `{ views: [...] }` → `{ views }`；`POST` → 新视图（201，带 id）；`PATCH /views/{view}` 给了的字段覆盖、null 去掉 → 视图；`DELETE` → 204（最后一个删不了）。
+  存之前补 id、检查 type，去掉指向已经没有的属性的设置（hidden / order / widths / sorts / group_by / calendar_by / 筛选条件）。视图改了发 db.schema。
+- `POST /databases/{id}/query { view_id?, filter?, sorts?, group_by?, search?, totals?, limit?（默认、最多 1 万）, offset? }` → 引擎的 `{ ids, total, groups?, totals? }`，
+  加上 `rows`（这一段的行，每行带 `computed`：公式、汇总、反向关联…）和 `seq`。筛选、排序的 prop 写 key 或名字，值写名字也行。
+- `POST /databases/{id}/button/{row}/{key}` → `{ seq, changes, thread_id? }`（`set` 里删了的属性、认不出的值跳过；有 `comment` 在这一行上发评论，给了 `agent` 就叫它）。
+- **CSV**：导出带 BOM，表头是属性名（按钮不导出），值是给人看的文字（日期 ISO，范围写 `开始 → 结束`，勾选是 / 否，多值逗号分开），公式、汇总也导出。
+  导入：multipart 的 `file`（可带 `title`、`parent_id`），或者原始正文 + `?title=`；认 `,` / `;` / 制表符、BOM；最多 5 万行、200 列；空行跳过。
+  标题列是叫 名称 / 标题 / name / title 的（没有就第一列）；每列按全部非空值猜：勾选（是 / 否、true / false、✓…）、数字（千分位、%、¥ / $ 定格式）、日期、网址、邮箱、电话（+ 或括号开头）、
+  单选 / 多选（值短、不同的值不到一半，多选是有 `,，、;；` 分开的），别的是文字。→ 201，和 `GET /databases/{id}` 一样。
+- **全量取行** 按 Accept-Encoding 压缩（br 质量 5，其次 gzip），1KB 以下不压。
+- **嵌入**：`GET /unfurl?url=/p/<库>?view=<视图>`（任何主机的 `/p/<id>` 都认，是库、能看才算）→ `{ kind: "database", provider: "oad", url, db_id, view_id?, title, icon, views: [{ id, name, type }] }`。
+- **引擎**：服务器按库缓存 oad-db 的 Engine（最多 16 个），按 seq 补增量；时区 `OAD_TZ_OFFSET`（比 UTC 快几分钟，默认 480）。
+- **MCP**：`db_create(title, props?, parent_id?)`（props 里 type 为 title 的是给标题改名；表结构不对就不留下库）、`db_schema(db_id, ops)`（同 HTTP；`{ op: "undo", seq }` 撤销）、
+  `db_query(db_id, filter?, sorts?, view?（名字或 id）, search?, limit?（默认 50，最多 500）, offset?)` → Markdown 表格（第一列 row_id，值是名字），末尾是总数和下一段的 offset、
+  `db_add(db_id, rows)`（每行 `{ 属性名: 值, body?, after? }`）、`db_update(rows: [{ row_id, set }])`。`read_page` 读行先列属性（空的不列），读库先给表结构；`list_pages` 里库标“［数据库］”。
+
+**性能**（1 万行 × 9 列，含一个公式；release，本机 HTTP 往返，`cargo test --release -p oad-server --test bench db_10k -- --ignored --nocapture`）：
+
+| | |
+| --- | --- |
+| 加 1 万行（10 批，每批 1000） | 570ms |
+| 全量取行：原始 / gzip / br | 5.5MB 28ms / 351KB 52ms / 278KB 69ms |
+| 增量（改了 1 行） | 0.5ms |
+| 查询（筛选 + 排序 + limit 50）：冷（装引擎）/ 热 p50 / p95 | 31ms / 0.6ms / 0.8ms |
+| 分组查询 | 2.4ms |
+| 改一格 p50 / p95：数字 / 选项名 / 标题 | 0.34 / 0.46ms、0.36 / 0.68ms、0.43 / 0.81ms |
+| 导出 CSV（1MB） | 14ms |
+| 改类型（文字 → 单选，1 万行都转） | 216ms |
+
+## 网页（实际的样子）
+
+- 代码在 `apps/web/src/db/`，单独一个包（`DbPage`，约 41KB gzip）加上引擎的 WASM（约 250KB gzip），打开库、行页面或页面里有内嵌库时才下载；主包不变。
+  地址里的页面在侧栏缓存里是库时，App 一启动就开始下载库的代码、引擎和数据，不等 PageView。
+- **视图里网页多存的字段**（服务器原样存、引擎不管）：`collapsed: [分组 key]`（表格里折叠了的分组）。`totals` 同引擎。
+- **行的手动排序**：看板列内拖动发 `PATCH rows { ops: [{ row_id, after }] }`（不带 `set`）；网页先按本地顺序显示，增量里 `position` 变了就整个按 `position` 重排。
+  视图有排序时只改值不挪位置。
+- **改表结构**按上面服务器的样子发（`prop` 指属性；`add` 不给 key，由服务器发，网页从返回的 schema 里找新属性）。
+- **行标题**：行页面里的标题（协作文档里的 `title`）只在本地先改表格里的显示，不另外 PATCH 那一格，等服务器同步过来的 db.changed。
+- **人员**：网页存 `user:<id>` / `agent:<id>`，名字从工作区成员和 Agent 列表来。
+- **关联**：别的库的数据另开一个 DbStore（同样收 db.changed 增量），变了就重新 `loadRelated` 给引擎（引擎不会自己失效）。
+- **内嵌**：编辑器的 embed 节点视图问宿主 `isDatabase(url)`（同源 `/p/<id>`，侧栏里 kind = database）或解析结果 `kind = "database"`，是的话 `renderDatabase` 挂一个 React 根；里面的事件都不交给 ProseMirror。
+- **缓存**：IndexedDB `oad:db` / `d`，按库存 `{ meta, rows, seq }`；第一次拿到全量画出来后马上写，之后改动停 300ms 写，关页面前再写一次。

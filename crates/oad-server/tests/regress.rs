@@ -274,60 +274,6 @@ async fn login_rate_limit() {
     s.stop().await;
 }
 
-/// 不经过任何 HTTP 客户端库（它们可能自己解压）：原样发一个 GET，拿状态、头、正文。
-async fn raw_get(
-    addr: std::net::SocketAddr,
-    path: &str,
-    headers: &[(&str, &str)],
-) -> (u16, Vec<(String, String)>, Vec<u8>) {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let mut req = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n");
-    for (k, v) in headers {
-        req.push_str(&format!("{k}: {v}\r\n"));
-    }
-    req.push_str("\r\n");
-    s.write_all(req.as_bytes()).await.unwrap();
-    let mut buf = Vec::new();
-    s.read_to_end(&mut buf).await.unwrap();
-    let split = buf.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
-    let head = String::from_utf8_lossy(&buf[..split]).to_string();
-    let mut body = buf[split + 4..].to_vec();
-    let mut lines = head.lines();
-    let status: u16 = lines
-        .next()
-        .unwrap()
-        .split_whitespace()
-        .nth(1)
-        .unwrap()
-        .parse()
-        .unwrap();
-    let hs: Vec<(String, String)> = lines
-        .filter_map(|l| l.split_once(':'))
-        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
-        .collect();
-    // 分块编码的拼回来
-    if hs
-        .iter()
-        .any(|(k, v)| k == "transfer-encoding" && v.contains("chunked"))
-    {
-        let mut out = Vec::new();
-        let mut rest = &body[..];
-        loop {
-            let nl = rest.windows(2).position(|w| w == b"\r\n").unwrap();
-            let n = usize::from_str_radix(std::str::from_utf8(&rest[..nl]).unwrap().trim(), 16)
-                .unwrap();
-            if n == 0 {
-                break;
-            }
-            out.extend_from_slice(&rest[nl + 2..nl + 2 + n]);
-            rest = &rest[nl + 2 + n + 2..];
-        }
-        body = out;
-    }
-    (status, hs, body)
-}
-
 fn hdr<'a>(hs: &'a [(String, String)], k: &str) -> Option<&'a str> {
     hs.iter().find(|(x, _)| x == k).map(|(_, v)| v.as_str())
 }

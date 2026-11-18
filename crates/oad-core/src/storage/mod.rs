@@ -172,4 +172,42 @@ pub trait Storage: Send + Sync + 'static {
     async fn media_by_source(&self, source_url: &str) -> Result<Option<BlobInfo>>;
     /// 是不是转存的图片。
     async fn is_media(&self, hash: &str) -> Result<bool>;
+
+    // 数据库
+    /// 建库：一个 kind = database 的页面 + 表结构、视图。
+    async fn create_database(
+        &self,
+        page: NewPage,
+        schema: serde_json::Value,
+        views: serde_json::Value,
+    ) -> Result<Page>;
+    async fn database(&self, db_id: &str) -> Result<Option<DbMeta>>;
+    /// 行：since 为 None 时是全部没删的；否则是 seq > since 的（改过的和删掉的分开给）。返回 (现在的 seq, 行, 删掉的行编号)。
+    async fn db_rows(
+        &self,
+        db_id: &str,
+        since: Option<i64>,
+    ) -> Result<(i64, Vec<DbRow>, Vec<String>)>;
+    async fn db_row(&self, row_id: &str) -> Result<Option<DbRow>>;
+    /// 加行（每行也是一个 kind = row 的页面），一次加的共用一个 seq。返回 (新行编号, seq)。
+    async fn add_db_rows(
+        &self,
+        db_id: &str,
+        rows: Vec<NewRow>,
+        by: &str,
+    ) -> Result<(Vec<String>, i64)>;
+    /// 改格子（每格最后写入为准）；title_key 那一格同时改行页面的标题。返回 (seq, 真改了的格子)。
+    async fn patch_db_rows(
+        &self,
+        db_id: &str,
+        title_key: &str,
+        ops: Vec<CellOp>,
+        by: &str,
+    ) -> Result<(i64, Vec<CellChange>)>;
+    /// 删行（行页面进回收站）。返回 seq。
+    async fn delete_db_rows(&self, db_id: &str, ids: Vec<String>, by: &str) -> Result<i64>;
+    /// 换表结构（和视图），记一条表结构改动，顺带改格子。返回 seq。
+    async fn set_db_schema(&self, db_id: &str, w: SchemaWrite, by: &str) -> Result<i64>;
+    async fn db_schema_op(&self, db_id: &str, seq: i64) -> Result<Option<SchemaOpRow>>;
+    async fn set_db_views(&self, db_id: &str, views: serde_json::Value) -> Result<()>;
 }

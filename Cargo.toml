@@ -18,3 +18,8 @@ opt-level = 3
 
 [profile.release.build-override]
 opt-level = 3
+
+# yrs 0.28.1 加了一个小补丁：TransactionMut::set_client_id（服务器用每个写入者自己的 client id 写，不用复制整份文档）。
+# 补丁只在 vendor/yrs/src/transaction.rs 里（搜 “open-agent-docs 补丁”）；升级 yrs 时把这两个方法搬过去。
+[patch.crates-io]
+yrs = { path = "vendor/yrs" }
