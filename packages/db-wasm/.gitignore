@@ -1,0 +1,2 @@
+# 编好的 WASM 跟着提交：网页构建不需要 Rust 的 WASM 工具链（改了 oad-db 后跑 sh build.sh 更新）
+!dist/
