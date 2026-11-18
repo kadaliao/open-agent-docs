@@ -1,0 +1,98 @@
+# 重写计划（next 分支）
+
+把 Open Agent Docs 从 Python + FastAPI 重写成 Rust 服务 + 新前端，同时做成别人能嵌进自己服务的 SDK。
+旧版整个放在 `legacy/`，正式切换前一直能跑（`cd legacy && uv run pytest`）。
+
+## 已经定了的
+
+- **不兼容旧版**。HTTP 接口、MCP 工具、通知格式、数据格式都按最好的设计重做；接入方（DSH Bots 等）还没用上，跟着改。
+- **首版只支持 SQLite**，存储做成接口（`Storage` trait），Postgres 第 6 阶段再补。
+- **在这个仓库的 `next` 分支做**，Python 版挪进 `legacy/`。
+
+## 目标（每个阶段按这些数验收）
+
+| 指标 | 目标 |
+| --- | --- |
+| 冷启动 / 空闲内存 / 二进制大小 | < 50ms / < 30MB / < 30MB（前端打进同一个文件） |
+| 打开 1000 段的页面 | 有本地缓存 < 50ms 出内容，没缓存 < 200ms |
+| 打字延迟 | 每次按键 < 16ms，有人或 Agent 同时在写也一样 |
+| 数据库视图 1 万行 | 滚动 60fps，筛选、排序 < 50ms |
+| 搜索（10 万段） | p95 < 20ms |
+| 贴 X / YouTube 链接 | 立刻出卡片骨架，有缓存 < 300ms 出完整卡片 |
+
+旧版的基线数据记在 `docs/baseline.md`。
+
+## 技术选型
+
+**后端 Rust**：axum + tokio、rusqlite（WAL）、rmcp（MCP）、tantivy + jieba（搜索）、`image`（webp 缩略图、blurhash）、
+rust-embed（前端打进二进制）、reqwest（链接解析、webhook）。
+
+**文档用 CRDT**。人和多个 Agent 同时写不冲突，网页上实时看到 Agent 在写哪一段，离线编辑、按人撤销、版本回溯都靠它。
+Loro 和 Yrs 二选一，第 0 阶段比完再定（见 `spikes/crdt/`）。块编号是文档节点上稳定的 `id` 属性；
+Agent 改某一段 = 服务器把它给的 Markdown 转成节点，作为一次 CRDT 事务写进去，连着的网页马上看到。
+
+**数据库的行属性存 SQL 表**（要查询、建索引），每个格子按最后写入为准，另记操作日志供历史回看；行的正文是 CRDT 文档。
+
+**前端**：React + Tiptap（ProseMirror）。本地优先（IndexedDB 存快照，打开先显示缓存再同步）；TanStack Virtual 做数据库表格；
+公式引擎、Markdown 互转用 Rust 写，同时编译成 WASM 在浏览器里跑，前后端结果一致；Mermaid、KaTeX、Shiki 按需加载。
+
+## 富媒体
+
+服务器端的链接解析（`oad-unfurl`），按网站分别处理，不认识的退到通用：
+
+- **X**：syndication 接口拿正文、作者、图片视频，前端自己画卡片，内容存一份到本地（原推删了也能看）。
+  这个接口不是公开的，失效时退到 oEmbed，再退到 Open Graph。
+- **YouTube**：只放封面，点了才加载 youtube-nocookie 播放器；支持从指定时间开始。
+- **其他**：B 站、GitHub（仓库 / issue / PR）、Figma、Loom、Spotify、公众号文章……；剩下的用 Open Graph / Twitter Card + 网站图标做书签卡片。
+- **交互**：空行粘贴链接弹出“嵌入 / 书签 / 行内提及 / 普通链接”，之后随时能换。
+- **Agent 那边**：单独一行的网址就是卡片，显示成哪种是这一段的属性，不写进 Markdown。
+- **安全**：DNS 解析后拒绝内网和回环地址，限重定向次数、大小、超时；图片转存到本地；抓取代理 `OAD_FETCH_PROXY`。
+- **其他媒体块**：视频、音频、PDF 预览、附件、图集和图注、公式、Mermaid、提示框、分栏。
+
+## 代码结构（也就是 SDK 的形态）
+
+```
+crates/
+  oad-core       领域逻辑：页面树、CRDT 文档、评论、Agent、通知；不含 HTTP
+                 可替换：Storage / BlobStore / AuthProvider / TenantResolver
+  oad-markdown   Markdown ↔ 文档（也编成 WASM）
+  oad-formula    公式引擎（也编成 WASM）
+  oad-unfurl     链接解析
+  oad-server     axum Router，别的 Rust 服务直接挂进去
+  oad-mcp        MCP 端点
+  oad-bin        单个二进制 open-agent-docs
+  oad-node / oad-py   napi-rs / PyO3 绑定（第 6 阶段）
+packages/
+  editor         @oad/editor：能嵌进别人页面的 React 编辑器
+  client         @oad/client：TS 客户端（请求、同步）
+apps/web         自带的完整网页
+spikes/          第 0 阶段的对比实验，定完就删
+legacy/          Python 版
+```
+
+别人的接法：Rust 服务直接挂 Router；别的语言把二进制当旁挂服务，用户身份由宿主用 JWT 或可信请求头告诉它；
+绑定做好后 Node / Python 能在进程内直接用。
+
+## 阶段
+
+| 阶段 | 内容 | 完成标准 |
+| --- | --- | --- |
+| **0 对比实验**（1 周） | Loro / Yrs 各接一次 Tiptap，Rust 端按块改文档、和浏览器并发编辑；Rust 版 Markdown 互转能原样来回；X / YouTube 解析原型；旧版基线 | 选定 CRDT，写进本文 |
+| **1 骨架**（3 周） | 工程结构、存储、页面树、CRDT 文档、WebSocket 同步、在线状态；新编辑器接协作；可替换的登录；单个二进制 | 两个浏览器同时编辑不冲突；打开、打字达标 |
+| **2 Agent**（2 周） | 重新设计的 MCP 工具；Agent 按段编辑走 CRDT 事务；评论、通知（webhook / SSE / 轮询）、Agent 管理 | 集成测试全过；Claude Code 接上能用 |
+| **3 富媒体**（2–3 周） | 链接解析、粘贴菜单、各种嵌入块、图片处理、视频 / 音频 / PDF、公式、Mermaid、代码块 | X / YouTube 等出完整卡片；10 个视频的页面滚动不掉帧 |
+| **4 数据库**（3–4 周） | 表结构、属性、Rust + WASM 公式、关联和汇总；表格 / 看板 / 日历 / 画廊；虚拟滚动 | 1 万行达标 |
+| **5 补齐**（2 周） | tantivy 搜索、历史和恢复、回收站、分享页、中英双语、快捷键、移动端 | 搜索达标；功能不少于旧版 |
+| **6 SDK 与切换**（2–3 周） | 接口定稿；发 `@oad/editor`、`@oad/client`；napi / PyO3 绑定；Postgres；文档；next 合回 main | 删掉 `legacy/` |
+
+旧版只修 bug，不再加功能。
+
+## 风险
+
+- Agent 按段编辑和 CRDT 的衔接：Agent 改到一半人也在改同一段时怎么处理，第 0 阶段先走通。
+- X 的 syndication 接口不是公开的：必须有退路、缓存到本地。
+- 公式引擎迁移（旧版 `dbcalc.py` 528 行）：逐个函数对照旧测试移植。
+
+## 第 0 阶段结论
+
+（做完填在这里）
