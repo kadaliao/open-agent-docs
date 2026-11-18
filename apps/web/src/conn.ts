@@ -90,6 +90,14 @@ export function takeConn(pageId: string): Conn {
   return openPage(pageId)
 }
 
+/** 地址栏那一页其实不是文档（比如数据库）：启动时预先开的连接关掉 */
+export function dropPreopened(pageId: string) {
+  if (preopened?.id === pageId) {
+    closePage(preopened.conn)
+    preopened = null
+  }
+}
+
 export function closePage(c: Conn) {
   c.provider.destroy()
   c.idb.destroy()

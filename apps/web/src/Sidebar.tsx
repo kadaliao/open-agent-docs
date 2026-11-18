@@ -50,13 +50,16 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
     if (need.length) need.forEach((id) => toggle(id, true))
   }, [currentId, pages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const create = async (parent: string | null) => {
-    const p = await api.createPage(store.ws, parent ? { parent_id: parent } : {})
-    store.upsert(p)
+  const create = async (parent: string | null, kind: 'page' | 'database' = 'page') => {
+    // 建库返回的是 { page, schema, views, seq }
+    const page: Page =
+      kind === 'database'
+        ? ({ ...(await api.createDatabase(store.ws, { title: '', ...(parent ? { parent_id: parent } : {}) })).page, kind: 'database' } as Page)
+        : await api.createPage(store.ws, parent ? { parent_id: parent } : {})
+    store.upsert(page)
     if (parent) toggle(parent, true)
-    navigate(pagePath(p.id))
+    navigate(pagePath(page.id))
   }
-
   const remove = async (id: string) => {
     const page = store.pages.get(id)
     if (!window.confirm(t('deleteConfirm', { title: page?.title || t('untitled') }))) return
@@ -113,6 +116,14 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
             +
           </span>
           {t('newPage')}
+        </button>
+      )}
+      {canWrite && (
+        <button className="side-new side-new-db" onClick={() => create(null, 'database')}>
+          <span className="side-new-plus" aria-hidden>
+            <TableIcon />
+          </span>
+          {t('newDatabase')}
         </button>
       )}
 
@@ -192,6 +203,15 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
             }}
           >
             {t('newSubpage')}
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => {
+              create(menu.id, 'database')
+              setMenu(null)
+            }}
+          >
+            {t('newSubDatabase')}
           </button>
           <button
             role="menuitem"
@@ -309,7 +329,7 @@ const TreeItem = memo(function TreeItem(p: ItemProps) {
           </svg>
         </button>
         <span className="tree-icon" aria-hidden>
-          {page.icon || <DocIcon />}
+          {page.icon || (page.kind === 'database' ? <TableIcon /> : <DocIcon />)}
         </span>
         {p.renaming === page.id ? (
           <RenameInput initial={page.title} onDone={(v) => p.onRenameDone(page.id, v)} />
@@ -368,6 +388,15 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (v: string)
         if (e.key === 'Escape') finish(initial)
       }}
     />
+  )
+}
+
+function TableIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2.75" width="12" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2 6.25h12M6.25 6.25v7" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
   )
 }
 

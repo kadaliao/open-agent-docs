@@ -11,7 +11,7 @@ const target = process.env.OAD_SERVER ?? 'http://localhost:8848'
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: markdownAlias },
+  resolve: { alias: { ...markdownAlias } },
   server: {
     port: 5173,
     proxy: {

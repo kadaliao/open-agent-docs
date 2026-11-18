@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, type AuthMode, type Me } from './api'
 import { SidebarIcon } from './icons'
 import { Login } from './Login'
@@ -14,7 +14,18 @@ let pageViewModule: PageViewModule | null = null
 const pageViewPromise = import('./PageView').then((m) => (pageViewModule = m))
 // 打开的是某一页：不等登录信息和编辑器，先连上这一页（读本机缓存、连 WebSocket）
 const firstPage = pageIdOf(location.pathname)
-if (firstPage) import('./conn').then((m) => m.preopenPage(firstPage))
+// 侧栏缓存里看得出它是数据库：不连文档，先下载库的代码（App 渲染时再开始拿数据）
+const firstIsDb = (() => {
+  try {
+    const me = JSON.parse(localStorage.getItem('oad:me') ?? 'null') as Me | null
+    const pages = JSON.parse(localStorage.getItem(`oad:pages:${me?.workspaces[0]?.id}`) ?? '[]') as { id: string; kind?: string }[]
+    return pages.some((p) => p.id === firstPage && p.kind === 'database')
+  } catch {
+    return false
+  }
+})()
+if (firstPage && firstIsDb) import('./db/DbPage')
+else if (firstPage) import('./conn').then((m) => m.preopenPage(firstPage))
 
 function usePageView() {
   const [m, setM] = useState(pageViewModule)
@@ -114,6 +125,12 @@ function Workspace({ me, mode, onLogout }: { me: Me; mode: AuthMode; onLogout: (
   const store = useMemo(() => (ws ? new PageStore(ws.id) : null), [ws?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const path = usePath()
   const pageId = pageIdOf(path)
+  // 打开的是库（侧栏缓存里看得出来）：库的代码、引擎、数据马上开始拿，不等 PageView
+  const prefetched = useRef<string | null>(null)
+  if (store && pageId && prefetched.current !== pageId && store.pages.get(pageId)?.kind === 'database') {
+    prefetched.current = pageId
+    import('./db/DbPage').then((m) => m.prefetchDb(pageId, store))
+  }
   const narrow = () => window.matchMedia('(max-width: 760px)').matches
   // 窄屏上侧栏盖在内容上面，默认收起；选了页面也收起
   const [collapsed, setCollapsed] = useState(() => narrow() || (storageGet<boolean>('oad:sidebar-collapsed') ?? false))

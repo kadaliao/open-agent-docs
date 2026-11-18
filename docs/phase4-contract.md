@@ -192,7 +192,7 @@ eng.normalize(key, input) -> value                    // 用户输入 / 粘贴�
   单选 / 多选（值短、不同的值不到一半，多选是有 `,，、;；` 分开的），别的是文字。→ 201，和 `GET /databases/{id}` 一样。
 - **全量取行** 按 Accept-Encoding 压缩（br 质量 5，其次 gzip），1KB 以下不压。
 - **嵌入**：`GET /unfurl?url=/p/<库>?view=<视图>`（任何主机的 `/p/<id>` 都认，是库、能看才算）→ `{ kind: "database", provider: "oad", url, db_id, view_id?, title, icon, views: [{ id, name, type }] }`。
-- **引擎**：服务器按库缓存 oad-db 的 Engine（最多 16 个），按 seq 补增量；时区 `OAD_TZ_OFFSET`（比 UTC 快几分钟，默认 480）。
+- **引擎**：服务器按库缓存 oad-db 的 Engine（最多 16 个），按 seq 补增量；时区用服务器系统的（IANA 时区，按当时的偏移算，夏令时对），`OAD_TZ`（IANA 名字，如 `Asia/Shanghai`）可以改；`GET /auth/config` 的 `timezone` 是它的名字。以后每个人 / Agent 可以有自己的时区（`users.timezone`，现在先存着，数据库还是按服务器的算）。
 - **MCP**：`db_create(title, props?, parent_id?)`（props 里 type 为 title 的是给标题改名；表结构不对就不留下库）、`db_schema(db_id, ops)`（同 HTTP；`{ op: "undo", seq }` 撤销）、
   `db_query(db_id, filter?, sorts?, view?（名字或 id）, search?, limit?（默认 50，最多 500）, offset?)` → Markdown 表格（第一列 row_id，值是名字），末尾是总数和下一段的 offset、
   `db_add(db_id, rows)`（每行 `{ 属性名: 值, body?, after? }`）、`db_update(rows: [{ row_id, set }])`。`read_page` 读行先列属性（空的不列），读库先给表结构；`list_pages` 里库标“［数据库］”。

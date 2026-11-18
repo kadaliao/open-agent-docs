@@ -82,7 +82,20 @@ export const embedView: NodeViewRenderer = (p) => {
     const k = key()
     if (k === shown && data) return
     handle.destroy?.()
-    handle = cards.render(box, data, { url: node.attrs.url || '', view: node.attrs.view === 'bookmark' ? 'bookmark' : 'embed' })
+    const url = node.attrs.url || ''
+    const svc = media(p.editor)
+    // 本工作区的数据库：画成可交互的内嵌库
+    if (svc.renderDatabase && node.attrs.view !== 'bookmark' && (data?.kind === 'database' || svc.isDatabase?.(url))) {
+      const h = svc.renderDatabase(box, url)
+      if (h) {
+        handle = h
+        shown = k
+        dom.classList.add('is-db')
+        return
+      }
+    }
+    dom.classList.remove('is-db')
+    handle = cards.render(box, data, { url, view: node.attrs.view === 'bookmark' ? 'bookmark' : 'embed' })
     shown = k
   }
 
@@ -90,6 +103,10 @@ export const embedView: NodeViewRenderer = (p) => {
     const url = node.attrs.url || ''
     const svc = media(p.editor)
     const cached = svc.peek(url)
+    if (svc.isDatabase?.(url)) {
+      resolved = true
+      return draw()
+    }
     if (cached) {
       data = cached
       resolved = true
@@ -180,6 +197,8 @@ export const embedView: NodeViewRenderer = (p) => {
     // 卡片里的按钮、播放器、视频控件自己处理事件
     stopEvent: (e) => {
       const t = e.target as HTMLElement
+      // 内嵌库里的事件（打字、拖动、键盘导航）都归它自己
+      if (dom.classList.contains('is-db') && t.closest?.('.db')) return true
       if (e.type === 'dragstart' || e.type === 'mousedown') return !!t.closest('button, video, audio, iframe, .c-frame-box')
       return !!t.closest('button, video, audio, iframe')
     },

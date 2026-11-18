@@ -15,6 +15,10 @@ export interface MediaServices {
   parseMarkdown: ((md: string) => Promise<{ type: 'doc'; content?: unknown[] } | null>) | null
   /** 复制块链接用：这一页的地址 */
   pageUrl: () => string
+  /** 这个网址是不是本工作区的数据库（是的话 embed 画成可交互的内嵌库，不等解析） */
+  isDatabase: ((url: string) => boolean) | null
+  /** 把库画进 box；不是库返回 null */
+  renderDatabase: ((box: HTMLElement, url: string) => { destroy: () => void } | null) | null
 }
 
 const defaults: MediaServices = {
@@ -24,6 +28,8 @@ const defaults: MediaServices = {
   remember: () => {},
   parseMarkdown: null,
   pageUrl: () => location.href.split('#')[0],
+  isDatabase: null,
+  renderDatabase: null,
 }
 
 // 宿主给的服务放在选项里（取的时候才读，宿主后来换了也能拿到最新的）

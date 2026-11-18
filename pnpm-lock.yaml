@@ -10,9 +10,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@oad/db':
+        specifier: workspace:*
+        version: link:../../packages/db-wasm
       '@oad/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@tanstack/react-virtual':
+        specifier: ^3
+        version: 3.14.26(react-dom@19.3.1)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -56,6 +62,8 @@ importers:
       vitest:
         specifier: ^5.1.1
         version: 5.1.1(@types/node@26.6.6)(jsdom@31.0.1)(vite@8.3.8)
+
+  packages/db-wasm: {}
 
   packages/editor:
     dependencies:
@@ -543,6 +551,21 @@ packages:
 
   /@shikijs/vscode-textmate@10.1.0:
     resolution: {integrity: sha512-cVBuhDQjBZaNMTwBquYfPydrUP+E3hE6oYGasx8h6ZrODIM7/r+gxLDXdd66oszbrggZHEntdE6j+5gYIVyMWQ==}
+    dev: false
+
+  /@tanstack/react-virtual@3.14.26(react-dom@19.3.1)(react@19.3.1):
+    resolution: {integrity: sha512-HUDlfsrYH6ko5xH56L62Mcl/uzT+AGVNMHFuDNqDJMdZWc1AQa2oeVKNUvZ/RWBZQ4TYtyQerFrNvLnp39h65A==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    dependencies:
+      '@tanstack/virtual-core': 3.19.11
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+    dev: false
+
+  /@tanstack/virtual-core@3.19.11:
+    resolution: {integrity: sha512-/5iHb0RHBvj8Di59FDs4ESNm45jls33aZAi4zccVXZjc/6ZvwQP6nzEYeT6weXjTf9E6/vrp2JhYWRyO+ZP13A==}
     dev: false
 
   /@tiptap/core@3.34.0(@tiptap/pm@3.34.0):

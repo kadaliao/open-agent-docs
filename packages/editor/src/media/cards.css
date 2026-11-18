@@ -1023,3 +1023,13 @@ a.c-card:hover {
     font-size: 15px;
   }
 }
+
+.c-code {
+  font-family: var(--oad-mono);
+  font-size: 0.86em;
+  font-weight: 500;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--oad-code-bg);
+  color: var(--oad-fg);
+}

@@ -48,13 +48,14 @@ export class PageStore {
   }
 
   async load() {
-    const list = await api.pages(this.ws)
+    const list = (await api.pages(this.ws)).filter((p) => p.kind !== 'row')
     this.pages = new Map(list.map((p) => [p.id, p]))
     this.loaded = true
     this.emit()
   }
 
   upsert(p: Page) {
+    if (p.kind === 'row') return
     const old = this.pages.get(p.id)
     // 标题正在本机改着：服务器的事件可能落后一拍，别把输入框里的字盖回去
     const pending = this.localTitles.get(p.id)
@@ -125,7 +126,7 @@ export class PageStore {
       }
     })
     // 评论和通知：交给订阅的人（评论栏、收件箱）
-    for (const type of ['comment.created', 'comment.updated', 'comment.deleted', 'thread.updated', 'notification']) {
+    for (const type of ['comment.created', 'comment.updated', 'comment.deleted', 'thread.updated', 'notification', 'db.changed', 'db.schema']) {
       es.addEventListener(type, (e) => {
         let data: any = null
         try {

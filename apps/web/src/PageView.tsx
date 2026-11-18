@@ -14,12 +14,12 @@ import {
 } from '@oad/editor'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebsocketProvider } from 'y-websocket'
-import { api, ApiError, threadAnchor, type Me } from './api'
+import { api, ApiError, threadAnchor, type Me, type Page } from './api'
 import { CommentsPanel, usePageComments } from './comments/CommentsPanel'
 import { Inbox } from './Inbox'
-import { mediaServices } from './media'
+import { mediaServices, type DbHost } from './media'
 import { usePeople } from './people'
-import { closePage, takeConn, type Conn, type Status } from './conn'
+import { closePage, dropPreopened, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
 import { colorFor, initials, navigate, pagePath, threadOf, usePath } from './lib'
 import { readSnapshot, saveSnapshot, takeSnapshot } from './snapshot'
@@ -35,7 +35,55 @@ interface Props {
   onExpandSidebar: () => void
 }
 
-export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSidebar }: Props) {
+// 数据库的代码单独一个包：打开库、行页面、页面里有内嵌库时才下载
+type DbModule = typeof import('./db/DbPage')
+let dbModule: DbModule | null = null
+let dbLoading: Promise<DbModule> | null = null
+const loadDb = () => (dbLoading ??= import('./db/DbPage').then((m) => (dbModule = m)))
+function useDbModule(want: boolean) {
+  const [, force] = useState(0)
+  useEffect(() => {
+    if (want && !dbModule) loadDb().then(() => force((x) => x + 1))
+  }, [want])
+  return want ? dbModule : null
+}
+
+export default function PageView(props: Props) {
+  const { pageId, store } = props
+  const pages = usePages(store)
+  const [fetched, setFetched] = useState<Page | null>(null)
+  const kind = pages.find((p) => p.id === pageId)?.kind ?? (fetched?.id === pageId ? fetched.kind : undefined)
+  if (kind === 'database') return <DatabasePage {...props} />
+  return <DocPage {...props} page={fetched?.id === pageId ? fetched : null} onPage={setFetched} />
+}
+
+function DatabasePage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSidebar }: Props) {
+  const mod = useDbModule(true)
+  useEffect(() => {
+    dropPreopened(pageId)
+    performance.mark('oad:db-open')
+  }, [pageId])
+  return (
+    <div className="page is-db">
+      <header className="topbar">
+        {sidebarCollapsed && (
+          <button className="icon-btn" onClick={onExpandSidebar} aria-label={t('toggleSidebar')}>
+            <SidebarIcon />
+          </button>
+        )}
+        <Breadcrumb store={store} pageId={pageId} />
+        <div className="topbar-right">
+          <Inbox store={store} />
+        </div>
+      </header>
+      <div className="page-body">
+        <div className="page-scroll db-scroll">{mod ? <mod.DbPageBody pageId={pageId} me={me} store={store} canWrite={canWrite} /> : <div className="db-page" aria-busy="true" />}</div>
+      </div>
+    </div>
+  )
+}
+
+function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSidebar, page, onPage }: Props & { page: Page | null; onPage: (p: Page) => void }) {
   const user = useMemo<OadUser>(() => ({ id: me.user.id, name: me.user.name, color: colorFor(me.user.id), kind: 'user' }), [me.user.id, me.user.name])
   const [conn, setConn] = useState<Conn | null>(null)
   // ready：内容到了（本机缓存或服务器）；编辑器先装好藏着，内容一到就露出来
@@ -101,7 +149,27 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
   }, [ready, loadAuthors])
 
   const people = usePeople(store.ws, me, authors, threads)
-  const services = useMemo(() => mediaServices(store.ws), [store.ws])
+  // 页面里内嵌的库
+  const dbHost = useMemo<DbHost>(
+    () => ({
+      isDatabase: (id) => store.pages.get(id)?.kind === 'database',
+      mount: (box, id, view) => {
+        let off: (() => void) | null = null
+        let gone = false
+        loadDb().then((m) => {
+          if (!gone) off = m.mountDatabaseEmbed(box, id, view, { me, store, canWrite })
+        })
+        return () => {
+          gone = true
+          off?.()
+        }
+      },
+    }),
+    [store, me, canWrite],
+  )
+  const services = useMemo(() => mediaServices(store.ws, dbHost), [store.ws, dbHost])
+  const isRow = page?.kind === 'row' && !!page.parent_id
+  const rowMod = useDbModule(isRow)
 
   // 打开带 #块编号 的链接：滚到那一块并闪一下
   useEffect(() => {
@@ -134,7 +202,12 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
       if (alive) setReady(true)
     })
     api.page(pageId).then(
-      (p) => alive && store.upsert(p),
+      (p) => {
+        if (!alive) return
+        store.upsert(p)
+        // 普通页面不用再渲染一遍；库、行才要按 kind 换样子
+        if (p.kind === 'database' || p.kind === 'row') onPage(p)
+      },
       (e) => alive && e instanceof ApiError && e.status === 404 && setNotFound(true),
     )
     return () => {
@@ -209,7 +282,7 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
             <SidebarIcon />
           </button>
         )}
-        <Breadcrumb store={store} pageId={pageId} />
+        <Breadcrumb store={store} pageId={pageId} row={isRow ? page : null} />
         <div className="topbar-right">
           {conn && <Presence provider={conn.provider} />}
           <StatusPill status={status} readOnly={!editable} />
@@ -236,6 +309,7 @@ export default function PageView({ pageId, me, store, canWrite, sidebarCollapsed
                 }}
                 onEnter={() => editorRef.current && focusStart(editorRef.current)}
               />
+              {isRow && (rowMod ? <rowMod.RowHeader rowId={pageId} dbId={page!.parent_id!} me={me} ws={store.ws} canWrite={editable} events={store} /> : <div className="db-rowprops is-loading" />)}
               <OadEditor
                 ydoc={conn.ydoc}
                 provider={conn.provider}
@@ -313,10 +387,12 @@ function markFirstContent(kind: 'snapshot' | 'editor' = 'editor') {
   })
 }
 
-function Breadcrumb({ store, pageId }: { store: PageStore; pageId: string }) {
+function Breadcrumb({ store, pageId, row }: { store: PageStore; pageId: string; row?: Page | null }) {
   const pages = usePages(store)
   const chain = useMemo(() => {
     const byId = new Map(pages.map((p) => [p.id, p]))
+    // 行不在侧栏的页面列表里，自己补上
+    if (row && !byId.has(row.id)) byId.set(row.id, { ...row, title: store.pages.get(row.id)?.title ?? row.title })
     const out = []
     let p = byId.get(pageId)
     let guard = 0
@@ -325,7 +401,7 @@ function Breadcrumb({ store, pageId }: { store: PageStore; pageId: string }) {
       p = p.parent_id ? byId.get(p.parent_id) : undefined
     }
     return out
-  }, [pages, pageId])
+  }, [pages, pageId, row, store])
   return (
     <nav className="crumbs" aria-label="breadcrumb">
       {chain.map((p, i) => (

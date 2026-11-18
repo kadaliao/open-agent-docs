@@ -117,8 +117,33 @@ export async function parseMarkdown(text: string) {
   return doc && typeof doc === 'object' ? (doc as { type: 'doc'; content?: unknown[] }) : null
 }
 
-export function mediaServices(ws: string): Partial<MediaServices> {
+/** 本工作区里指向某一页的网址：/p/<id>（可带 ?view=） */
+export function internalPage(url: string): { id: string; view: string | null } | null {
+  try {
+    const u = new URL(url, location.origin)
+    if (u.origin !== location.origin) return null
+    const m = /^\/p\/([^/?#]+)/.exec(u.pathname)
+    return m ? { id: m[1], view: u.searchParams.get('view') } : null
+  } catch {
+    return null
+  }
+}
+
+export interface DbHost {
+  isDatabase: (id: string) => boolean
+  mount: (box: HTMLElement, id: string, view: string | null) => () => void
+}
+
+export function mediaServices(ws: string, db?: DbHost): Partial<MediaServices> {
   return {
+    isDatabase: db ? (url) => !!internalPage(url) && db.isDatabase(internalPage(url)!.id) : null,
+    renderDatabase: db
+      ? (box, url) => {
+          const p = internalPage(url)
+          if (!p) return null
+          return { destroy: db.mount(box, p.id, p.view) }
+        }
+      : null,
     unfurl,
     peek: (url) => mem.get(url) ?? null,
     upload: uploader(ws),

@@ -15,6 +15,8 @@ export const zh = {
   pages: '页面',
   newPage: '新建页面',
   newSubpage: '在里面新建子页面',
+  newDatabase: '新建数据库',
+  newSubDatabase: '在里面新建数据库',
   rename: '重命名',
   delete: '删除',
   moveToTop: '移到最上面',

@@ -3,6 +3,8 @@ export const API = '/api/v1'
 
 export interface Page {
   id: string
+  // 第 4 阶段：database = 数据库，row = 库里的一行（侧栏不列）
+  kind?: 'page' | 'database' | 'row' | string
   workspace_id?: string
   parent_id: string | null
   position: string
@@ -170,6 +172,23 @@ export const api = {
     req<{ notifications: InboxItem[] } | InboxItem[]>('GET', `/me/notifications?limit=${limit}${after !== undefined ? `&after=${after}` : ''}`).then((r) =>
       (Array.isArray(r) ? r : r.notifications).map(flatInbox),
     ),
+  // 第 4 阶段：数据库（docs/phase4-contract.md）
+  createDatabase: (ws: string, b: { title: string; parent_id?: string | null; after?: string; schema?: unknown; views?: unknown }) =>
+    req<{ page?: Page; id?: string } & Record<string, unknown>>('POST', `/workspaces/${ws}/databases`, b),
+  database: (id: string) => req<import('./db/types').DbMeta>('GET', `/databases/${id}`),
+  dbRows: (id: string, since?: number) =>
+    req<{ seq: number; rows: import('./db/types').Row[]; deleted?: string[] }>('GET', `/databases/${id}/rows${since !== undefined ? `?since=${since}` : ''}`),
+  addRows: (id: string, rows: { props: Record<string, unknown>; after?: string | null }[]) =>
+    req<{ ids: string[]; seq: number; rows?: import('./db/types').Row[] }>('POST', `/databases/${id}/rows`, { rows }),
+  patchRows: (id: string, ops: { row_id: string; set?: Record<string, unknown>; after?: string | null }[]) => req<{ seq: number }>('PATCH', `/databases/${id}/rows`, { ops }),
+  deleteRows: (id: string, ids: string[]) => req<{ seq?: number }>('DELETE', `/databases/${id}/rows`, { ids }),
+  patchSchema: (id: string, ops: Record<string, unknown>[]) => req<{ schema: import('./db/types').Schema; seq: number }>('PATCH', `/databases/${id}/schema`, { ops }),
+  undoSchema: (id: string, seq: number) => req<{ schema: import('./db/types').Schema; seq: number }>('POST', `/databases/${id}/schema/undo`, { seq }),
+  putViews: (id: string, views: import('./db/types').View[]) => req<unknown>('PUT', `/databases/${id}/views`, { views }),
+  addView: (id: string, view: Partial<import('./db/types').View>) => req<import('./db/types').View>('POST', `/databases/${id}/views`, view),
+  patchView: (id: string, view: string, b: Partial<import('./db/types').View>) => req<import('./db/types').View>('PATCH', `/databases/${id}/views/${view}`, b),
+  deleteView: (id: string, view: string) => req<unknown>('DELETE', `/databases/${id}/views/${view}`),
+  pressButton: (id: string, row: string, key: string) => req<unknown>('POST', `/databases/${id}/button/${row}/${key}`),
   markRead: (b: { ids: (number | string)[] } | { all: true }) => req<unknown>('POST', '/me/notifications/read', b),
 }
 

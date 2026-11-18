@@ -47,6 +47,17 @@ const LANG_COLORS: Record<string, string> = {
   Vue: '#41b883', Dart: '#00B4AB', PHP: '#4F5D95', Lua: '#000080', Zig: '#ec915c', Elixir: '#6e4a7e', Haskell: '#5e5086', Scala: '#c22d40',
 }
 
+/** 标题里的 `代码` 画成行内代码（GitHub 的 issue / PR 标题常这样写） */
+function codeSpans(text: string): DocumentFragment {
+  const f = document.createDocumentFragment()
+  const parts = text.split(/(`[^`]+`)/)
+  for (const part of parts) {
+    if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) f.append(h('code', { class: 'c-code' }, part.slice(1, -1)))
+    else if (part) f.append(part)
+  }
+  return f
+}
+
 const ext = (href: string, cls: string, ...kids: (Node | string | null)[]) => h('a', { class: cls, href, target: '_blank', rel: 'noopener noreferrer nofollow' }, ...kids)
 
 function favicon(src?: string, cls = 'c-favicon') {
@@ -76,7 +87,7 @@ function bookmark(d: Unfurl | null, url: string) {
     h(
       'div',
       { class: 'c-bm-body' },
-      h('div', { class: 'c-bm-title' }, title),
+      h('div', { class: 'c-bm-title' }, codeSpans(title)),
       desc ? h('div', { class: 'c-bm-desc' }, desc) : null,
       h(
         'div',
@@ -353,7 +364,7 @@ function githubRepo(d: Unfurl | null, url: string) {
       'div',
       { class: 'c-gh-main' },
       h('div', { class: 'c-gh-title' }, ico('repo', 'c-gh-icon'), h('span', { class: 'c-gh-owner' }, owner + ' / '), h('b', null, repo), e?.archived ? h('span', { class: 'c-gh-pill is-archived' }, t('archived')) : null),
-      d?.description ? h('div', { class: 'c-gh-desc' }, d.description) : null,
+      d?.description ? h('div', { class: 'c-gh-desc' }, codeSpans(d.description)) : null,
       e?.topics?.length ? h('div', { class: 'c-gh-topics' }, ...e.topics.slice(0, 5).map((x) => h('span', { class: 'c-gh-topic' }, x))) : null,
       h(
         'div',
@@ -399,7 +410,7 @@ function githubIssue(d: Unfurl | null, url: string) {
       'div',
       { class: 'c-gh-main' },
       h('div', { class: 'c-gh-repo-line' }, ico('github', 'c-gh-mini'), `${owner}/${repo}`, ' ', h('span', { class: 'c-gh-num' }, '#' + num)),
-      h('div', { class: 'c-gh-issue-title' }, h('span', { class: 'c-gh-state-ico ' + cls }, ico(k)), h('b', null, title)),
+      h('div', { class: 'c-gh-issue-title' }, h('span', { class: 'c-gh-state-ico ' + cls }, ico(k)), h('b', null, codeSpans(title))),
       h(
         'div',
         { class: 'c-gh-meta' },
