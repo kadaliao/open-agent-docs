@@ -1,0 +1,29 @@
+[package]
+name = "unfurl-spike"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Phase-0 spike: server-side link unfurling for Open Agent Docs"
+
+# 独立工程，不加入仓库的 workspace（第 0 阶段的实验，定完就删）
+[workspace]
+
+[lib]
+name = "unfurl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "unfurl"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "net", "time"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "gzip", "brotli", "deflate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2.5"
+scraper = "0.29"
+thiserror = "2"
+clap = { version = "4.6", features = ["derive"] }
+encoding_rs = "0.8"
+regex = "1"

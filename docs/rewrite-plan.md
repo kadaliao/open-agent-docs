@@ -97,5 +97,10 @@ legacy/          Python 版
 
 - **CRDT：Yjs + Yrs**（`spikes/crdt/`）。两边正确性都过了（人和 Agent 同时改同一段，字都留得住；JS 和 Rust 合并结果一致），
   决定性的是打字延迟：1000 段时 Yjs 每键 p95 3ms、Loro 15ms；10000 段时 Yjs 8.7ms、Loro 70ms。打开、服务器读、快照大小也是 Yjs 好。
-- 链接解析：见 `spikes/unfurl/`。
+- **Markdown 互转：`crates/oad-markdown`**（正式 crate，不是实验）。comrak 解析，自己写输出；单独一行的网址 = 链接卡片，
+  `> [!NOTE]` = 提示框，`<details>` = 折叠块，`$$` = 公式，中文挨着 `**` 也认。每段输出后解析回来核对，对不上就改用 HTML 标签，
+  18 万份随机文档来回一致；10000 段输出 80ms、解析 36ms。已知限制：表格的行内代码里写不出“反斜杠紧跟竖线”。
+- **链接解析：`spikes/unfurl/`**。YouTube、X（syndication，退路 oEmbed、页面信息）、GitHub、B 站、公众号、通用 Open Graph 都拿到了完整卡片；
+  36kr 是 JS 验证页，拿不到。防 SSRF 测过（内网、各种 127.0.0.1 写法、解析到内网的域名、重定向）。
+  要点：B 站和公众号的图片防盗链，得转存或 `referrerpolicy="no-referrer"`；要缓存、退避；代理模式下 DNS 由代理做，检查只能尽量。
 - 旧版基线：见 `docs/baseline.md`。
