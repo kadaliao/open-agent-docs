@@ -75,8 +75,8 @@ legacy/          Python 版
 
 ## 当前目标
 
-**第 2 阶段（Agent）**，约定和验收见 `docs/phase2-contract.md`：重新设计的 MCP 工具、Agent 按段编辑走 CRDT、评论（挂在文字上）、
-通知（webhook / SSE / 长轮询）、Agent 管理；Claude Code 接上真能用。
+**第 4 阶段（数据库）**，约定和验收见 `docs/phase4-contract.md`：浏览器里用 WASM 版计算引擎（和服务器同一份 Rust 代码）筛选、排序、算公式，
+1 万行滚动 60fps、筛选 < 50ms；五种视图；关联、汇总；Agent 经 MCP 写名字就能建库、改行、查询。
 
 ## 阶段
 
@@ -133,3 +133,15 @@ legacy/          Python 版
 - Agent 改段带 `base`（读到的版本），服务器在那个版本上改再合并，人后来打的字留得住。
 - 审查修了 7 处（伪造版本号搞崩页面、DNS 重绑定、关机卡住等），都有回归测试。
 - 还差：有缓存时编辑器完全就绪 140ms，首屏靠快照；图片上传、块拖动、真正的链接卡片在第 3 阶段。
+
+## 第 2、3 阶段结论
+
+- **第 2 阶段**（`docs/phase2-contract.md`）：Agent（token、权限、管理）、MCP 端点 11 个工具（`crates/oad-mcp`）、评论锚在文字上（Yjs RelativePosition）、
+  通知（webhook 签名重试 / SSE / 长轮询、人的收件箱）、按 client id 记作者。用真的 Claude Code（haiku）接上跑过：读页、按段改、处理评论并回复、标成已解决，都成功。
+- **第 3 阶段**（`docs/phase3-contract.md`）：`crates/oad-unfurl`（缓存、过期先给旧的再刷新、退避、按网站限速、卡片图片转存、写入时预解析）、
+  文件上传（按内容判断类型、缩略图、blurhash、Range）、WASM 版 oad-markdown（`packages/markdown-wasm`）、网页预压缩打进二进制。
+  网页：X 帖子卡片自己画，YouTube / B 站封面点了才加载，GitHub、书签、文件卡片，粘贴菜单，图片缩放和图注，Shiki，Mermaid，块把手。
+  实测（真网络）：X / YouTube / B 站 / GitHub / 普通网页第一次 0.5–2s、有缓存 < 1ms；网页里贴链接几秒内出完整卡片。10 个视频的页面滚动 60fps。
+- **服务器写入**：1 万段改一段 p95 151ms → 2ms，整页写入 6.4s → 0.1s。代价：每个写入者一份同步副本（1 万段约 50–80MB，最多 2 份、闲 20 秒释放），
+  待改成“服务器一个 client id + 按 clock 区间记作者”，去掉副本。
+- 二进制 24MB（网页里 Mermaid 占大头，预压缩后打进去）。
