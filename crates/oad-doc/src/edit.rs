@@ -31,6 +31,12 @@ impl Parent {
             Parent::El(e) => e.get(txn, i),
         }
     }
+    pub fn element<T: ReadTxn>(&self, txn: &T, i: u32) -> Option<XmlElementRef> {
+        match self.get(txn, i) {
+            Some(XmlOut::Element(el)) => Some(el),
+            _ => None,
+        }
+    }
     pub fn remove(&self, txn: &mut TransactionMut, i: u32, len: u32) {
         match self {
             Parent::Root(f) => f.remove_range(txn, i, len),
@@ -51,7 +57,7 @@ impl Parent {
     }
 }
 
-fn id_of<T: ReadTxn>(txn: &T, el: &XmlElementRef) -> Option<String> {
+pub fn id_of<T: ReadTxn>(txn: &T, el: &XmlElementRef) -> Option<String> {
     match el.get_attribute(txn, "id") {
         Some(Out::Any(Any::String(s))) => Some(s.to_string()),
         _ => None,

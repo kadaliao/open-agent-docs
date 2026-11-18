@@ -209,3 +209,63 @@ fn big_doc_speed() {
         state.len() / 1024
     );
 }
+
+#[test]
+fn title_and_replace_ids() {
+    let d = doc_with_ids("第一段\n\n第二段\n");
+    let p = PageDoc::from_node(oad_doc::server_client_id(), &d);
+    assert!(oad_doc::is_server_client(p.client_id()));
+    p.set_title("标题 😀");
+    let q = PageDoc::from_update(7, &p.encode_state()).unwrap();
+    assert_eq!(q.title(), "标题 😀");
+    // 两边同时改标题，字都留得住
+    let sv = q.state_vector();
+    q.set_title("新标题 😀");
+    p.set_title("标题 😀！");
+    p.apply_update(&q.encode_diff(&sv).unwrap()).unwrap();
+    assert_eq!(p.title(), "新标题 😀！");
+    // 一块换成两块：第一块沿用编号，返回两个编号
+    let id = d.content[0].attr_str("id").unwrap();
+    let ids = p
+        .replace_block(id, &parse("第一段\n\n插进来的").content)
+        .unwrap();
+    assert_eq!(ids.len(), 2);
+    assert_eq!(ids[0], id);
+    assert_eq!(p.block(&ids[1]).unwrap().plain_text(), "插进来的");
+}
+
+#[test]
+fn edit_on_old_version() {
+    // Agent 读了一段，人接着打字（已经到了服务器），Agent 按读到的版本改：人打的字留得住
+    let d = doc_with_ids("第一段原来的文字，这里是中间，这里是结尾。\n");
+    let server = PageDoc::from_node(oad_doc::server_client_id(), &d);
+    let id = d.content[0].attr_str("id").unwrap();
+    let base = server.version();
+    let human = PageDoc::from_update(10, &server.encode_state()).unwrap();
+    let sv = human.state_vector();
+    human
+        .replace_block(
+            id,
+            &parse("第一段原来的文字，这里是中间【人】，这里是结尾。").content,
+        )
+        .unwrap();
+    server
+        .apply_update(&human.encode_diff(&sv).unwrap())
+        .unwrap();
+    let fork = server.fork_at(&base, oad_doc::server_client_id()).unwrap();
+    assert!(!fork.to_node().plain_text().contains("【人】"));
+    let fsv = fork.state_vector();
+    fork.replace_block(
+        id,
+        &parse("Agent 改了开头，这里是中间，这里是结尾。").content,
+    )
+    .unwrap();
+    server
+        .apply_update(&fork.encode_diff(&fsv).unwrap())
+        .unwrap();
+    let t = server.to_node().plain_text();
+    assert!(
+        t.starts_with("Agent 改了开头") && t.contains("【人】"),
+        "{t}"
+    );
+}

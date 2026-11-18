@@ -28,12 +28,28 @@ pub use oad_markdown::{Mark, Node};
 
 use thiserror::Error;
 use yrs::updates::decoder::Decode;
-use yrs::updates::encoder::Encode;
+use yrs::updates::encoder::{Encode, Encoder, EncoderV1};
 use yrs::{
-    ClientID, Doc, OffsetKind, Options, ReadTxn, StateVector, Transact, Update, XmlFragmentRef,
+    ClientID, Doc, GetString, OffsetKind, Options, Origin, ReadTxn, Snapshot, StateVector, Text,
+    TextRef, Transact, Update, XmlFragmentRef,
 };
 
 pub const FIELD: &str = "default";
+/// 页面标题（纯文字），和正文在同一个文档里。
+pub const TITLE: &str = "title";
+
+/// 服务器和 Agent 写入用的 client id：在 [2^32, 2^53) 里随机取。
+/// 浏览器的 Yjs 用 32 位随机数（`random.uint32()`），两段不重叠；每次加载换一个，不会和以前的自己撞上。
+pub fn server_client_id() -> u64 {
+    const LO: u64 = 1 << 32;
+    const HI: u64 = 1 << 53;
+    LO + rand::random::<u64>() % (HI - LO)
+}
+
+/// 是不是服务器段的 client id。
+pub fn is_server_client(id: u64) -> bool {
+    id >= 1 << 32
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -50,6 +66,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct PageDoc {
     doc: Doc,
     frag: XmlFragmentRef,
+    title: TextRef,
 }
 
 impl PageDoc {
@@ -63,7 +80,8 @@ impl PageDoc {
             ..Default::default()
         });
         let frag = doc.get_or_insert_xml_fragment(FIELD);
-        PageDoc { doc, frag }
+        let title = doc.get_or_insert_text(TITLE);
+        PageDoc { doc, frag, title }
     }
 
     pub fn from_update(client: u64, update: &[u8]) -> Result<Self> {
@@ -84,6 +102,41 @@ impl PageDoc {
 
     pub fn ydoc(&self) -> &Doc {
         &self.doc
+    }
+
+    pub fn client_id(&self) -> u64 {
+        self.doc.client_id().get()
+    }
+
+    pub fn title(&self) -> String {
+        self.title.get_string(&self.doc.transact())
+    }
+
+    /// 改标题：只插删变了的字（别人同时在改标题也不丢字）。
+    pub fn set_title(&self, title: &str) {
+        let old: Vec<char> = self.title().chars().collect();
+        let new: Vec<char> = title.chars().collect();
+        if old == new {
+            return;
+        }
+        let pre = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
+        let suf = old[pre..]
+            .iter()
+            .rev()
+            .zip(new[pre..].iter().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        let u16 = |cs: &[char]| cs.iter().map(|c| c.len_utf16() as u32).sum::<u32>();
+        let at = u16(&old[..pre]);
+        let mut txn = self.doc.transact_mut();
+        let del = u16(&old[pre..old.len() - suf]);
+        if del > 0 {
+            self.title.remove_range(&mut txn, at, del);
+        }
+        let ins: String = new[pre..new.len() - suf].iter().collect();
+        if !ins.is_empty() {
+            self.title.insert(&mut txn, at, &ins);
+        }
     }
 
     pub fn to_node(&self) -> Node {
@@ -121,6 +174,24 @@ impl PageDoc {
         Ok(self.doc.transact().encode_diff_v1(&sv))
     }
 
+    /// 当前版本（Yrs snapshot：state vector + delete set）。Agent 读的时候带上它，改的时候交回来，
+    /// 服务器就能在这个版本上改（见 [`PageDoc::fork_at`]），期间别人打的字不会被当成要删的。
+    pub fn version(&self) -> Vec<u8> {
+        self.doc.transact().snapshot().encode_v1()
+    }
+
+    /// 回到 version 那一刻的一份副本，用新的 client id 写。在副本上改完，把 `encode_diff(副本改之前的 sv)`
+    /// 合并回来，效果和一个从那个版本开始离线编辑的客户端一样。
+    pub fn fork_at(&self, version: &[u8], client: u64) -> Result<PageDoc> {
+        let snap = Snapshot::decode_v1(version).map_err(|e| Error::Decode(e.to_string()))?;
+        let mut enc = EncoderV1::new();
+        self.doc
+            .transact()
+            .encode_state_from_snapshot(&snap, &mut enc)
+            .map_err(|e| Error::Decode(e.to_string()))?;
+        PageDoc::from_update(client, &enc.to_vec())
+    }
+
     pub fn apply_update(&self, update: &[u8]) -> Result<()> {
         let u = Update::decode_v1(update).map_err(|e| Error::Decode(e.to_string()))?;
         self.doc
@@ -129,9 +200,18 @@ impl PageDoc {
             .map_err(|e| Error::Apply(e.to_string()))
     }
 
+    /// 合并增量并标上来源（同步中心据此不把增量发回给发来的那个连接）。
+    pub fn apply_update_from(&self, update: &[u8], origin: impl Into<Origin>) -> Result<()> {
+        let u = Update::decode_v1(update).map_err(|e| Error::Decode(e.to_string()))?;
+        self.doc
+            .transact_mut_with(origin)
+            .apply_update(u)
+            .map_err(|e| Error::Apply(e.to_string()))
+    }
+
     /// 把编号为 id 的块换成 nodes（Agent 改一段）。和原来对得上的节点就地改：沿用编号、只动变了的字。
-    /// 新节点没有编号的会自动分配。
-    pub fn replace_block(&self, id: &str, nodes: &[Node]) -> Result<()> {
+    /// 新节点没有编号的会自动分配。返回替换后这几块的编号。
+    pub fn replace_block(&self, id: &str, nodes: &[Node]) -> Result<Vec<String>> {
         let mut txn = self.doc.transact_mut();
         let (parent, idx, el) =
             edit::find(&txn, &self.frag, id).ok_or_else(|| Error::NoBlock(id.into()))?;
@@ -140,7 +220,12 @@ impl PageDoc {
         ids::collect(&convert::read_element(&txn, &el), &mut existing);
         let nodes: Vec<Node> = nodes.iter().map(|n| ids::keep_only(n, &existing)).collect();
         edit::reconcile_range(&mut txn, &parent, idx, 1, &nodes, &mut existing);
-        Ok(())
+        // 块级节点不会被合并，替换后的就是 [idx, idx + n)
+        let n = convert::group(&nodes).len() as u32;
+        Ok((idx..idx + n)
+            .filter_map(|i| parent.element(&txn, i))
+            .filter_map(|el| edit::id_of(&txn, &el))
+            .collect())
     }
 
     /// 在编号为 after 的块后面插入；after 为 None 时插到最前面。
