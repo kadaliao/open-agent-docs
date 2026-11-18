@@ -103,4 +103,8 @@ legacy/          Python 版
 - **链接解析：`spikes/unfurl/`**。YouTube、X（syndication，退路 oEmbed、页面信息）、GitHub、B 站、公众号、通用 Open Graph 都拿到了完整卡片；
   36kr 是 JS 验证页，拿不到。防 SSRF 测过（内网、各种 127.0.0.1 写法、解析到内网的域名、重定向）。
   要点：B 站和公众号的图片防盗链，得转存或 `referrerpolicy="no-referrer"`；要缓存、退避；代理模式下 DNS 由代理做，检查只能尽量。
-- 旧版基线：见 `docs/baseline.md`。
+- **旧版基线：`docs/baseline.md`**。几乎每项都远没达标：冷启动 637ms、空闲内存 79MB、浏览器打开 1000 段页面 748ms、
+  1 万行数据库筛选 354ms、搜索 p95 55ms、Agent 改一段 53ms；只有打字 p50 8.6ms（p95 16.9ms）勉强过线。
+  主要原因：同步 SQLite 跑在事件循环上、改一段要重切整页（还有两处 O(n²)）、搜索每次先比一遍索引、数据库视图在 Python 里读全表再筛。
+- **第 1 阶段已开工：`crates/oad-doc`**（页面正文 = Yrs 文档）。Node ↔ Yrs、按块编号改（Agent 用 Markdown 改写列表，没变的项沿用编号）、
+  整页重写、插入删除、增量编解码；人和 Agent 同时改同一段两边的字都留得住。1 万段：建 93ms、加载 40ms、读 39ms、按段改 6ms（按编号找块是线性的，以后加索引）。
