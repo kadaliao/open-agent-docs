@@ -1,0 +1,633 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "blk00001",
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "标题 Heading 1"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "id": "blk00002",
+        "level": 3
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "三级标题"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "blk00003"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "普通文字，"
+        },
+        {
+          "type": "text",
+          "text": "粗体",
+          "marks": [
+            {
+              "type": "bold"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "斜体",
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "删除线",
+          "marks": [
+            {
+              "type": "strike"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "下划线",
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "高亮",
+          "marks": [
+            {
+              "type": "highlight"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "code",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "链接",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/a?b=1",
+                "title": "示例"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "粗斜",
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "type": "italic"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "链接里的代码",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/code",
+                "title": "c"
+              }
+            },
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "换行后，行内公式 "
+        },
+        {
+          "type": "mathInline",
+          "attrs": {
+            "latex": "e^{i\\pi}+1=0"
+          }
+        },
+        {
+          "type": "text",
+          "text": " 结束 😀"
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "attrs": {
+        "id": "blk00004"
+      },
+      "content": [
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "blk00005"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00006"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "无序一"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "blk00007"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00008"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "无序二"
+                }
+              ]
+            },
+            {
+              "type": "bulletList",
+              "attrs": {
+                "id": "blk00009"
+              },
+              "content": [
+                {
+                  "type": "listItem",
+                  "attrs": {
+                    "id": "blk00010"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "id": "blk00011"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "嵌套"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "orderedList",
+      "attrs": {
+        "id": "blk00012",
+        "start": 3
+      },
+      "content": [
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "blk00013"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00014"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第三"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "attrs": {
+            "id": "blk00015"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00016"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "第四"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "id": "blk00017"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "id": "blk00018",
+            "checked": true
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00019"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "做完了"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "id": "blk00020",
+            "checked": false
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00021"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "还没做"
+                }
+              ]
+            },
+            {
+              "type": "taskList",
+              "attrs": {
+                "id": "blk00022"
+              },
+              "content": [
+                {
+                  "type": "taskItem",
+                  "attrs": {
+                    "id": "blk00023",
+                    "checked": false
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "id": "blk00024"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "子任务"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "blockquote",
+      "attrs": {
+        "id": "blk00025"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "id": "blk00026"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "引用一段话"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "callout",
+      "attrs": {
+        "id": "blk00027",
+        "kind": "warning",
+        "title": "小心"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "id": "blk00028"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "提示框里的内容"
+            }
+          ]
+        },
+        {
+          "type": "bulletList",
+          "attrs": {
+            "id": "blk00029"
+          },
+          "content": [
+            {
+              "type": "listItem",
+              "attrs": {
+                "id": "blk00030"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "blk00031"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "列表"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "id": "blk00032",
+        "language": "rust"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "fn main() {\n    println!(\"你好\");\n}"
+        }
+      ]
+    },
+    {
+      "type": "mathBlock",
+      "attrs": {
+        "id": "blk00033",
+        "latex": "\\int_0^1 x^2\\,dx = \\frac{1}{3}"
+      }
+    },
+    {
+      "type": "horizontalRule",
+      "attrs": {
+        "id": "blk00034"
+      }
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "id": "blk00035",
+        "src": "https://example.com/cat.png",
+        "alt": "一只猫",
+        "title": "猫"
+      }
+    },
+    {
+      "type": "embed",
+      "attrs": {
+        "id": "blk00036",
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      }
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "id": "blk00037"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "blk00038"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "id": "blk00039"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "blk00040"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "名称"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "id": "blk00041"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "blk00042"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "数量"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "id": "blk00043"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "blk00044"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "blk00045"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "苹果",
+                      "marks": [
+                        {
+                          "type": "bold"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "id": "blk00046"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "id": "blk00047"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "details",
+      "attrs": {
+        "id": "blk00048",
+        "open": true
+      },
+      "content": [
+        {
+          "type": "detailsSummary",
+          "attrs": {
+            "id": "blk00049"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "点开看"
+            }
+          ]
+        },
+        {
+          "type": "detailsContent",
+          "attrs": {
+            "id": "blk00050"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "id": "blk00051"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "折叠的内容"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "id": "blk00052"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "最后一段"
+        }
+      ]
+    }
+  ]
+}

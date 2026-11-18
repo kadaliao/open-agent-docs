@@ -48,3 +48,16 @@ fn browser_doc_reads_the_same() {
     let md2 = oad_markdown::serialize(&back);
     assert_eq!(md, md2, "Markdown 来回不稳定");
 }
+
+#[test]
+fn markdown_back_equals_browser_doc() {
+    let Ok(json) = std::fs::read_to_string(fixtures().join("all-nodes.json")) else {
+        return;
+    };
+    let want = normalize(&serde_json::from_str::<Node>(&json).unwrap()).without_ids();
+    let back = normalize(&oad_markdown::parse(&oad_markdown::serialize(&want))).without_ids();
+    assert_eq!(
+        serde_json::to_string_pretty(&back).unwrap(),
+        serde_json::to_string_pretty(&want).unwrap()
+    );
+}

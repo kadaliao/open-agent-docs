@@ -1,0 +1,12 @@
+{
+  "name": "open-agent-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @oad/web dev",
+    "build": "pnpm --filter @oad/web build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "e2e": "pnpm --filter @oad/web e2e"
+  }
+}
