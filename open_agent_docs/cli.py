@@ -44,7 +44,8 @@ def main(argv=None):
         host = getattr(args, "host", "127.0.0.1")
         port = getattr(args, "port", 8790)
         print(f"Open Agent Docs: http://{host}:{port}  (MCP: http://{host}:{port}/mcp)", flush=True)
-        uvicorn.run("open_agent_docs.server:app", host=host, port=port, proxy_headers=True, forwarded_allow_ips="*", log_level="warning")
+        uvicorn.run("open_agent_docs.server:app", host=host, port=port, proxy_headers=True, forwarded_allow_ips="*", log_level="warning",
+                    timeout_graceful_shutdown=3)   # 开着的 SSE 连接不会自己断：最多等 3 秒
         return
     if args.cmd == "password":
         from . import auth
