@@ -1,0 +1,8 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+web/node_modules/
+web/dist/
+open_agent_docs/static/
+.pytest_cache/
