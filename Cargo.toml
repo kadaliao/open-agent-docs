@@ -8,9 +8,77 @@ license = "MIT"
 version = "0.1.0"
 
 [profile.release]
-lto = "thin"
+# 默认按体积优化，整体 LTO（fat 比 thin 小好几 MB）：二进制从 39MB 降到 28MB。下面这些热路径（搜索、协作、
+# 数据库引擎、JSON、SQLite、压缩、密码哈希）照样 opt-level 3。改动后用
+# `CARGO_PROFILE_RELEASE_STRIP=false cargo bloat --release -p oad-bin --crates` 看体积，
+# 用 oad-search 的 bench 和 spikes/baseline/bench-new.mjs 看速度。
+opt-level = "s"
+lto = "fat"
 codegen-units = 1
 strip = true
+
+[profile.release.package.tantivy]
+opt-level = 3
+
+[profile.release.package.tantivy-columnar]
+opt-level = 3
+
+[profile.release.package.tantivy-sstable]
+opt-level = 3
+
+[profile.release.package.tantivy-bitpacker]
+opt-level = 3
+
+[profile.release.package.tantivy-stacker]
+opt-level = 3
+
+[profile.release.package.tantivy-common]
+opt-level = 3
+
+[profile.release.package.tantivy-fst]
+opt-level = 3
+
+[profile.release.package.bitpacking]
+opt-level = 3
+
+[profile.release.package.lz4_flex]
+opt-level = 3
+
+[profile.release.package.zstd-sys]
+opt-level = 3
+
+[profile.release.package.jieba-rs]
+opt-level = 3
+
+[profile.release.package.oad-search]
+opt-level = 3
+
+[profile.release.package.yrs]
+opt-level = 3
+
+[profile.release.package.oad-doc]
+opt-level = 3
+
+[profile.release.package.oad-db]
+opt-level = 3
+
+[profile.release.package.serde_json]
+opt-level = 3
+
+[profile.release.package.libsqlite3-sys]
+opt-level = 3
+
+[profile.release.package.rusqlite]
+opt-level = 3
+
+[profile.release.package.brotli]
+opt-level = 3
+
+[profile.release.package.argon2]
+opt-level = 3
+
+[profile.release.package.blake2]
+opt-level = 3
 
 # build.rs（预压缩网页）和过程宏用优化过的代码跑，不然 brotli 压 10MB 要一两分钟
 [profile.dev.build-override]

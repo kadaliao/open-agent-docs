@@ -156,26 +156,12 @@ describe.skipIf(!BIN)('契约：真服务器的响应和 docs/openapi.json 一�
     await c.page('nope').catch(() => {})
     await c.request('POST', `/workspaces/${ws}/pages`, { parent_id: 'nope' }).catch(() => {})
 
-    // 已知的、报给服务器那边的文档问题（修好一条就删一条；新的对不上照样失败）
-    const known = (op: string, e: Problem) =>
-      // 文档节点（DocNode）：attrs 标成必填，实际空的时候不输出；GET content 的 doc 因此也对不上 oneOf
-      (/\/(content|blocks\/\{block_id\}|versions\/\{v\}) → 200$/.test(op) && (/\.attrs$/.test(e.at) || e.at === '$.doc')) ||
-      // 服务器查询的行（QueryRow = DbRow + computed）：实际不带 db_id、position
-      (/\/query → 200$/.test(op) && /\.(db_id|position)$/.test(e.at)) ||
-      // 库的历史：old / new 是任意 JSON，文档写的 object | null
-      (/\/history → 200$/.test(op) && /\.(old|new)$/.test(e.at))
     const bad: [string, Problem[]][] = []
-    const knownHit: [string, Problem[]][] = []
-    for (const [op, r] of seen) {
-      const k = r.errs.filter((e) => known(op, e))
-      const n = r.errs.filter((e) => !known(op, e))
-      if (n.length) bad.push([op, n])
-      if (k.length) knownHit.push([op, k])
-    }
+    for (const [op, r] of seen) if (r.errs.length) bad.push([op, r.errs])
     const extra = [...seen].filter(([, r]) => r.extra.length).map(([op, r]) => [op, r.extra] as [string, Problem[]])
     const fmt = (l: [string, Problem[]][]) => l.map(([op, es]) => `${op}\n${es.map((e) => `    ${e.at} ${e.msg}`).join('\n')}`).join('\n')
     if (process.env.OAD_CONTRACT_REPORT)
-      writeFileSync(process.env.OAD_CONTRACT_REPORT, JSON.stringify({ operations: [...seen.keys()].sort(), bad, known: knownHit, extra }, null, 2))
+      writeFileSync(process.env.OAD_CONTRACT_REPORT, JSON.stringify({ operations: [...seen.keys()].sort(), bad, extra }, null, 2))
     expect(seen.size).toBeGreaterThan(50)
     expect(fmt(bad)).toBe('')
   }, 60_000)

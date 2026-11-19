@@ -94,7 +94,8 @@ pub fn router(state: AppState) -> Router {
                 .layer(axum::middleware::from_fn_with_state(
                     state.clone(),
                     i18n::errors,
-                )),
+                ))
+                .layer(compress_json()),
         )
         .nest("/s", share::public_routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
@@ -119,7 +120,8 @@ pub fn api_router(state: AppState) -> Router {
                 .layer(axum::middleware::from_fn_with_state(
                     state.clone(),
                     i18n::errors,
-                )),
+                ))
+                .layer(compress_json()),
         )
         .nest("/s", share::public_routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
@@ -128,6 +130,29 @@ pub fn api_router(state: AppState) -> Router {
             guard::check,
         ))
         .with_state(state)
+}
+
+/// 接口的 JSON 响应超过 1KB 按 Accept-Encoding 压（br 优先，质量 4；其次 gzip）。只看 application/json：
+/// SSE、WebSocket、别的类型的文件都不动；Range 响应、自己压过的（库的行，带着 Content-Encoding）也不再压。
+fn compress_json() -> tower_http::compression::CompressionLayer<JsonOver1K> {
+    tower_http::compression::CompressionLayer::new()
+        .no_deflate()
+        .no_zstd()
+        .compress_when(JsonOver1K)
+}
+
+#[derive(Clone, Copy)]
+struct JsonOver1K;
+
+impl tower_http::compression::Predicate for JsonOver1K {
+    fn should_compress<B: axum::body::HttpBody>(&self, r: &axum::http::Response<B>) -> bool {
+        use tower_http::compression::predicate::SizeAbove;
+        r.headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|t| t.starts_with("application/json"))
+            && SizeAbove::new(1024).should_compress(r)
+    }
 }
 
 /// 限流：每个响应带 RateLimit-* 头，超了 429 + Retry-After。

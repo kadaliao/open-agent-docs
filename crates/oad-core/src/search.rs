@@ -19,6 +19,8 @@ use tracing::warn;
 pub const DEBOUNCE: Duration = Duration::from_secs(1);
 /// 一次最多处理几个页面（之后提交一次）。
 const BATCH: usize = 200;
+/// 攒够这么多条索引改动也提交一次（大页面多的时候不在内存里堆几万段正文）。
+const BATCH_OPS: usize = 5_000;
 
 /// 一条搜索结果（GET /workspaces/{ws}/search）。
 #[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
@@ -319,31 +321,32 @@ impl Ctx {
 
     /// 处理攒着的页面和库，分批提交。
     async fn process(&self, pages: HashSet<String>, dbs: HashMap<String, bool>) {
-        let pages: Vec<String> = pages.into_iter().collect();
-        for chunk in pages.chunks(BATCH) {
-            let mut ops = Vec::new();
-            let mut marks: Vec<(String, Option<i64>)> = Vec::new();
-            for id in chunk {
-                self.svc
-                    .processed
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                match self.page_ops(id).await {
-                    Ok((o, m)) => {
-                        ops.extend(o);
-                        marks.push((id.clone(), m));
-                    }
-                    Err(e) => warn!(page = %id, "索引页面失败：{e}"),
+        let n = pages.len();
+        let mut ops = Vec::new();
+        let mut marks: Vec<(String, Option<i64>)> = Vec::new();
+        for (i, id) in pages.into_iter().enumerate() {
+            self.svc
+                .processed
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            match self.page_ops(&id).await {
+                Ok((o, m)) => {
+                    ops.extend(o);
+                    marks.push((id, m));
                 }
+                Err(e) => warn!(page = %id, "索引页面失败：{e}"),
             }
-            self.commit(ops, move |m| {
-                for (id, at) in marks {
-                    match at {
-                        Some(a) => m.pages.insert(id, a),
-                        None => m.pages.remove(&id),
-                    };
-                }
-            })
-            .await;
+            if marks.len() >= BATCH || ops.len() >= BATCH_OPS || i + 1 == n {
+                let marks = std::mem::take(&mut marks);
+                self.commit(std::mem::take(&mut ops), move |m| {
+                    for (id, at) in marks {
+                        match at {
+                            Some(a) => m.pages.insert(id, a),
+                            None => m.pages.remove(&id),
+                        };
+                    }
+                })
+                .await;
+            }
         }
         for (db, all) in dbs {
             match self.db_ops(&db, all).await {
@@ -369,7 +372,7 @@ impl Ctx {
         let ix = self.svc.index.clone();
         let r = tokio::task::spawn_blocking(move || ix.apply(ops, marks)).await;
         match r {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => crate::mem::release_soon(),
             Ok(Err(e)) => warn!("写搜索索引失败：{e}"),
             Err(e) => warn!("写搜索索引失败：{e}"),
         }

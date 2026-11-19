@@ -306,8 +306,8 @@
         "description": "登录方式和站点设置。",
         "properties": {
           "mode": {
-            "description": "local / header / none / jwt",
-            "type": "string"
+            "$ref": "#/components/schemas/AuthMode",
+            "description": "登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）"
           },
           "signup": {
             "$ref": "#/components/schemas/SignupMode"
@@ -323,6 +323,15 @@
           "signup"
         ],
         "type": "object"
+      },
+      "AuthMode": {
+        "enum": [
+          "local",
+          "header",
+          "none",
+          "jwt"
+        ],
+        "type": "string"
       },
       "AuthorRef": {
         "properties": {
@@ -563,6 +572,14 @@
               "null"
             ]
           },
+          "total": {
+            "description": "顶层块一共几个（给了 `limit` 才有）",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "version": {
             "type": "string"
           }
@@ -691,10 +708,16 @@
             "type": "integer"
           },
           "by": {
-            "description": "谁改的：`{ kind, id, name }`，认不出的人是原样的引用字符串，没记是 null",
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AuthorRef"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "cells": {
@@ -719,20 +742,8 @@
             "description": "cell / row / schema",
             "type": "string"
           },
-          "new": {
-            "description": "cell 有：改之后存的值（任意 JSON）",
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "old": {
-            "description": "cell 有：改之前存的值（任意 JSON）",
-            "type": [
-              "object",
-              "null"
-            ]
-          },
+          "new": {},
+          "old": {},
           "prop": {
             "description": "cell 有：属性的 key",
             "type": [
@@ -794,8 +805,7 @@
             "$ref": "#/components/schemas/Page"
           },
           "schema": {
-            "description": "表结构 `{ props, next_id }`",
-            "type": "object"
+            "$ref": "#/components/schemas/DbSchema"
           },
           "seq": {
             "format": "int64",
@@ -803,7 +813,7 @@
           },
           "views": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DbView"
             },
             "type": "array"
           }
@@ -813,6 +823,77 @@
           "schema",
           "views",
           "seq"
+        ],
+        "type": "object"
+      },
+      "DbProp": {
+        "description": "一个属性（一列）。`key` 是短随机串，改名不动数据；各类型自己的配置只在那个类型上有。",
+        "properties": {
+          "agent": {
+            "description": "button 按下时通知的 Agent（id）",
+            "type": "string"
+          },
+          "comment": {
+            "description": "button 按下时发的评论",
+            "type": "string"
+          },
+          "date_format": {
+            "description": "日期的显示：iso | zh | slash | relative",
+            "type": "string"
+          },
+          "format": {
+            "description": "数字的格式：number | comma | percent | cny | usd（number、formula、rollup）",
+            "type": "string"
+          },
+          "formula": {
+            "description": "formula 的公式",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "description": "button 的文字",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "description": "select / multi_select / status 的选项",
+            "items": {
+              "$ref": "#/components/schemas/SelectOption"
+            },
+            "type": "array"
+          },
+          "precision": {
+            "description": "显示几位小数",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "prefix": {
+            "description": "unique_id 的前缀（T-12）",
+            "type": "string"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/RelationConf"
+          },
+          "rollup": {
+            "$ref": "#/components/schemas/RollupConf"
+          },
+          "set": {
+            "description": "button 按下时设的值：`{ 属性 key 或名字: 值 }`",
+            "type": "object"
+          },
+          "type": {
+            "$ref": "#/components/schemas/PropType"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "type"
         ],
         "type": "object"
       },
@@ -883,13 +964,53 @@
         ],
         "type": "object"
       },
+      "DbSchema": {
+        "description": "表结构。",
+        "properties": {
+          "next_id": {
+            "description": "下一个自动编号",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "props": {
+            "items": {
+              "$ref": "#/components/schemas/DbProp"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "props"
+        ],
+        "type": "object"
+      },
+      "DbSort": {
+        "description": "排序：`dir: \"asc\" | \"desc\"`。",
+        "properties": {
+          "dir": {
+            "type": "string"
+          },
+          "prop": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prop"
+        ],
+        "type": "object"
+      },
       "DbUndone": {
         "description": "撤销的结果：格子改动只有 `seq`；表结构改动还有新的 `schema`、`views`。",
         "properties": {
           "schema": {
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DbSchema"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "seq": {
@@ -899,7 +1020,7 @@
           },
           "views": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DbView"
             },
             "type": [
               "array",
@@ -909,6 +1030,80 @@
         },
         "required": [
           "seq"
+        ],
+        "type": "object"
+      },
+      "DbView": {
+        "description": "一个视图。存的时候按表结构清理（去掉指向已删属性的排序、分组、隐藏、列宽）。",
+        "properties": {
+          "calendar_by": {
+            "description": "日历按哪个日期属性",
+            "type": "string"
+          },
+          "filter": {
+            "description": "筛选：`{ op: \"and\" | \"or\", items: [{ prop, op, value } 或嵌套的组] }`",
+            "type": "object"
+          },
+          "group_by": {
+            "description": "按哪个属性分组（看板的列）",
+            "type": "string"
+          },
+          "group_date": {
+            "description": "按日期分组时怎么分：day | week | month | year | relative",
+            "type": "string"
+          },
+          "hidden": {
+            "description": "隐藏的属性 key",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hide_empty_groups": {
+            "description": "去掉没有行的分组",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "description": "列的顺序（属性 key）",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sorts": {
+            "items": {
+              "$ref": "#/components/schemas/DbSort"
+            },
+            "type": "array"
+          },
+          "sub_group_by": {
+            "type": "string"
+          },
+          "sub_group_date": {
+            "type": "string"
+          },
+          "totals": {
+            "description": "每列底部的汇总：`{ key: fn }`",
+            "type": "object"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ViewType"
+          },
+          "widths": {
+            "description": "列宽：`{ key: 像素 }`",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type"
         ],
         "type": "object"
       },
@@ -942,6 +1137,7 @@
       "DocMark": {
         "properties": {
           "attrs": {
+            "description": "没有属性时不给",
             "type": "object"
           },
           "type": {
@@ -949,8 +1145,7 @@
           }
         },
         "required": [
-          "type",
-          "attrs"
+          "type"
         ],
         "type": "object"
       },
@@ -958,6 +1153,7 @@
         "description": "正文的节点树（和编辑器的 ProseMirror JSON 一样）：`{ type, attrs?, content?, text?, marks? }`。",
         "properties": {
           "attrs": {
+            "description": "没有属性时不给",
             "type": "object"
           },
           "content": {
@@ -989,8 +1185,7 @@
           }
         },
         "required": [
-          "type",
-          "attrs"
+          "type"
         ],
         "type": "object"
       },
@@ -1161,6 +1356,17 @@
         ],
         "type": "object"
       },
+      "InviteBy": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "InviteInfo": {
         "description": "邀请链接打开时看到的（不用登录）。",
         "properties": {
@@ -1172,10 +1378,14 @@
             ]
           },
           "invited_by": {
-            "description": "`{ name }`",
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InviteBy",
+                "description": "谁发的邀请；发邀请的人不在了是 null"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "role": {
@@ -1186,8 +1396,7 @@
             "type": "boolean"
           },
           "workspace": {
-            "description": "`{ id, name, icon }`",
-            "type": "object"
+            "$ref": "#/components/schemas/InviteWorkspace"
           }
         },
         "required": [
@@ -1250,6 +1459,28 @@
           "role",
           "created_at",
           "uses"
+        ],
+        "type": "object"
+      },
+      "InviteWorkspace": {
+        "description": "邀请到哪个工作区。",
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
         ],
         "type": "object"
       },
@@ -1485,7 +1716,7 @@
             ]
           },
           "schema": {
-            "description": "表结构 `{ props, next_id }`（不给只有标题）",
+            "description": "表结构 `{ props: [{ name, type, … }] }`，和 DbSchema 一样，但属性可以不给 key（自动分配），\n选项可以只写名字（`options: [\"做\", \"完\"]`）。不给只有标题",
             "type": [
               "object",
               "null"
@@ -1498,7 +1729,7 @@
             ]
           },
           "views": {
-            "description": "视图（不给是一个表格视图）",
+            "description": "视图（和 DbView 一样，id 可以不给）；不给是一个表格视图",
             "items": {
               "type": "object"
             },
@@ -1896,6 +2127,34 @@
         ],
         "type": "string"
       },
+      "PropType": {
+        "description": "属性类型。",
+        "enum": [
+          "title",
+          "text",
+          "number",
+          "select",
+          "multi_select",
+          "status",
+          "date",
+          "person",
+          "checkbox",
+          "url",
+          "email",
+          "phone",
+          "files",
+          "created_time",
+          "updated_time",
+          "created_by",
+          "updated_by",
+          "relation",
+          "rollup",
+          "formula",
+          "unique_id",
+          "button"
+        ],
+        "type": "string"
+      },
       "PutContent": {
         "properties": {
           "base": {
@@ -2114,23 +2373,50 @@
         "type": "object"
       },
       "QueryRow": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/DbRow"
-          },
-          {
-            "properties": {
-              "computed": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "computed"
-            ],
+        "description": "查出来的一行：存的样子（`props`，键是属性的 key，空值不存），加上 `computed`（公式、汇总、反向关联算出来的值）。\n和 `DbRow` 不同：不带 `db_id`、`position`（顺序看 `ids`），时间是毫秒数。",
+        "properties": {
+          "computed": {
             "type": "object"
+          },
+          "created_at": {
+            "description": "毫秒时间戳",
+            "format": "double",
+            "type": "number"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "props": {
+            "type": "object"
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unique_id": {
+            "description": "自动编号",
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "description": "毫秒时间戳",
+            "format": "double",
+            "type": "number"
+          },
+          "updated_by": {
+            "type": "string"
           }
+        },
+        "required": [
+          "id",
+          "seq",
+          "props",
+          "computed"
         ],
-        "description": "查出来的一行：存的样子，加上 `computed`（公式、汇总、关联之类算出来的值，键是属性的 key）。"
+        "type": "object"
       },
       "ReadCount": {
         "properties": {
@@ -2165,6 +2451,21 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "RelationConf": {
+        "description": "关联：指向哪个库；`mirror_of` 有值时是双向关联的反向那一半。",
+        "properties": {
+          "db_id": {
+            "type": "string"
+          },
+          "mirror_of": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "db_id"
+        ],
         "type": "object"
       },
       "Reply": {
@@ -2246,6 +2547,26 @@
         ],
         "type": "object"
       },
+      "RollupConf": {
+        "description": "汇总：沿关联属性 `relation` 取对方库的属性 `prop`，按 `fn` 归总。",
+        "properties": {
+          "fn": {
+            "type": "string"
+          },
+          "prop": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation",
+          "prop",
+          "fn"
+        ],
+        "type": "object"
+      },
       "RowsDelta": {
         "description": "增量（GET /databases/{id}/rows）。",
         "properties": {
@@ -2296,8 +2617,8 @@
             "type": "array"
           },
           "schema": {
-            "description": "新的表结构 `{ props, next_id }`",
-            "type": "object"
+            "$ref": "#/components/schemas/DbSchema",
+            "description": "新的表结构"
           },
           "seq": {
             "description": "这次改动的 seq（历史里撤销用；什么也没变时是现在的 seq）",
@@ -2338,7 +2659,7 @@
         "description": "撤销后的表结构和视图。",
         "properties": {
           "schema": {
-            "type": "object"
+            "$ref": "#/components/schemas/DbSchema"
           },
           "seq": {
             "format": "int64",
@@ -2346,7 +2667,7 @@
           },
           "views": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DbView"
             },
             "type": "array"
           }
@@ -2437,6 +2758,29 @@
         },
         "required": [
           "results"
+        ],
+        "type": "object"
+      },
+      "SelectOption": {
+        "description": "选项。status 的有 `group`：todo / doing / done。",
+        "properties": {
+          "color": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "color"
         ],
         "type": "object"
       },
@@ -2599,10 +2943,14 @@
             "type": "integer"
           },
           "deleted_by": {
-            "description": "谁删的：`{ kind, id, name }`",
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AuthorRef",
+                "description": "谁删的；没记是 null"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "icon": {
@@ -2932,15 +3280,26 @@
         "type": "object"
       },
       "ViewObj": {
-        "description": "一个视图：`{ id, name, type, filter, sorts, hidden, order, widths, … }`。",
+        "description": "一个视图（DbView 的样子；id 不给或重复时分配新的，type 不给是 table，name 不给是“视图”）。",
         "type": "object"
       },
+      "ViewType": {
+        "description": "视图类型。",
+        "enum": [
+          "table",
+          "board",
+          "calendar",
+          "gallery",
+          "list"
+        ],
+        "type": "string"
+      },
       "Views": {
-        "description": "库的全部视图（`{ id, name, type, filter, sorts, hidden, order, widths, … }`）。",
+        "description": "库的全部视图。",
         "properties": {
           "views": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DbView"
             },
             "type": "array"
           }
@@ -4978,7 +5337,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/DbView"
                 }
               }
             },
@@ -5218,7 +5577,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/DbView"
                 }
               }
             },
@@ -6697,6 +7056,16 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "只要前 N 个顶层块（先画第一屏），响应里带 `total`",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],

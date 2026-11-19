@@ -320,3 +320,73 @@ async fn static_web_precompressed() {
     assert_eq!(raw_get(s.addr, "/nope.js", &[]).await.0, 404);
     s.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn content_limit_and_json_compression() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = http();
+    let s = Server::start(dir.path(), AuthConfig::None, fast_hub()).await;
+    let md: String = (0..200)
+        .map(|i| format!("第 {i} 段，写点什么。\n\n"))
+        .collect();
+    let page = page_with(&s, &c, "长页面", &md).await;
+    // 前 N 个顶层块 + total
+    let (st, v) = json(c.get(s.api(&format!("/pages/{page}/content?format=json&limit=3")))).await;
+    assert_eq!(st, 200, "{v}");
+    assert_eq!(v["doc"]["content"].as_array().unwrap().len(), 3);
+    assert_eq!(v["total"], 200);
+    assert!(v["version"].is_string());
+    let (_, v) = json(c.get(s.api(&format!("/pages/{page}/content?limit=1")))).await;
+    assert_eq!(v["markdown"], "第 0 段，写点什么。\n");
+    assert_eq!(v["total"], 200);
+    let (_, v) = json(c.get(s.api(&format!("/pages/{page}/content?format=json")))).await;
+    assert!(v.get("total").is_none());
+    assert_eq!(v["doc"]["content"].as_array().unwrap().len(), 200);
+    let (st, _) = json(c.get(s.api(&format!("/pages/{page}/content?limit=x")))).await;
+    assert_eq!(st, 400);
+    // 大的 JSON 按 Accept-Encoding 压；小的、不要压缩的不压（客户端别自己解压，要看原样的响应头）
+    let raw = reqwest::Client::builder()
+        .no_gzip()
+        .no_brotli()
+        .build()
+        .unwrap();
+    let get = |path: String, enc: &'static str| {
+        let c = raw.clone();
+        async move {
+            let r = c
+                .get(path)
+                .header("accept-encoding", enc)
+                .send()
+                .await
+                .unwrap();
+            let ce = r
+                .headers()
+                .get("content-encoding")
+                .map(|v| v.to_str().unwrap().to_string());
+            (ce, r.bytes().await.unwrap().len())
+        }
+    };
+    let url = s.api(&format!("/pages/{page}/content"));
+    let (ce, n_br) = get(url.clone(), "gzip, br").await;
+    assert_eq!(ce.as_deref(), Some("br"));
+    let (ce, n_gz) = get(url.clone(), "gzip").await;
+    assert_eq!(ce.as_deref(), Some("gzip"));
+    let (ce, n_raw) = get(url.clone(), "identity").await;
+    assert_eq!(ce, None);
+    assert!(
+        n_br < n_raw / 3 && n_gz < n_raw / 3,
+        "{n_br} {n_gz} {n_raw}"
+    );
+    let (ce, _) = get(s.api("/auth/config"), "br").await;
+    assert_eq!(ce, None, "小于 1KB 不压");
+    // SSE 不压（压了就攒着不发）
+    let r = raw
+        .get(s.api(&format!("/workspaces/{}/events", s.ws_id())))
+        .header("accept-encoding", "br, gzip")
+        .send()
+        .await
+        .unwrap();
+    assert!(r.headers().get("content-encoding").is_none());
+    drop(r);
+    s.stop().await;
+}

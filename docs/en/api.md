@@ -12,6 +12,10 @@ The full reference is OpenAPI 3.1: `GET /api/v1/openapi.json` on a running serve
 - **Versioning**: `/api/v1` only grows (new endpoints, new optional fields, new events) — nothing is changed or removed. Breaking changes go to a
   future `/api/v2`, with `v1` kept for a while. Clients should ignore unknown fields and events.
 - Times are millisecond timestamps (UTC); ids are strings.
+- **Compression**: JSON responses over 1KB are compressed with br or gzip according to `Accept-Encoding` (browsers and common HTTP libraries
+  decode it for you). Live events (SSE), WebSocket and files are not compressed.
+- **First screen of a big page**: `GET /pages/{id}/content?limit=N` (with or without `format=json`) returns only the first N top-level blocks,
+  plus `total` (how many there are).
 
 ## Authentication
 

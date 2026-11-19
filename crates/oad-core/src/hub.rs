@@ -322,6 +322,16 @@ impl DocHub {
 
     /// 整页的节点树和当前版本。没变的块用缓存；actor 里只取共享的块，拼成整棵树在别的线程上做。
     pub async fn content(&self, page_id: &str) -> Result<(oad_doc::Node, Vec<u8>)> {
+        let (n, _, v) = self.content_head(page_id, None).await?;
+        Ok((n, v))
+    }
+
+    /// 正文的前 `limit` 个顶层块（None 是全部）、顶层块总数和当前版本。
+    pub async fn content_head(
+        &self,
+        page_id: &str,
+        limit: Option<usize>,
+    ) -> Result<(oad_doc::Node, usize, Vec<u8>)> {
         let (blocks, v) = self
             .call(page_id, |a| {
                 let v = a.issue_version();
@@ -334,12 +344,15 @@ impl DocHub {
                 (blocks, v)
             })
             .await?;
+        let total = blocks.len();
         let node = tokio::task::spawn_blocking(move || {
-            oad_doc::Node::new("doc").children(blocks.iter().map(|b| (**b).clone()).collect())
+            let take = limit.unwrap_or(usize::MAX);
+            oad_doc::Node::new("doc")
+                .children(blocks.iter().take(take).map(|b| (**b).clone()).collect())
         })
         .await
         .map_err(|e| Error::Internal(e.to_string()))?;
-        Ok((node, v))
+        Ok((node, total, v))
     }
 
     /// 一块和当前版本。
@@ -691,6 +704,8 @@ pub struct Actor {
     /// 发出去的版本：(版本的哈希, 当时的序号)，最近的一些。
     issued: VecDeque<(u64, u64)>,
     render: RenderCache,
+    /// 新客户端第一次同步用的回收过的整份状态，和当时的版本（文档变了就重算）。
+    compact: Option<(Vec<u8>, Vec<u8>)>,
     last_active: Instant,
     cfg: HubConfig,
     /// 上一版之后的改动（自动存版本用）。
@@ -806,6 +821,7 @@ impl Actor {
             prefetched: HashSet::new(),
             issued: VecDeque::new(),
             render: RenderCache::default(),
+            compact: None,
             cfg: inner.cfg.clone(),
             ver: VerState::default(),
         })
@@ -962,6 +978,26 @@ impl Actor {
         Ok(r)
     }
 
+    /// 回收过删掉内容的整份状态（见 `PageDoc::encode_state_compact`），文档没变就用上次算好的。
+    fn compact_state(&mut self) -> Vec<u8> {
+        let key = self.doc.version();
+        if let Some((k, b)) = &self.compact
+            && *k == key
+        {
+            return b.clone();
+        }
+        match self.doc.encode_state_compact() {
+            Ok(b) => {
+                self.compact = Some((key, b.clone()));
+                b
+            }
+            Err(e) => {
+                warn!(page = %self.page_id, "回收副本失败，发整份：{e}");
+                self.doc.encode_state()
+            }
+        }
+    }
+
     fn join(&mut self, conn: u64, readonly: bool, who: Principal, out: mpsc::Sender<Bytes>) {
         self.conns.insert(
             conn,
@@ -995,7 +1031,12 @@ impl Actor {
                 Ok(Message::Sync(SyncMessage::SyncStep1(sv))) => {
                     match self.allow_step1(conn, &sv) {
                         Step1::Answer => {
-                            let diff = self.doc.ydoc().transact().encode_diff_v1(&sv);
+                            // 新客户端（什么都没有）给回收过删掉内容的那份，小一些；重连的只差一点，照常算
+                            let diff = if sv.is_empty() {
+                                self.compact_state()
+                            } else {
+                                self.doc.ydoc().transact().encode_diff_v1(&sv)
+                            };
                             self.send_to(
                                 conn,
                                 encode(&Message::Sync(SyncMessage::SyncStep2(diff))),
@@ -1452,6 +1493,7 @@ async fn run_actor(
     }
     drop(actor);
     let _ = persist.await;
+    crate::mem::release_soon();
     if let Some(done) = closing {
         let _ = done.send(());
     }

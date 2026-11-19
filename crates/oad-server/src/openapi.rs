@@ -41,7 +41,8 @@ pub enum ErrorCode {
 pub struct DocNode {
     #[serde(rename = "type")]
     pub ty: String,
-    #[schema(value_type = Object)]
+    /// 没有属性时不给
+    #[schema(value_type = Object, required = false)]
     pub attrs: Option<Value>,
     #[schema(no_recursion)]
     pub content: Option<Vec<DocNode>>,
@@ -53,8 +54,27 @@ pub struct DocNode {
 pub struct DocMark {
     #[serde(rename = "type")]
     pub ty: String,
-    #[schema(value_type = Object)]
+    /// 没有属性时不给
+    #[schema(value_type = Object, required = false)]
     pub attrs: Option<Value>,
+}
+
+/// 人：`{ kind, id, name }`（AuthorRef），认不出的是原样的引用字符串，或者 null。
+pub(crate) fn person_or_ref() -> utoipa::openapi::schema::Schema {
+    use utoipa::openapi::schema::{ObjectBuilder, OneOfBuilder, Ref, Schema, Type};
+    Schema::OneOf(
+        OneOfBuilder::new()
+            .item(Ref::from_schema_name("AuthorRef"))
+            .item(ObjectBuilder::new().schema_type(Type::String))
+            .item(ObjectBuilder::new().schema_type(Type::Null))
+            .build(),
+    )
+}
+
+/// 任意 JSON（包括 null）。
+pub(crate) fn any_json() -> utoipa::openapi::schema::Object {
+    use utoipa::openapi::schema::{Object, SchemaType};
+    Object::with_type(SchemaType::AnyValue)
 }
 
 struct Security;

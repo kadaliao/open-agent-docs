@@ -34,10 +34,11 @@ pub struct NewDb {
     pub parent_id: Option<String>,
     /// 放在同级里这个页面后面
     pub after: Option<String>,
-    /// 表结构 `{ props, next_id }`（不给只有标题）
+    /// 表结构 `{ props: [{ name, type, … }] }`，和 DbSchema 一样，但属性可以不给 key（自动分配），
+    /// 选项可以只写名字（`options: ["做", "完"]`）。不给只有标题
     #[schema(value_type = Option<Object>)]
     pub schema: Option<Value>,
-    /// 视图（不给是一个表格视图）
+    /// 视图（和 DbView 一样，id 可以不给）；不给是一个表格视图
     #[schema(value_type = Option<Vec<Object>>)]
     pub views: Option<Value>,
 }
@@ -46,10 +47,9 @@ pub struct NewDb {
 #[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct DbInfo {
     pub page: Page,
-    /// 表结构 `{ props, next_id }`
-    #[schema(value_type = Object)]
+    #[schema(value_type = crate::dbdoc::DbSchema)]
     pub schema: Value,
-    #[schema(value_type = Vec<Object>)]
+    #[schema(value_type = Vec<crate::dbdoc::DbView>)]
     pub views: Value,
     pub seq: i64,
 }

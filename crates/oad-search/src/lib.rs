@@ -23,6 +23,8 @@ const TOKENIZER: &str = "oad";
 const TITLE_BOOST: f32 = 3.0;
 /// 片段大约多长（字）。
 const SNIPPET_CHARS: usize = 80;
+/// 一次搜索最多看多少条命中。
+const MAX_FETCH: usize = 8000;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -36,7 +38,18 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-static JIEBA: LazyLock<Jieba> = LazyLock::new(Jieba::new);
+/// 分词词典：jieba 自带的 dict.txt（MIT）去掉词频 ≤ 3 的生僻词（35 万 → 15 万词）和词性，zstd 压缩。
+/// 加载完占 17MB（完整词典 37MB）；去掉的多是长的复合词，搜索模式下照样切成短词，查得到。
+/// 重新生成：`awk '$2>3{print $1" "$2}' dict.txt | zstd -19 -o dict/dict.txt.zst`；换了词典要加 TOKENIZER_VERSION。
+static DICT: &[u8] = include_bytes!("../dict/dict.txt.zst");
+
+/// 分词规则的版本：和索引目录里记的不一样就清掉重建（同一个词前后切法不同，旧索引就对不上了）。
+const TOKENIZER_VERSION: &str = "2";
+
+static JIEBA: LazyLock<Jieba> = LazyLock::new(|| {
+    let raw = zstd::decode_all(DICT).expect("词典解压失败");
+    Jieba::with_dict(&mut &raw[..]).expect("词典格式不对")
+});
 
 /// 分词器：jieba 的搜索模式（长词再切出短词），去掉空白和标点。
 #[derive(Clone, Default)]
@@ -247,7 +260,15 @@ impl Index {
         let (schema, f) = schema();
         let index = match dir {
             Some(d) => {
+                // 分词规则变了：旧索引和标记一起清掉，启动时整体补一遍
+                let ver = d.join("tokenizer");
+                if d.join("meta.json").exists()
+                    && std::fs::read_to_string(&ver).ok().as_deref() != Some(TOKENIZER_VERSION)
+                {
+                    std::fs::remove_dir_all(d)?;
+                }
                 std::fs::create_dir_all(d)?;
+                std::fs::write(&ver, TOKENIZER_VERSION)?;
                 let md = tantivy::directory::MmapDirectory::open(d)?;
                 match tantivy::Index::open_or_create(md, schema.clone()) {
                     Ok(i) => i,
@@ -255,6 +276,7 @@ impl Index {
                     Err(_) => {
                         std::fs::remove_dir_all(d)?;
                         std::fs::create_dir_all(d)?;
+                        std::fs::write(&ver, TOKENIZER_VERSION)?;
                         tantivy::Index::create_in_dir(d, schema)?
                     }
                 }
@@ -262,7 +284,8 @@ impl Index {
             None => tantivy::Index::create_in_ram(schema),
         };
         index.tokenizers().register(TOKENIZER, analyzer());
-        let writer = index.writer(50_000_000)?;
+        // 一个写线程、20MB 缓冲：平时一次只改几段；灌 10 万段也不比 3 个线程（50MB）慢多少，峰值内存低得多
+        let writer = index.writer_with_num_threads(1, 20_000_000)?;
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
@@ -383,12 +406,31 @@ impl Index {
         }
         let query = BooleanQuery::new(must);
         let searcher = self.reader.searcher();
-        let top = searcher.search(
-            &query,
-            &TopDocs::with_limit((q.limit * 25).min(1000)).order_by_score(),
-        )?;
         let terms: Vec<String> = words.iter().map(|w| w.2.clone()).collect();
         let max_per_page = if q.per_page { 1 } else { 2 };
+        // 先取 limit 的 25 倍；同分的段落扎堆在几个页面里、凑不够 limit 个页面时，再多取一些
+        let mut fetch = (q.limit * 25).min(1000);
+        loop {
+            let top = searcher.search(&query, &TopDocs::with_limit(fetch).order_by_score())?;
+            let full = top.len() == fetch;
+            let out = self.collect(&searcher, top, q, &terms, prefix, max_per_page)?;
+            if out.len() >= q.limit || !full || fetch >= MAX_FETCH {
+                return Ok(out);
+            }
+            fetch = (fetch * 4).min(MAX_FETCH);
+        }
+    }
+
+    /// 把命中的文档按页面合并、切片段。
+    fn collect(
+        &self,
+        searcher: &tantivy::Searcher,
+        top: Vec<(f32, tantivy::DocAddress)>,
+        q: &SearchQuery,
+        terms: &[String],
+        prefix: bool,
+        max_per_page: usize,
+    ) -> Result<Vec<Hit>> {
         let mut per_page: HashMap<String, (usize, Option<usize>)> = HashMap::new();
         let mut out: Vec<Hit> = Vec::new();
         for (score, addr) in top {
@@ -408,10 +450,10 @@ impl Index {
             }
             let title = get(self.f.title).unwrap_or_default();
             let text = get(self.f.text).unwrap_or_default();
-            let snippet = if !title.is_empty() && highlight(&title, &terms, prefix).1 {
-                highlight(&title, &terms, prefix).0
+            let snippet = if !title.is_empty() && highlight(&title, terms, prefix).1 {
+                highlight(&title, terms, prefix).0
             } else {
-                highlight(&text, &terms, prefix).0
+                highlight(&text, terms, prefix).0
             };
             out.push(Hit {
                 page_id: page,

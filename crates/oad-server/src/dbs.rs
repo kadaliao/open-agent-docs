@@ -8,7 +8,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use oad_core::db::{DbInfo, NewDb, QueryReq, RowInput, RowsDelta};
-use oad_core::{CellChange, CellOp, DbRow};
+use oad_core::dbdoc::{DbSchema, DbView};
+use oad_core::{CellChange, CellOp};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io::Write;
@@ -261,8 +262,8 @@ pub(crate) struct SchemaOps {
 #[derive(ToSchema)]
 #[allow(dead_code)]
 pub(crate) struct SchemaChanged {
-    /// 新的表结构 `{ props, next_id }`
-    #[schema(value_type = Object)]
+    /// 新的表结构
+    #[schema(value_type = DbSchema)]
     schema: Value,
     /// 这次改动的 seq（历史里撤销用；什么也没变时是现在的 seq）
     seq: i64,
@@ -296,9 +297,9 @@ pub(crate) struct Undo {
 #[derive(ToSchema)]
 #[allow(dead_code)]
 pub(crate) struct SchemaUndone {
-    #[schema(value_type = Object)]
+    #[schema(value_type = DbSchema)]
     schema: Value,
-    #[schema(value_type = Vec<Object>)]
+    #[schema(value_type = Vec<DbView>)]
     views: Value,
     seq: i64,
 }
@@ -324,16 +325,16 @@ pub(crate) enum PutViews {
     Wrapped { views: Vec<ViewObj> },
 }
 
-/// 一个视图：`{ id, name, type, filter, sorts, hidden, order, widths, … }`。
+/// 一个视图（DbView 的样子；id 不给或重复时分配新的，type 不给是 table，name 不给是“视图”）。
 #[derive(ToSchema)]
 #[schema(value_type = Object)]
 #[allow(dead_code)]
 pub(crate) struct ViewObj(Value);
 
-/// 库的全部视图（`{ id, name, type, filter, sorts, hidden, order, widths, … }`）。
+/// 库的全部视图。
 #[derive(Serialize, ToSchema)]
 pub(crate) struct Views {
-    #[schema(value_type = Vec<Object>)]
+    #[schema(value_type = Vec<DbView>)]
     views: Value,
 }
 
@@ -356,7 +357,7 @@ pub(crate) async fn put_views(
 
 /// 加一个视图（不给 type 是表格），返回它（带上新的 id）。
 #[utoipa::path(post, path = "/databases/{id}/views", tag = "databases", params(("id" = String, Path)), request_body = Object,
-    responses((status = 201, body = Object, description = "加好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+    responses((status = 201, body = DbView, description = "加好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
 pub(crate) async fn add_view(
     State(s): State<AppState>,
     Auth(p): Auth,
@@ -369,7 +370,7 @@ pub(crate) async fn add_view(
 
 /// 改一个视图的几项：给了的字段覆盖，null 去掉。返回改好的视图。
 #[utoipa::path(patch, path = "/databases/{id}/views/{view}", tag = "databases", params(("id" = String, Path), ("view" = String, Path, description = "视图的 id")), request_body = Object,
-    responses((status = 200, body = Object, description = "改好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+    responses((status = 200, body = DbView, description = "改好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
 pub(crate) async fn patch_view(
     State(s): State<AppState>,
     Auth(p): Auth,
@@ -412,14 +413,30 @@ pub(crate) struct QueryResult {
     seq: i64,
 }
 
-/// 查出来的一行：存的样子，加上 `computed`（公式、汇总、关联之类算出来的值，键是属性的 key）。
+/// 查出来的一行：存的样子（`props`，键是属性的 key，空值不存），加上 `computed`（公式、汇总、反向关联算出来的值）。
+/// 和 `DbRow` 不同：不带 `db_id`、`position`（顺序看 `ids`），时间是毫秒数。
 #[derive(ToSchema)]
 #[allow(dead_code)]
 pub(crate) struct QueryRow {
-    #[serde(flatten)]
-    row: DbRow,
+    id: String,
+    seq: i64,
+    #[schema(value_type = Object)]
+    props: Value,
     #[schema(value_type = Object)]
     computed: Value,
+    /// 毫秒时间戳
+    #[schema(required = false)]
+    created_at: f64,
+    #[schema(required = false)]
+    created_by: String,
+    /// 毫秒时间戳
+    #[schema(required = false)]
+    updated_at: f64,
+    #[schema(required = false)]
+    updated_by: String,
+    /// 自动编号
+    #[schema(required = false)]
+    unique_id: i64,
 }
 
 /// 一个分组。空值的分组 `key` 是 ""，排在最后。

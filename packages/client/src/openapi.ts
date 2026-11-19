@@ -1483,12 +1483,14 @@ export interface components {
         };
         /** @description 登录方式和站点设置。 */
         AuthConfigBody: {
-            /** @description local / header / none / jwt */
-            mode: string;
+            /** @description 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT） */
+            mode: components["schemas"]["AuthMode"];
             signup: components["schemas"]["SignupMode"];
             /** @description 服务器的时区（IANA 名字） */
             timezone: string;
         };
+        /** @enum {string} */
+        AuthMode: "local" | "header" | "none" | "jwt";
         AuthorRef: {
             id: string;
             kind: components["schemas"]["PrincipalKind"];
@@ -1557,6 +1559,8 @@ export interface components {
         Content: {
             doc?: components["schemas"]["DocNode"] | null;
             markdown?: string | null;
+            /** @description 顶层块一共几个（给了 `limit` 才有） */
+            total?: number | null;
             version: string;
         };
         CreateAgent: {
@@ -1599,18 +1603,15 @@ export interface components {
         DbHistoryItem: {
             /** Format: int64 */
             at: number;
-            /** @description 谁改的：`{ kind, id, name }`，认不出的人是原样的引用字符串，没记是 null */
-            by?: Record<string, unknown> | null;
+            by?: components["schemas"]["AuthorRef"] | string | null;
             /** @description schema 有：顺带改了几格 */
             cells?: number | null;
             /** @description schema 有：这次动了哪些属性 */
             changes?: Record<string, unknown>[] | null;
             /** @description cell / row / schema */
             kind: string;
-            /** @description cell 有：改之后存的值（任意 JSON） */
-            new?: Record<string, unknown> | null;
-            /** @description cell 有：改之前存的值（任意 JSON） */
-            old?: Record<string, unknown> | null;
+            new?: unknown;
+            old?: unknown;
             /** @description cell 有：属性的 key */
             prop?: string | null;
             /** @description cell 有：属性的名字 */
@@ -1629,11 +1630,41 @@ export interface components {
         /** @description 库的信息（GET /databases/{id}）。 */
         DbInfo: {
             page: components["schemas"]["Page"];
-            /** @description 表结构 `{ props, next_id }` */
-            schema: Record<string, unknown>;
+            schema: components["schemas"]["DbSchema"];
             /** Format: int64 */
             seq: number;
-            views: Record<string, unknown>[];
+            views: components["schemas"]["DbView"][];
+        };
+        /** @description 一个属性（一列）。`key` 是短随机串，改名不动数据；各类型自己的配置只在那个类型上有。 */
+        DbProp: {
+            /** @description button 按下时通知的 Agent（id） */
+            agent?: string;
+            /** @description button 按下时发的评论 */
+            comment?: string;
+            /** @description 日期的显示：iso | zh | slash | relative */
+            date_format?: string;
+            /** @description 数字的格式：number | comma | percent | cny | usd（number、formula、rollup） */
+            format?: string;
+            /** @description formula 的公式 */
+            formula?: string;
+            key: string;
+            /** @description button 的文字 */
+            label?: string;
+            name: string;
+            /** @description select / multi_select / status 的选项 */
+            options?: components["schemas"]["SelectOption"][];
+            /**
+             * Format: int32
+             * @description 显示几位小数
+             */
+            precision?: number;
+            /** @description unique_id 的前缀（T-12） */
+            prefix?: string;
+            relation?: components["schemas"]["RelationConf"];
+            rollup?: components["schemas"]["RollupConf"];
+            /** @description button 按下时设的值：`{ 属性 key 或名字: 值 }` */
+            set?: Record<string, unknown>;
+            type: components["schemas"]["PropType"];
         };
         /** @description 库里的一行。`props` 是存的样子（键是属性的 key），标题也在里面（和行页面的标题同步）。 */
         DbRow: {
@@ -1656,15 +1687,56 @@ export interface components {
             updated_at: number;
             updated_by?: string | null;
         };
+        /** @description 表结构。 */
+        DbSchema: {
+            /**
+             * Format: int64
+             * @description 下一个自动编号
+             */
+            next_id?: number;
+            props: components["schemas"]["DbProp"][];
+        };
+        /** @description 排序：`dir: "asc" | "desc"`。 */
+        DbSort: {
+            dir?: string;
+            prop: string;
+        };
         /** @description 撤销的结果：格子改动只有 `seq`；表结构改动还有新的 `schema`、`views`。 */
         DbUndone: {
-            schema?: Record<string, unknown> | null;
+            schema?: components["schemas"]["DbSchema"] | null;
             /**
              * Format: int64
              * @description 撤销后库的 seq
              */
             seq: number;
-            views?: Record<string, unknown>[] | null;
+            views?: components["schemas"]["DbView"][] | null;
+        };
+        /** @description 一个视图。存的时候按表结构清理（去掉指向已删属性的排序、分组、隐藏、列宽）。 */
+        DbView: {
+            /** @description 日历按哪个日期属性 */
+            calendar_by?: string;
+            /** @description 筛选：`{ op: "and" | "or", items: [{ prop, op, value } 或嵌套的组] }` */
+            filter?: Record<string, unknown>;
+            /** @description 按哪个属性分组（看板的列） */
+            group_by?: string;
+            /** @description 按日期分组时怎么分：day | week | month | year | relative */
+            group_date?: string;
+            /** @description 隐藏的属性 key */
+            hidden?: string[];
+            /** @description 去掉没有行的分组 */
+            hide_empty_groups?: boolean;
+            id: string;
+            name: string;
+            /** @description 列的顺序（属性 key） */
+            order?: string[];
+            sorts?: components["schemas"]["DbSort"][];
+            sub_group_by?: string;
+            sub_group_date?: string;
+            /** @description 每列底部的汇总：`{ key: fn }` */
+            totals?: Record<string, unknown>;
+            type: components["schemas"]["ViewType"];
+            /** @description 列宽：`{ key: 像素 }` */
+            widths?: Record<string, unknown>;
         };
         Deleted: {
             /** @description 进了回收站的页面（连子页面） */
@@ -1673,12 +1745,14 @@ export interface components {
         /** @description 对比的另一头：版本号，或 `"current"`。 */
         DiffTo: number | string;
         DocMark: {
-            attrs: Record<string, unknown>;
+            /** @description 没有属性时不给 */
+            attrs?: Record<string, unknown>;
             type: string;
         };
         /** @description 正文的节点树（和编辑器的 ProseMirror JSON 一样）：`{ type, attrs?, content?, text?, marks? }`。 */
         DocNode: {
-            attrs: Record<string, unknown>;
+            /** @description 没有属性时不给 */
+            attrs?: Record<string, unknown>;
             content?: components["schemas"]["DocNode"][] | null;
             marks?: components["schemas"]["DocMark"][] | null;
             text?: string | null;
@@ -1744,17 +1818,18 @@ export interface components {
             type: string;
             workspace_id: string;
         };
+        InviteBy: {
+            name: string;
+        };
         /** @description 邀请链接打开时看到的（不用登录）。 */
         InviteInfo: {
             /** Format: int64 */
             expires_at?: number | null;
-            /** @description `{ name }` */
-            invited_by?: Record<string, unknown> | null;
+            invited_by?: components["schemas"]["InviteBy"] | null;
             role: components["schemas"]["Role"];
             /** @description 能不能凭它注册 */
             signup: boolean;
-            /** @description `{ id, name, icon }` */
-            workspace: Record<string, unknown>;
+            workspace: components["schemas"]["InviteWorkspace"];
         };
         InviteList: {
             /** @description 还能用的 */
@@ -1779,6 +1854,12 @@ export interface components {
              * @description 用过几次
              */
             uses: number;
+        };
+        /** @description 邀请到哪个工作区。 */
+        InviteWorkspace: {
+            icon?: string | null;
+            id: string;
+            name: string;
         };
         LoginBody: {
             email: string;
@@ -1839,10 +1920,13 @@ export interface components {
             /** @description 放在同级里这个页面后面 */
             after?: string | null;
             parent_id?: string | null;
-            /** @description 表结构 `{ props, next_id }`（不给只有标题） */
+            /**
+             * @description 表结构 `{ props: [{ name, type, … }] }`，和 DbSchema 一样，但属性可以不给 key（自动分配），
+             *     选项可以只写名字（`options: ["做", "完"]`）。不给只有标题
+             */
             schema?: Record<string, unknown> | null;
             title?: string | null;
-            /** @description 视图（不给是一个表格视图） */
+            /** @description 视图（和 DbView 一样，id 可以不给）；不给是一个表格视图 */
             views?: Record<string, unknown>[] | null;
         };
         NewInvite: {
@@ -1953,6 +2037,11 @@ export interface components {
         };
         /** @enum {string} */
         PrincipalKind: "user" | "agent";
+        /**
+         * @description 属性类型。
+         * @enum {string}
+         */
+        PropType: "title" | "text" | "number" | "select" | "multi_select" | "status" | "date" | "person" | "checkbox" | "url" | "email" | "phone" | "files" | "created_time" | "updated_time" | "created_by" | "updated_by" | "relation" | "rollup" | "formula" | "unique_id" | "button";
         PutContent: {
             /** @description 读的时候拿到的版本：在那个版本上改，这期间别人写的不会被覆盖 */
             base?: string | null;
@@ -2013,9 +2102,33 @@ export interface components {
             /** @description 每列底部的汇总（键是属性的 key）；没要不给 */
             totals?: Record<string, unknown>;
         };
-        /** @description 查出来的一行：存的样子，加上 `computed`（公式、汇总、关联之类算出来的值，键是属性的 key）。 */
-        QueryRow: components["schemas"]["DbRow"] & {
+        /**
+         * @description 查出来的一行：存的样子（`props`，键是属性的 key，空值不存），加上 `computed`（公式、汇总、反向关联算出来的值）。
+         *     和 `DbRow` 不同：不带 `db_id`、`position`（顺序看 `ids`），时间是毫秒数。
+         */
+        QueryRow: {
             computed: Record<string, unknown>;
+            /**
+             * Format: double
+             * @description 毫秒时间戳
+             */
+            created_at?: number;
+            created_by?: string;
+            id: string;
+            props: Record<string, unknown>;
+            /** Format: int64 */
+            seq: number;
+            /**
+             * Format: int64
+             * @description 自动编号
+             */
+            unique_id?: number;
+            /**
+             * Format: double
+             * @description 毫秒时间戳
+             */
+            updated_at?: number;
+            updated_by?: string;
         };
         ReadCount: {
             /**
@@ -2030,6 +2143,11 @@ export interface components {
             all?: boolean;
             /** @description 这些编号 */
             ids?: number[] | null;
+        };
+        /** @description 关联：指向哪个库；`mirror_of` 有值时是双向关联的反向那一半。 */
+        RelationConf: {
+            db_id: string;
+            mirror_of?: string;
         };
         Reply: {
             /** @description Markdown */
@@ -2051,6 +2169,12 @@ export interface components {
             /** @description viewer / editor / admin / owner */
             role: string;
         };
+        /** @description 汇总：沿关联属性 `relation` 取对方库的属性 `prop`，按 `fn` 归总。 */
+        RollupConf: {
+            fn: string;
+            prop: string;
+            relation: string;
+        };
         /** @description 增量（GET /databases/{id}/rows）。 */
         RowsDelta: {
             deleted: string[];
@@ -2066,8 +2190,8 @@ export interface components {
         SchemaChanged: {
             /** @description 动了哪些属性（`{ op, key, name, … }`） */
             changes: Record<string, unknown>[];
-            /** @description 新的表结构 `{ props, next_id }` */
-            schema: Record<string, unknown>;
+            /** @description 新的表结构 */
+            schema: components["schemas"]["DbSchema"];
             /**
              * Format: int64
              * @description 这次改动的 seq（历史里撤销用；什么也没变时是现在的 seq）
@@ -2082,10 +2206,10 @@ export interface components {
         };
         /** @description 撤销后的表结构和视图。 */
         SchemaUndone: {
-            schema: Record<string, unknown>;
+            schema: components["schemas"]["DbSchema"];
             /** Format: int64 */
             seq: number;
-            views: Record<string, unknown>[];
+            views: components["schemas"]["DbView"][];
         };
         /** @enum {string} */
         Scope: "read" | "write" | "admin";
@@ -2109,6 +2233,13 @@ export interface components {
         };
         SearchResults: {
             results: components["schemas"]["SearchResult"][];
+        };
+        /** @description 选项。status 的有 `group`：todo / doing / done。 */
+        SelectOption: {
+            color: string;
+            group?: string;
+            id: string;
+            name: string;
         };
         /** @description 改完后库的 seq。 */
         Seq: {
@@ -2158,8 +2289,7 @@ export interface components {
         TrashItem: {
             /** Format: int64 */
             deleted_at: number;
-            /** @description 谁删的：`{ kind, id, name }` */
-            deleted_by?: Record<string, unknown> | null;
+            deleted_by?: components["schemas"]["AuthorRef"] | null;
             icon?: string | null;
             id: string;
             kind: string;
@@ -2263,11 +2393,16 @@ export interface components {
             label?: string | null;
             page_id: string;
         };
-        /** @description 一个视图：`{ id, name, type, filter, sorts, hidden, order, widths, … }`。 */
+        /** @description 一个视图（DbView 的样子；id 不给或重复时分配新的，type 不给是 table，name 不给是“视图”）。 */
         ViewObj: Record<string, unknown>;
-        /** @description 库的全部视图（`{ id, name, type, filter, sorts, hidden, order, widths, … }`）。 */
+        /**
+         * @description 视图类型。
+         * @enum {string}
+         */
+        ViewType: "table" | "board" | "calendar" | "gallery" | "list";
+        /** @description 库的全部视图。 */
         Views: {
-            views: Record<string, unknown>[];
+            views: components["schemas"]["DbView"][];
         };
         Workspace: {
             /** Format: int64 */
@@ -3835,7 +3970,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": components["schemas"]["DbView"];
                 };
             };
             /** @description 参数不对 */
@@ -3957,7 +4092,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, unknown>;
+                    "application/json": components["schemas"]["DbView"];
                 };
             };
             /** @description 参数不对 */
@@ -5116,6 +5251,8 @@ export interface operations {
             query?: {
                 /** @description markdown（默认）/ json */
                 format?: string;
+                /** @description 只要前 N 个顶层块（先画第一屏），响应里带 `total` */
+                limit?: number;
             };
             header?: never;
             path: {

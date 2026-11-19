@@ -5,11 +5,14 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-jieba-rs = "0.11.0"
+# 不用自带的词典（解压后常驻 5MB，加载完占 37MB）：用 dict/ 里裁过的那份
+jieba-rs = { version = "0.11.0", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tantivy = "0.27.0"
 thiserror = "2.0.21"
+# tantivy 本来就带着；只用来解压词典
+zstd = { version = "0.14.4", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.27.0"

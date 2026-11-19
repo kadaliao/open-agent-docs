@@ -7,6 +7,7 @@ pub mod blob;
 pub mod comments;
 pub mod db;
 pub mod dbcsv;
+pub mod dbdoc;
 pub mod dbengine;
 pub mod dbschema;
 mod error;
@@ -17,6 +18,7 @@ pub mod i18n;
 pub mod ids;
 pub mod jwt;
 pub mod media;
+pub mod mem;
 pub mod members;
 pub mod model;
 pub mod notify;
@@ -470,6 +472,17 @@ impl Core {
     pub async fn content(&self, id: &str, who: &Principal) -> Result<(Node, Vec<u8>)> {
         self.page_for(id, who, false).await?;
         self.hub.content(id).await
+    }
+
+    /// 正文的前 `limit` 个顶层块（打开大页面时先画第一屏），连同顶层块总数和当前版本。
+    pub async fn content_head(
+        &self,
+        id: &str,
+        who: &Principal,
+        limit: Option<usize>,
+    ) -> Result<(Node, usize, Vec<u8>)> {
+        self.page_for(id, who, false).await?;
+        self.hub.content_head(id, limit).await
     }
 
     /// 整页替换：对得上的块沿用编号、只改变了的地方。给了 base（读的时候拿到的版本）就在那个版本上改，

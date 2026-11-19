@@ -29,16 +29,26 @@ impl SignupMode {
 /// 邀请链接打开时看到的（不用登录）。
 #[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct InviteInfo {
-    /// `{ id, name, icon }`
-    #[schema(value_type = Object)]
-    pub workspace: serde_json::Value,
+    pub workspace: InviteWorkspace,
     pub role: Role,
-    /// `{ name }`
-    #[schema(value_type = Option<Object>)]
-    pub invited_by: Option<serde_json::Value>,
+    /// 谁发的邀请；发邀请的人不在了是 null
+    pub invited_by: Option<InviteBy>,
     pub expires_at: Option<i64>,
     /// 能不能凭它注册
     pub signup: bool,
+}
+
+/// 邀请到哪个工作区。
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
+pub struct InviteWorkspace {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
+pub struct InviteBy {
+    pub name: String,
 }
 
 fn clean_name(s: &str) -> Result<String> {
@@ -164,11 +174,15 @@ impl Core {
                 .storage
                 .user(u)
                 .await?
-                .map(|u| serde_json::json!({ "name": u.name })),
+                .map(|u| InviteBy { name: u.name }),
             None => None,
         };
         Ok(InviteInfo {
-            workspace: serde_json::json!({ "id": w.id, "name": w.name, "icon": w.icon }),
+            workspace: InviteWorkspace {
+                id: w.id,
+                name: w.name,
+                icon: w.icon,
+            },
             role: i.role,
             invited_by: by,
             expires_at: i.expires_at,

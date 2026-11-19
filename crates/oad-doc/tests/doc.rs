@@ -415,3 +415,47 @@ fn writes_as_another_client() {
     assert_eq!(q.block_authors(&id).unwrap(), a);
     assert_eq!(q.to_node(), p.to_node());
 }
+
+#[test]
+fn compact_state_for_new_clients() {
+    let d = doc_with_ids(MD);
+    let p = PageDoc::from_node(1, &d);
+    // 没删过：和整份一样
+    assert_eq!(p.encode_state_compact().unwrap(), p.encode_state());
+    // 改几遍（换掉的字、删掉的块都是墓碑）
+    for i in 0..3 {
+        let mut n = p.to_node();
+        let mut fresh = parse(&format!("第 {i} 版改过的段落 😀\n\n另一段 {i}\n")).content;
+        n.content.truncate(4);
+        n.content.append(&mut fresh);
+        assign_ids(&mut n, &mut HashSet::new());
+        p.set_content(&n);
+    }
+    let full = p.encode_state();
+    let compact = p.encode_state_compact().unwrap();
+    assert!(
+        compact.len() < full.len(),
+        "{} {}",
+        compact.len(),
+        full.len()
+    );
+    // 新客户端拿回收过的那份：内容、state vector 一样
+    let c = PageDoc::from_update(7, &compact).unwrap();
+    assert_eq!(c.to_node(), p.to_node());
+    assert_eq!(c.state_vector(), p.state_vector());
+    // 之后两边的增量照常合得上
+    let sv = p.state_vector();
+    let mut n = p.to_node();
+    n.content
+        .insert(1, parse("服务器后来加的 😀\n").content.remove(0));
+    assign_ids(&mut n, &mut HashSet::new());
+    p.set_content(&n);
+    c.apply_update(&p.encode_diff(&sv).unwrap()).unwrap();
+    assert_eq!(c.to_node(), p.to_node());
+    let sv = c.state_vector();
+    let mut n = c.to_node();
+    n.content.remove(0);
+    c.set_content(&n);
+    p.apply_update(&c.encode_diff(&sv).unwrap()).unwrap();
+    assert_eq!(c.to_node(), p.to_node());
+}

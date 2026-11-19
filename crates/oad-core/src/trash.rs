@@ -18,8 +18,8 @@ pub struct TrashItem {
     pub icon: Option<String>,
     pub kind: String,
     pub deleted_at: i64,
-    /// 谁删的：`{ kind, id, name }`
-    #[schema(value_type = Option<Object>)]
+    /// 谁删的；没记是 null
+    #[schema(value_type = Option<crate::comments::AuthorRef>)]
     pub deleted_by: Option<serde_json::Value>,
     /// 原来在哪个页面下（行是所在的库）
     #[serde(skip_serializing_if = "Option::is_none")]

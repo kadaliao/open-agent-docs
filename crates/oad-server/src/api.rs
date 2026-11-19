@@ -168,8 +168,7 @@ async fn openapi_json() -> Response {
 /// 登录方式和站点设置。
 #[derive(Serialize, ToSchema)]
 pub(crate) struct AuthConfigBody {
-    /// local / header / none / jwt
-    #[schema(value_type = String)]
+    /// 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）
     mode: oad_core::AuthMode,
     /// 服务器的时区（IANA 名字）
     timezone: String,
@@ -439,10 +438,14 @@ pub(crate) struct Content {
     #[schema(value_type = Option<DocNode>)]
     doc: Option<Node>,
     version: String,
+    /// 顶层块一共几个（给了 `limit` 才有）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total: Option<usize>,
 }
 
 #[utoipa::path(get, path = "/pages/{id}/content", tag = "content",
-    params(("id" = String, Path), ("format" = Option<String>, Query, description = "markdown（默认）/ json")),
+    params(("id" = String, Path), ("format" = Option<String>, Query, description = "markdown（默认）/ json"),
+        ("limit" = Option<usize>, Query, description = "只要前 N 个顶层块（先画第一屏），响应里带 `total`")),
     responses((status = 200, body = Content), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
 pub(crate) async fn get_content(
     State(s): State<AppState>,
@@ -450,8 +453,16 @@ pub(crate) async fn get_content(
     Path(id): Path<String>,
     Query(q): Query<HashMap<String, String>>,
 ) -> ApiResult<Json<Content>> {
-    let (doc, version) = s.core.content(&id, &p).await?;
+    let limit = match q.get("limit") {
+        None => None,
+        Some(l) => Some(
+            l.parse::<usize>()
+                .map_err(|_| ApiError::bad_request(format!("limit 要是非负整数：{l}")))?,
+        ),
+    };
+    let (doc, total, version) = s.core.content_head(&id, &p, limit).await?;
     let version = b64(&version);
+    let total = limit.map(|_| total);
     match q.get("format").map(String::as_str) {
         None | Some("markdown") => {
             let md = blocking(move || oad_markdown::serialize(&doc)).await?;
@@ -459,12 +470,14 @@ pub(crate) async fn get_content(
                 markdown: Some(md),
                 doc: None,
                 version,
+                total,
             }))
         }
         Some("json") => Ok(Json(Content {
             markdown: None,
             doc: Some(doc),
             version,
+            total,
         })),
         Some(f) => Err(ApiError::bad_request(format!("不支持的 format={f}"))),
     }

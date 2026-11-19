@@ -372,6 +372,28 @@ impl PageDoc {
             .encode_state_as_update_v1(&StateVector::default())
     }
 
+    /// 整份状态，但删掉的内容回收过（只留占位和长度）：给新连上的客户端第一次同步用，改得越多比 `encode_state` 小得越多
+    /// （没删过东西时就是 `encode_state`）。和开着 gc 的 Yjs 客户端手里的一样，之后的增量照常合得进去；
+    /// 存库、版本历史照样用不回收的那份。
+    pub fn encode_state_compact(&self) -> Result<Vec<u8>> {
+        let full = self.encode_state();
+        if self.doc.transact().snapshot().delete_set.is_empty() {
+            return Ok(full);
+        }
+        let copy = Doc::with_options(Options {
+            offset_kind: OffsetKind::Utf16,
+            skip_gc: false,
+            ..Default::default()
+        });
+        let u = Update::decode_v1(&full).map_err(|e| Error::Decode(e.to_string()))?;
+        copy.transact_mut()
+            .apply_update(u)
+            .map_err(|e| Error::Decode(e.to_string()))?;
+        Ok(copy
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default()))
+    }
+
     /// 对方缺的那部分（sv 是对方的 state vector）。
     pub fn encode_diff(&self, sv: &[u8]) -> Result<Vec<u8>> {
         let sv = StateVector::decode_v1(sv).map_err(|e| Error::Decode(e.to_string()))?;

@@ -1,5 +1,5 @@
-//! 把网页构建产物（apps/web/dist）打进二进制：能压缩的文件预先做好 brotli 和 gzip 两份（不再放原文，
-//! 不支持压缩的客户端由服务器现解 gzip），图片、字体这类本来就压缩过的放原文。生成一张表给 src/web.rs 用。
+//! 把网页构建产物（apps/web/dist）打进二进制：能压缩的文件只放 brotli 一份（不放原文和 gzip，省 2.7MB；
+//! 不支持 br 的客户端由服务器现解、现压 gzip），图片、字体这类本来就压缩过的放原文。生成一张表给 src/web.rs 用。
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -63,8 +63,7 @@ fn main() {
                 .map(|b| format!("{b:02x}"))
                 .collect()
         };
-        let (mut raw, mut br, mut gz) =
-            ("None".to_string(), "None".to_string(), "None".to_string());
+        let (mut raw, mut br) = ("None".to_string(), "None".to_string());
         let mut done = false;
         if compressible(&mime) && data.len() > 256 {
             let mut b = Vec::new();
@@ -72,16 +71,11 @@ fn main() {
                 let mut w = brotli::CompressorWriter::new(&mut b, 1 << 16, 11, 22);
                 w.write_all(&data).unwrap();
             }
-            let mut g = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
-            g.write_all(&data).unwrap();
-            let g = g.finish().unwrap();
             // 压不下多少的就放原文
-            if g.len() * 10 < data.len() * 9 {
-                let (bp, gp) = (blobs.join(format!("{i}.br")), blobs.join(format!("{i}.gz")));
+            if b.len() * 10 < data.len() * 9 {
+                let bp = blobs.join(format!("{i}.br"));
                 std::fs::write(&bp, &b).unwrap();
-                std::fs::write(&gp, &g).unwrap();
                 br = format!("Some(include_bytes!({:?}))", bp.display().to_string());
-                gz = format!("Some(include_bytes!({:?}))", gp.display().to_string());
                 done = true;
             }
         }
@@ -92,7 +86,7 @@ fn main() {
         }
         writeln!(
             table,
-            "    Asset {{ path: {rel:?}, mime: {mime:?}, etag: {etag:?}, len: {}, raw: {raw}, br: {br}, gz: {gz} }},",
+            "    Asset {{ path: {rel:?}, mime: {mime:?}, etag: {etag:?}, len: {}, raw: {raw}, br: {br} }},",
             data.len()
         )
         .unwrap();

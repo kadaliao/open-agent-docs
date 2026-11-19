@@ -18,6 +18,10 @@ pub static SERVER: Table = &[
         "Too many failed attempts, try again later",
     ),
     ("不支持的 format={f}", "Unsupported format={f}"),
+    (
+        "limit 要是非负整数：{l}",
+        "limit must be a non-negative integer: {l}",
+    ),
     ("base 不是合法的版本", "base is not a valid version"),
     ("doc 的 type 要是 \"doc\"", "doc.type must be \"doc\""),
     (

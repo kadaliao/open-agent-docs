@@ -203,8 +203,8 @@ pub(crate) struct DbHistoryItem {
     seq: i64,
     /// cell / row / schema
     kind: String,
-    /// 谁改的：`{ kind, id, name }`，认不出的人是原样的引用字符串，没记是 null
-    #[schema(value_type = Option<Object>)]
+    /// 谁改的：`{ kind, id, name }`；认不出的人是原样的引用字符串（`user:<id>`）；没记是 null
+    #[schema(schema_with = crate::openapi::person_or_ref)]
     by: Option<Value>,
     at: i64,
     /// cell / row 有
@@ -217,11 +217,11 @@ pub(crate) struct DbHistoryItem {
     prop: Option<String>,
     /// cell 有：属性的名字
     prop_name: Option<String>,
-    /// cell 有：改之前存的值（任意 JSON）
-    #[schema(value_type = Option<Object>)]
+    /// cell 有：改之前存的值（任意 JSON：字符串、数字、数组、对象……；空是 null）
+    #[schema(schema_with = crate::openapi::any_json)]
     old: Option<Value>,
     /// cell 有：改之后存的值（任意 JSON）
-    #[schema(value_type = Option<Object>)]
+    #[schema(schema_with = crate::openapi::any_json)]
     new: Option<Value>,
     /// schema 有：这次动了哪些属性
     #[schema(value_type = Option<Vec<Object>>)]
@@ -272,9 +272,9 @@ pub(crate) struct UndoBody {
 pub(crate) struct DbUndone {
     /// 撤销后库的 seq
     seq: i64,
-    #[schema(value_type = Option<Object>)]
+    #[schema(value_type = Option<oad_core::dbdoc::DbSchema>)]
     schema: Option<Value>,
-    #[schema(value_type = Option<Vec<Object>>)]
+    #[schema(value_type = Option<Vec<oad_core::dbdoc::DbView>>)]
     views: Option<Value>,
 }
 
