@@ -1,0 +1,14 @@
+# 构建镜像时不需要的
+.git
+**/node_modules
+target
+**/dist
+dist-packs
+data
+legacy
+spikes
+**/*.db
+**/*.db-wal
+**/*.db-shm
+apps/web/test-results
+apps/web/playwright-report

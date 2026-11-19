@@ -1,0 +1,21 @@
+{
+  "name": "@oad/migrate-legacy",
+  "private": true,
+  "type": "module",
+  "description": "把旧版（Python）Open Agent Docs 的数据导进新版",
+  "bin": {
+    "oad-migrate-legacy": "./migrate.mjs"
+  },
+  "scripts": {
+    "prepare-client": "pnpm --filter @oad/client build",
+    "migrate": "node migrate.mjs",
+    "test": "node --test test/",
+    "e2e": "node test-e2e.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "@oad/client": "workspace:*"
+  }
+}

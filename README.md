@@ -4,111 +4,53 @@ English | [简体中文](README.zh-CN.md)
 
 Docs that people and AI agents write together.
 
-A self-hosted document server where agents (Claude Code, Codex, bot teams, your own scripts) write
-and edit pages over MCP, and people read, edit and comment in the browser. It's built for handoffs:
-one agent drafts a report, another picks it up, a person leaves a comment on one paragraph, and the
-right agent is notified and fixes just that paragraph.
+A self-hosted document server. Agents (Claude Code, Codex, bots, your own scripts) read and write pages over MCP; people edit,
+comment and build databases in the browser, live, alongside them.
 
-- **Block-level editing.** Pages are Markdown. Each paragraph, list item and table row is a block
-  with its own id and author. Agents change only the blocks they mean to (`edit_page`), with
-  version checks per block: if someone changed the same block meanwhile, nothing is written and the
-  agent gets the current text back. Untouched blocks are never rewritten, byte for byte.
-- **A real editor for people.** Block editor (Tiptap) with live updates while agents write, an
-  author bar per block, full version history with restore, subpages, trash, share links.
-- **Comments that reach agents.** Comment on a block and @mention an agent, or just comment on what
-  an agent wrote: that agent gets a notification (webhook, SSE stream or polling) with a ready-made
-  prompt. Agents answer in the thread.
-- **Databases.** Notion-style tables and boards: select/status/date/person/number/… properties,
-  formulas, relations, rollups, files, unique ids, buttons, filters and sorts, schema history with
-  undo. Every row is also a page.
-- **One small server.** Python + SQLite, one data directory, no other services.
-
-It started as the docs library of [Open Super Agent](https://github.com/kadaliao/open-super-agent)
-and was split out so any agent can use it.
+- **Block-level editing for agents.** Pages read as Markdown with a block id before each block. Agents change just the blocks they
+  mean to and pass back the version they read; the server merges, so nobody's typing is overwritten.
+- **Real-time editor for people.** Collaborative block editor with presence, version history and restore, subpages, trash,
+  public share links, search (Chinese and English), English and Chinese UI, works offline as a PWA.
+- **Comments that reach agents.** @mention an agent, or comment on something it wrote: it gets a notification (webhook, SSE or
+  polling) with a ready-made prompt, and replies in the thread.
+- **Databases.** Table, board, calendar, gallery and list views; select, status, date, person, files, formulas, relations,
+  rollups, unique ids, buttons. Every row is also a page.
+- **Embeddable.** Drop it into your app with an iframe, or use the `@oad/client` and `@oad/editor` packages with your own sign-in.
+- **One binary, one data directory.** Rust server with the web app built in; SQLite.
 
 ## Run it
 
-From source (Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+ for the web UI):
-
-```sh
-git clone https://github.com/kadaliao/open-agent-docs && cd open-agent-docs
-(cd web && npm ci && npm run build)
-uv run open-agent-docs serve            # http://127.0.0.1:8790
-```
-
-The first start prints a random login password (shown once). Set your own with
-`OAD_PASSWORD=...` before the first start, or later with `uv run open-agent-docs password`.
-
-Docker:
-
 ```sh
 docker build -t open-agent-docs .
-docker run -d --name docs -p 8790:8790 -v oad-data:/data \
-  -e OAD_PASSWORD='choose-one' -e OAD_PUBLIC_URL=https://docs.example.com open-agent-docs
+docker run -d -p 8848:8848 -v oad-data:/data \
+  -e OAD_ADMIN_EMAIL=me@example.com -e OAD_ADMIN_PASSWORD='choose one' open-agent-docs
 ```
 
-Put it behind HTTPS (Caddy, nginx) before exposing it to the internet, and set
-`OAD_SECURE_COOKIE=1` there.
+Open http://127.0.0.1:8848. For the binary and building from source, see [Quick start](docs/en/quickstart.md).
 
-| Setting | Meaning |
-| --- | --- |
-| `OAD_DATA_DIR` / `--data` | Where the SQLite database lives (default `~/.open-agent-docs`). Back up this one file: `docs.db`. |
-| `OAD_PUBLIC_URL` / `--public-url` | The address people open, used in links sent to agents and webhooks. |
-| `OAD_PASSWORD` | Login password for the first start. |
-| `OAD_LANG` | Default language, `zh` or `en` (changeable in Settings). |
-| `OAD_HOST`, `OAD_PORT` / `--host`, `--port` | Where to listen (default `127.0.0.1:8790`). |
-| `OAD_SECURE_COOKIE=1` | Send the login cookie over HTTPS only. |
-
-## Connect an agent
-
-In the web UI open **Settings → Agents → New agent**, give it a name (that's how it signs its
-edits and how people @mention it) and pick a scope: **read**, **write**, or **admin** (write, plus
-managing other agents — for hosts, see below). Copy the token; it's shown once.
-
-Claude Code:
+Connect Claude Code (create the agent and its token under **Agents** in the web app):
 
 ```sh
-claude mcp add --transport http docs https://docs.example.com/mcp \
-  --header "Authorization: Bearer oad_..."
+claude mcp add --transport http docs http://127.0.0.1:8848/mcp --header "Authorization: Bearer oad_..."
 ```
 
-Codex (`~/.codex/config.toml`):
+## Documentation
 
-```toml
-[mcp_servers.docs]
-url = "https://docs.example.com/mcp"
-bearer_token_env_var = "OAD_TOKEN"
-```
-
-Any MCP client that speaks Streamable HTTP works the same way. From the command line on the server:
-`uv run open-agent-docs agent add "Claude Code" --scope write`.
-
-### Tools
-
-| Tool | |
-| --- | --- |
-| `search_pages`, `list_pages`, `read_page` | Find and read pages. `read_page` shows the version, a block id before each block, and open comments. |
-| `create_page`, `edit_page`, `rewrite_page` | Create; change blocks (replace / insert / delete / append, all-or-nothing); replace the whole text while keeping unchanged blocks. |
-| `list_comments`, `comment_page` | Read comments; reply, comment on a block, resolve. |
-| `upload_image` | Upload an image (base64), get Markdown to put in a page. |
-| `db_create`, `db_schema`, `db_query`, `db_add`, `db_update` | Databases: create, change properties, filter/sort, add rows, update properties. |
-| `my_notifications` | Comments waiting for this agent, for agents without a host that delivers them. |
-
-Read-only tokens don't see the write tools.
-
-## Agent hosts
-
-Platforms that run many bots (like the [DSH Bots plugin](https://github.com/kadaliao/dsh-plugins/tree/main/plugins/bots))
-create one agent per bot with an admin token, and receive comment notifications for all of them over
-one SSE stream or per-agent webhooks. See [docs/integration.md](docs/integration.md).
+- [Quick start](docs/en/quickstart.md) · [Configuration](docs/en/configuration.md) · [Deployment](docs/en/deployment.md)
+- [Agents](docs/en/agents.md) (MCP, notifications, webhooks) · [Markdown for agents](docs/en/markdown.md)
+- [Embedding](docs/en/embedding.md) (JS packages, iframe, header auth, JWT)
+- [Migrating from the old Python version](docs/en/migration.md)
 
 ## Development
 
 ```sh
-uv run pytest -q                 # backend tests
-cd web && npm run dev            # UI on :5173, proxies /api and /mcp to :8790
-OAD_DATA_DIR=$(mktemp -d) uv run python -m open_agent_docs.i18n   # translation check
+pnpm install && sh packages/db-wasm/build.sh
+cargo run -p oad-bin -- serve        # server on :8848
+pnpm dev                             # web app with hot reload, proxies /api to :8848
+pnpm -r test && cargo test           # tests
 ```
+
+The previous Python version lives in [legacy/](legacy/) until the migration is complete.
 
 ## License
 

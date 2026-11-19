@@ -358,7 +358,8 @@ export class DbStore {
     this.client.addRows(this.id, [{ props, after }]).then(
       (r) => {
         const real = r.ids[0]
-        const got = r.rows?.[0] ?? { ...this.rows.get(id)!, id: real }
+        // 服务器没回整行：它存的就是发过去的那些属性
+        const got = r.rows?.[0] ?? { ...this.rows.get(id)!, id: real, props: { ...props } }
         // 等服务器的这段时间里本地又改了的格子保留
         const cur = this.rows.get(id)
         this.rows.delete(id)

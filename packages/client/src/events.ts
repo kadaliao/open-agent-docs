@@ -12,6 +12,8 @@ interface Opts {
   credentials: RequestCredentials
   headers: () => Record<string, string>
   fetch: typeof fetch
+  /** 第一次重连等多久（毫秒，之后翻倍，最多 30 秒） */
+  minRetry?: number
 }
 
 export function openEvents(url: string, o: Opts): EventsHandle {
@@ -20,7 +22,8 @@ export function openEvents(url: string, o: Opts): EventsHandle {
   let lastId: string | null = null
   let closed = false
   let ctrl: AbortController | null = null
-  let backoff = 1000
+  const first = o.minRetry ?? 1000
+  let backoff = first
   let timer: ReturnType<typeof setTimeout> | null = null
 
   const emit = (name: string, raw: string) => {
@@ -42,7 +45,7 @@ export function openEvents(url: string, o: Opts): EventsHandle {
       if (lastId) h['last-event-id'] = lastId
       const r = await o.fetch(url, { headers: h, credentials: o.credentials, signal: ctrl.signal })
       if (!r.ok || !r.body) throw new Error('HTTP ' + r.status)
-      backoff = 1000
+      backoff = first
       status.forEach((f) => f(true))
       const reader = r.body.getReader()
       const dec = new TextDecoder()

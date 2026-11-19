@@ -64,3 +64,29 @@
 - 版本号：`node scripts/versions.mjs` 检查（`node scripts/versions.mjs 0.2.0` 一起改）；互相依赖写 `workspace:*`，pack 时换成真的版本号。
 - iframe 嵌入（`?embed=1`）：没有侧栏、顶栏；参数 `theme`、`lang`；`postMessage`：发 `oad:ready`、`oad:navigate`、`oad:height`，收 `oad:navigate`、`oad:theme`、`oad:locale`。
   服务器那边不需要改（没有 X-Frame-Options）。
+
+## 服务器（实际的样子）
+
+- **OpenAPI**：`GET /api/v1/openapi.json`（不用登录），同一份写在 `docs/openapi.json`；`cargo test -p oad-server --test openapi` 检查文件没过期、
+  源代码里注册的每个接口都写进了 OpenAPI（`OAD_WRITE_OPENAPI=1` 重写文件）。`servers` 是 `/api/v1`，路径不带前缀。
+  实时事件和 Agent 的 webhook 写在 OpenAPI 3.1 自带的 **`webhooks`** 里（不是 `x-webhooks`）：`page.*`、`db.changed`、`db.schema`、`comment.*`、`thread.updated`、
+  `notification`、`workspace.updated`、`resync`、`agent.notification`（正文 `AgentNotification`，头 `X-OAD-Timestamp`、`X-OAD-Signature`、`X-OAD-Delivery`）。
+  redocly 检查只剩 4 个提示（WebSocket、公开的接口没有 4xx）；openapi-typescript 7 能生成类型。
+- **错误**：`ErrorBody { error: { code, message } }`，`code` 见 `ErrorCode`：not_found、bad_request、unauthorized、forbidden、conflict、gone、too_large、
+  too_many_requests、bad_gateway、internal。
+- **翻页**：`?limit=&cursor=`，响应带 `next_cursor`（null 是最后一页）。现在有：页面版本、库的历史（按 seq 整组切）、回收站、Agent 通知、收件箱（这两个的 `after` 照旧能用）。
+  别的列表（页面、成员、评论……）一次给全；库的行用 `?since=` 增量，查询用 `offset`。
+- **限流**：`/api/v1` 每个调用者（按会话 / token，没有就按 IP）每分钟最多 `OAD_RATE_LIMIT` 次（命令行默认 1200，0 不限；嵌进别的程序时 `ServerConfig::rate_limit` 默认 0）。
+  每个响应带 `RateLimit-Limit`、`RateLimit-Remaining`、`RateLimit-Reset`（秒），超了 429 `too_many_requests` + `Retry-After`。登录失败的限流照旧。
+- **JWT**（`OAD_AUTH=jwt`）：`OAD_JWT_SECRET`（HS256/384/512）或 `OAD_JWT_JWKS_URL`（RS* / ES256 / ES384 / EdDSA；按 kid 缓存 10 分钟，不认识的 kid 再取一次，最多 30 秒一次；
+  签名算法要和那把钥匙一致）；可选 `OAD_JWT_ISSUER`、`OAD_JWT_AUDIENCE`、`OAD_JWT_LEEWAY`（秒，默认 60）。必须有 `exp`、`sub`。
+  token 放 `Authorization: Bearer`、`?token=` 或 cookie `oad_token`。用户按 `sub` 认（第一次见到时建，名字跟着 claims 变），
+  `workspaces`：工作区 id 的数组或 `[{ id, role }]`（给了角色以 claims 为准；没给的新成员是 editor；不认识的工作区跳过）；不给就进默认工作区。
+  `GET /auth/config` 的 `mode` 是 `jwt`。Agent token 照旧能用。
+- **S3**（`OAD_BLOB_URL=s3://bucket/前缀?region=..&endpoint=..`，密钥 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / 可选 `AWS_SESSION_TOKEN`）：
+  给了 endpoint 用路径式地址（MinIO、R2…），没给用 AWS 的虚拟主机式；SigV4（对过 AWS 文档的例子）。上传的文件、缩略图、转存的图片都在里面。
+- **多租户**（`oad_server::tenant`）：`multi_tenant(resolver, factory)` 按 `ByHost { base, default }`（`<租户>.<base>`）或 `ByHeader { header, secret, default }`
+  认出租户，第一次用到时由工厂建出那个租户的整套服务（自己的 Core：数据目录 / 数据库 schema、文件、索引），之后复用。租户名只能是小写字母、数字、`-`。
+  默认单租户。
+- **双语补齐**：引擎给人看的值（勾选的“是”、相对日期“今天 / 明天…”、关联里的“无标题”）、CSV 导出、公开表格、Agent 看到的表格和行属性、
+  表结构说明按语言；报错里套着的类型名、汇总方式名换成英文写法，“、”换成 “, ”。

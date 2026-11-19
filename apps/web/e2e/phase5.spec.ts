@@ -386,7 +386,8 @@ test('邀请：没登录打开邀请链接，注册并加入', async ({ browser 
   await page.route(/\/api\/v1\/auth\/signup$/, async (r) => {
     signedUp = true
     const res = await r.fetch().catch(() => null)
-    if (res && res.status() !== 404 && res.status() !== 405) return r.fulfill({ response: res })
+    // 测试服务器是不登录模式，真的注册接口会拒绝（不支持注册）：这时用假的
+    if (res && res.ok()) return r.fulfill({ response: res })
     missing.add('POST /auth/signup')
     return r.fulfill({ json: await (await r.fetch({ url: r.request().url().replace('/auth/signup', '/me'), method: 'GET' })).json() })
   })
