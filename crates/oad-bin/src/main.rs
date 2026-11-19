@@ -144,6 +144,7 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
         fetch: oad_unfurl_config(),
         max_upload: max_upload_mb << 20,
         unfurl: true,
+        search_dir: Some(a.data_dir.join("search")),
     };
     let core = Core::open_full(storage, auth.clone(), HubConfig::default(), notify, media)
         .await

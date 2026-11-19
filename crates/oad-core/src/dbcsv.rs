@@ -255,7 +255,7 @@ impl Core {
         let (header, rows) = parse_csv(data)?;
         let names = column_names(&header);
         let tcol = title_column(&names);
-        let clock = Clock::new(Clock::system().now_ms, self.db_tz);
+        let clock = self.db_clock();
         let look = Bare(clock);
         let mut props: Vec<Prop> = Vec::with_capacity(names.len());
         let mut taken = HashSet::new();

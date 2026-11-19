@@ -304,13 +304,16 @@ impl Core {
         let (page, _) = self.db_for(db_id, who, true).await?;
         let seq = self
             .storage
-            .delete_db_rows(db_id, ids, &eng::person_ref(who))
+            .delete_db_rows(db_id, ids.clone(), &eng::person_ref(who))
             .await?;
         self.emit_db(
             &page.workspace_id,
             "db.changed",
             json!({ "db_id": db_id, "seq": seq }),
         );
+        self.storage
+            .set_deleted_by(ids, &eng::person_ref(who))
+            .await?;
         Ok(seq)
     }
 
@@ -526,8 +529,248 @@ impl Core {
                 names.insert(r.db_id.clone(), x.title);
             }
         }
-        let t = eng::schema_text(&s, &|id| names.get(id).cloned());
+        let lang = self.lang_of(&who.user_id).await;
+        let t = eng::schema_text(&s, lang, &|id| names.get(id).cloned());
         Ok((page, meta, t))
+    }
+
+    /// 库的历史（新的在前，最多 limit 条）：格子改动 `cell`、加 / 删行 `row`、表结构改动 `schema`（只看全部时有）。
+    /// 可以只看一行、一个属性（写名字也行）。
+    pub async fn db_history(
+        &self,
+        db_id: &str,
+        who: &Principal,
+        row: Option<&str>,
+        prop: Option<&str>,
+        limit: usize,
+        lang: crate::i18n::Lang,
+    ) -> Result<Value> {
+        let (_, meta) = self.db_for(db_id, who, false).await?;
+        let schema = eng::parse_schema(&meta.schema)?;
+        let prop = prop.map(|p| {
+            schema
+                .find(p)
+                .map(|x| x.key.clone())
+                .unwrap_or_else(|| p.to_string())
+        });
+        let limit = limit.clamp(1, 1000);
+        let ops = self
+            .storage
+            .db_ops(db_id, row, prop.as_deref(), limit)
+            .await?;
+        let schema_ops = if row.is_none() && prop.is_none() {
+            self.storage.db_schema_ops(db_id, limit).await?
+        } else {
+            vec![]
+        };
+        // 撤销过的：之后有一条 undo 指向它
+        let undone: std::collections::HashSet<i64> = schema_ops
+            .iter()
+            .filter_map(|o| serde_json::from_str::<Value>(&o.op).ok())
+            .filter_map(|v| v[0]["seq"].as_i64().filter(|_| v[0]["op"] == "undo"))
+            .collect();
+        let mut people: std::collections::HashMap<String, Option<Value>> = Default::default();
+        let mut titles: std::collections::HashMap<String, String> = Default::default();
+        let mut items: Vec<(i64, i64, Value)> = Vec::new();
+        for o in ops {
+            let by = match &o.by {
+                Some(b) if !b.is_empty() => {
+                    if !people.contains_key(b) {
+                        let p = self.person_json(b).await;
+                        people.insert(b.clone(), p);
+                    }
+                    people[b].clone().unwrap_or(Value::String(b.clone()))
+                }
+                _ => Value::Null,
+            };
+            if !titles.contains_key(&o.row_id) {
+                let t = self
+                    .storage
+                    .page(&o.row_id)
+                    .await?
+                    .map(|p| p.title)
+                    .unwrap_or_default();
+                titles.insert(o.row_id.clone(), t);
+            }
+            let kind = if o.prop == "*" { "row" } else { "cell" };
+            let mut v = json!({
+                "seq": o.seq,
+                "kind": kind,
+                "row_id": o.row_id,
+                "row_title": titles[&o.row_id],
+                "by": by,
+                "at": o.at,
+            });
+            if kind == "row" {
+                v["summary"] = json!(self.t(
+                    lang,
+                    if o.old.is_none() {
+                        "加了一行"
+                    } else {
+                        "删了一行"
+                    },
+                    &[]
+                ));
+            } else {
+                v["prop"] = json!(o.prop);
+                v["prop_name"] = json!(
+                    schema
+                        .prop(&o.prop)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| o.prop.clone())
+                );
+                v["old"] = o.old.unwrap_or(Value::Null);
+                v["new"] = o.new.unwrap_or(Value::Null);
+            }
+            items.push((o.seq, o.at, v));
+        }
+        for o in schema_ops {
+            let ops: Value = serde_json::from_str(&o.op).unwrap_or_default();
+            if ops[0]["op"] == "internal" {
+                continue;
+            }
+            let changes = o.before.get("changes").cloned().unwrap_or(json!([]));
+            let by = match &o.by {
+                Some(b) if !b.is_empty() => self
+                    .person_json(b)
+                    .await
+                    .unwrap_or(Value::String(b.clone())),
+                _ => Value::Null,
+            };
+            items.push((
+                o.seq,
+                o.at,
+                json!({
+                    "seq": o.seq,
+                    "kind": "schema",
+                    "summary": schema_summary(&ops, &changes, |zh, args| self.t(lang, zh, args)),
+                    "changes": changes,
+                    "cells": o.before.get("cells").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0),
+                    "by": by,
+                    "at": o.at,
+                    "undone": undone.contains(&o.seq),
+                }),
+            ));
+        }
+        items.sort_by_key(|x| std::cmp::Reverse((x.0, x.1)));
+        items.truncate(limit);
+        Ok(json!({ "items": items.into_iter().map(|x| x.2).collect::<Vec<_>>(), "seq": meta.seq }))
+    }
+
+    /// 撤销第 seq 次改动：表结构改动走表结构的撤销；格子改动把值换回去（加的行删掉、删的行放回），之后又被改过的格子不动。
+    pub async fn undo_db(&self, db_id: &str, who: &Principal, seq: i64) -> Result<Value> {
+        let (page, meta) = self.db_for(db_id, who, true).await?;
+        if self.storage.db_schema_op(db_id, seq).await?.is_some() {
+            return self.undo_schema(db_id, who, seq).await;
+        }
+        let title_key = eng::title_key(&meta.schema)?;
+        let (new_seq, titles, back) = self
+            .storage
+            .undo_db_ops(db_id, seq, &title_key, &eng::person_ref(who))
+            .await?;
+        for (row, t) in titles {
+            self.hub.set_title(&row, t).await?;
+        }
+        // 放回来的行：正文重新进搜索
+        for row in back {
+            self.search.touch_page(&row);
+        }
+        self.emit_db(
+            &page.workspace_id,
+            "db.changed",
+            json!({ "db_id": db_id, "seq": new_seq }),
+        );
+        Ok(json!({ "seq": new_seq }))
+    }
+
+    /// 公开分享里的表格（不查权限，调用方确认过在分享范围里）：按第一个视图（或给的视图）的筛选、排序、隐藏的列，
+    /// 返回 (列名, 这一段的行 (id, 每格的文字), 总行数)。
+    pub async fn db_public_table(
+        &self,
+        db_id: &str,
+        view_id: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<(Vec<String>, Vec<(String, Vec<String>)>, usize)> {
+        let page = self
+            .storage
+            .page(db_id)
+            .await?
+            .filter(|p| p.kind == "database" && p.deleted_at.is_none())
+            .ok_or_else(|| Error::NotFound(format!("数据库 {db_id} 不存在")))?;
+        let meta = self
+            .storage
+            .database(db_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(format!("数据库 {db_id} 不存在")))?;
+        let vid = view_id
+            .filter(|v| find_view(&meta.views, v).is_some())
+            .map(str::to_string)
+            .or_else(|| meta.views[0]["id"].as_str().map(str::to_string));
+        let q = QueryReq {
+            view_id: vid.clone(),
+            limit: Some(limit),
+            offset: Some(offset),
+            ..Default::default()
+        };
+        let view = build_view(&meta.views, &q)?;
+        let hidden: Vec<String> = vid
+            .as_deref()
+            .and_then(|v| find_view(&meta.views, v))
+            .and_then(|v| v["hidden"].as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let c = self.engine(&page, &meta).await?;
+        let r = c.eng.query(&view).map_err(|e| Error::BadRequest(e.msg))?;
+        let cols: Vec<_> = c
+            .eng
+            .schema()
+            .props
+            .iter()
+            .filter(|p| p.kind != PropType::Button && !hidden.contains(&p.key))
+            .cloned()
+            .collect();
+        let rows = r
+            .ids
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    cols.iter()
+                        .map(|p| c.eng.display(&p.key, &c.eng.value(id, &p.key)))
+                        .collect(),
+                )
+            })
+            .collect();
+        Ok((cols.iter().map(|p| p.name.clone()).collect(), rows, r.total))
+    }
+
+    /// 行的属性（名字, 文字），空的不列；不查权限。
+    pub async fn row_props_public(&self, row: &Page) -> Result<Vec<(String, String)>> {
+        let Some(db) = row.parent_id.clone().filter(|_| row.kind == "row") else {
+            return Ok(vec![]);
+        };
+        let Some(dbp) = self.storage.page(&db).await? else {
+            return Ok(vec![]);
+        };
+        let Some(meta) = self.storage.database(&db).await? else {
+            return Ok(vec![]);
+        };
+        let c = self.engine(&dbp, &meta).await?;
+        Ok(c.eng
+            .schema()
+            .props
+            .iter()
+            .filter(|p| !matches!(p.kind, PropType::Title | PropType::Button))
+            .filter_map(|p| {
+                let t = c.eng.display(&p.key, &c.eng.value(&row.id, &p.key));
+                (!t.is_empty()).then(|| (p.name.clone(), t))
+            })
+            .collect())
     }
 
     // ---- 视图 ----
@@ -677,4 +920,48 @@ fn build_view(views: &Value, q: &QueryReq) -> Result<View> {
     v.limit = Some(q.limit.unwrap_or(MAX_QUERY_ROWS).min(MAX_QUERY_ROWS));
     v.offset = q.offset;
     Ok(v)
+}
+
+/// 一次表结构改动的说明（给人看）。tr 按语言出一句话。
+fn schema_summary(
+    ops: &Value,
+    changes: &Value,
+    tr: impl Fn(&str, &[(&str, &str)]) -> String,
+) -> String {
+    if ops[0]["op"] == "undo" {
+        return tr(
+            "撤销了第 {seq} 次改动",
+            &[("seq", &ops[0]["seq"].to_string())],
+        );
+    }
+    let parts: Vec<String> = changes
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|c| {
+                    let name = c["name"].as_str().unwrap_or("");
+                    let from = c["from"].as_str().unwrap_or("");
+                    let zh = match c["op"].as_str().unwrap_or("") {
+                        "add" => "加了「{name}」",
+                        "delete" => "删了「{name}」",
+                        "rename" => "「{from}」改名为「{name}」",
+                        "change_type" => "「{name}」改了类型",
+                        "set_options" => "改了「{name}」的选项",
+                        "set_formula" => "改了「{name}」的公式",
+                        "move" => "挪了「{name}」",
+                        _ => "改了「{name}」",
+                    };
+                    tr(zh, &[("name", name), ("from", from)])
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if parts.is_empty() {
+        match ops[0]["op"].as_str() {
+            Some("add_options") => tr("加了选项", &[]),
+            _ => tr("改了表结构", &[]),
+        }
+    } else {
+        parts.join(&tr("，", &[]))
+    }
 }

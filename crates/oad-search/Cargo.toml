@@ -1,0 +1,15 @@
+[package]
+name = "oad-search"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+jieba-rs = "0.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tantivy = "0.27.0"
+thiserror = "2.0.21"
+
+[dev-dependencies]
+tempfile = "3.27.0"

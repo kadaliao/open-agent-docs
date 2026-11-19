@@ -5,8 +5,13 @@ mod dbs;
 mod error;
 mod files;
 mod guard;
+mod history;
+pub mod i18n;
 mod limit;
+mod members;
+mod share;
 mod sync;
+mod trash;
 mod web;
 
 pub use error::ApiError;
@@ -72,7 +77,14 @@ impl AppState {
 /// `into_make_service_with_connect_info::<SocketAddr>()` 起服务（没有就只按邮箱算）。
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .nest("/api/v1", api::routes())
+        .nest(
+            "/api/v1",
+            api::routes().layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                i18n::errors,
+            )),
+        )
+        .nest("/s", share::public_routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(
@@ -85,7 +97,14 @@ pub fn router(state: AppState) -> Router {
 /// 只有接口，不带网页（宿主自己出网页时用）。
 pub fn api_router(state: AppState) -> Router {
     Router::new()
-        .nest("/api/v1", api::routes())
+        .nest(
+            "/api/v1",
+            api::routes().layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                i18n::errors,
+            )),
+        )
+        .nest("/s", share::public_routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

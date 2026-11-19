@@ -4,7 +4,7 @@ use crate::db::short_id;
 use crate::model::*;
 use crate::{Core, Error, Result};
 use oad_db::schema::{Person, Prop, PropType, RowData, Schema};
-use oad_db::{Change, Clock, Engine};
+use oad_db::{Change, Engine};
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -426,8 +426,7 @@ impl Core {
         };
         let mut c = slot.lock_owned().await;
         c.new_options = false;
-        let now = Clock::system();
-        c.eng.set_clock(Clock::new(now.now_ms, self.db_tz));
+        c.eng.set_clock(self.db_clock());
         if c.people != people {
             c.eng.set_people(people.clone());
             c.people = people;
@@ -488,28 +487,45 @@ impl Core {
 }
 
 /// 表结构给 Agent 看：每个属性一行（名字、类型、选项 / 公式 / 关联…）。`db_title` 把关联的库 id 换成库名。
-pub fn schema_text(s: &Schema, db_title: &dyn Fn(&str) -> Option<String>) -> String {
+pub fn schema_text(
+    s: &Schema,
+    lang: crate::i18n::Lang,
+    db_title: &dyn Fn(&str) -> Option<String>,
+) -> String {
+    use crate::i18n::Lang;
+    let tr =
+        |zh: &str, args: &[(&str, &str)]| crate::i18n::t_in(&[crate::i18n::CORE], lang, zh, args);
+    let en = lang == Lang::En;
+    // 中文用全角括号、冒号；英文用半角，类型写英文的 key（number、multi_select…）
+    let (open, close, colon) = if en {
+        (" (", ")", ": ")
+    } else {
+        ("（", "）", "：")
+    };
     let mut out = String::new();
     for p in &s.props {
-        let kind = if p.kind == PropType::Title {
-            "标题"
-        } else {
-            p.kind.zh()
+        let kind = match (p.kind, en) {
+            (PropType::Title, false) => "标题",
+            (k, false) => k.zh(),
+            (k, true) => k.key(),
         };
-        let mut line = format!("- {}（{kind}", p.name);
+        let mut line = format!("- {}{open}{kind}", p.name);
         if p.kind.has_options() && !p.options.is_empty() {
             let names: Vec<&str> = p.options.iter().map(|o| o.name.as_str()).collect();
-            line.push_str(&format!("：{}", names.join(" / ")));
+            line.push_str(&format!("{colon}{}", names.join(" / ")));
         }
         if let Some(f) = &p.formula {
-            line.push_str(&format!("：{f}"));
+            line.push_str(&format!("{colon}{f}"));
         }
         if let Some(r) = &p.relation {
             let name = db_title(&r.db_id).unwrap_or_else(|| r.db_id.clone());
             if p.is_mirror() {
-                line.push_str(&format!("：《{name}》那边关联的反向，自动算"));
+                line.push_str(&tr(
+                    "：《{name}》那边关联的反向，自动算",
+                    &[("name", &name)],
+                ));
             } else {
-                line.push_str(&format!("：指向《{name}》的行"));
+                line.push_str(&tr("：指向《{name}》的行", &[("name", &name)]));
             }
         }
         if let Some(r) = &p.rollup {
@@ -517,20 +533,21 @@ pub fn schema_text(s: &Schema, db_title: &dyn Fn(&str) -> Option<String>) -> Str
                 .prop(&r.relation)
                 .map(|x| x.name.clone())
                 .unwrap_or_else(|| r.relation.clone());
-            line.push_str(&format!(
-                "：沿「{rel}」取「{}」，{}",
-                r.prop,
-                oad_db::Agg::parse(&r.func)
-                    .map(|a| a.zh())
-                    .unwrap_or(&r.func)
+            let agg = oad_db::Agg::parse(&r.func)
+                .map(|a| if en { a.key() } else { a.zh() })
+                .unwrap_or(&r.func)
+                .to_string();
+            line.push_str(&tr(
+                "：沿「{rel}」取「{prop}」，{agg}",
+                &[("rel", &rel), ("prop", &r.prop), ("agg", &agg)],
             ));
         }
         if let Some(f) = &p.format {
-            line.push_str(&format!("，格式 {f}"));
+            line.push_str(&tr("，格式 {format}", &[("format", f)]));
         }
-        line.push('）');
+        line.push_str(close);
         if !p.is_writable() && p.kind != PropType::Title {
-            line.push_str(" · 只读");
+            line.push_str(&tr(" · 只读", &[]));
         }
         out.push_str(&line);
         out.push('\n');

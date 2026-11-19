@@ -14,7 +14,7 @@
 //! - 读整页时没变的顶层块用缓存（同样按序号判断），大页面读起来不占着 actor 太久。
 //! - 存盘失败会退避重试，数据一直留在存盘任务的队列里，直到写进去。
 use crate::events::{EventKind, Events};
-use crate::model::{Principal, PrincipalKind};
+use crate::model::{NewVersion, Principal, PrincipalKind, VersionAuthor};
 use crate::storage::Storage;
 use crate::{Error, Result};
 use bytes::Bytes;
@@ -50,6 +50,12 @@ pub struct HubConfig {
     pub conn_inbound: usize,
     /// 每个连接每分钟最多回几次 step1（每次都要算一份差量），超过就断开。
     pub step1_per_minute: usize,
+    /// 编辑停下这么久自动存一版。
+    pub version_idle: Duration,
+    /// 一直在改：这么久存一版。
+    pub version_max_age: Duration,
+    /// 一直在改：攒了这么多字节的增量存一版。
+    pub version_max_bytes: usize,
 }
 
 impl Default for HubConfig {
@@ -62,6 +68,9 @@ impl Default for HubConfig {
             conn_buffer: 512,
             conn_inbound: 64,
             step1_per_minute: 20,
+            version_idle: Duration::from_secs(120),
+            version_max_age: Duration::from_secs(600),
+            version_max_bytes: 64 * 1024,
         }
     }
 }
@@ -122,6 +131,8 @@ struct Inner {
     next: AtomicU64,
     /// 有人写了 embed 块时把网址交给这里（链接解析的后台预取）。
     prefetch: std::sync::OnceLock<mpsc::UnboundedSender<String>>,
+    /// 存了增量的页面交给搜索索引（它自己防抖）。
+    indexer: std::sync::OnceLock<mpsc::UnboundedSender<String>>,
 }
 
 #[derive(Clone)]
@@ -173,6 +184,7 @@ impl DocHub {
                 docs: Mutex::new(Some(HashMap::new())),
                 next: AtomicU64::new(1),
                 prefetch: std::sync::OnceLock::new(),
+                indexer: std::sync::OnceLock::new(),
             }),
         }
     }
@@ -180,6 +192,11 @@ impl DocHub {
     /// 设预取的去处（只能设一次）。
     pub fn set_prefetch(&self, tx: mpsc::UnboundedSender<String>) {
         let _ = self.inner.prefetch.set(tx);
+    }
+
+    /// 页面存了增量后把页面 id 发到这里（搜索索引用）。
+    pub fn set_indexer(&self, tx: mpsc::UnboundedSender<String>) {
+        let _ = self.inner.indexer.set(tx);
     }
 
     pub fn config(&self) -> &HubConfig {
@@ -363,6 +380,13 @@ impl DocHub {
         f: impl FnOnce(&PageDoc) -> Result<R> + Send + 'static,
     ) -> Result<R> {
         self.call(page_id, move |a| {
+            let agent = writer
+                .as_ref()
+                .filter(|w| w.principal.kind == PrincipalKind::Agent);
+            // Agent 的每次写入单独成一版：之前别人的改动先存一版
+            if agent.is_some() {
+                a.cut_version("auto", None, None);
+            }
             let r = match &writer {
                 Some(w) => {
                     a.presence(w);
@@ -371,6 +395,12 @@ impl DocHub {
                 None if base.is_some() => Err(Error::BadRequest("base 要和写入者一起给".into())),
                 None => f(&a.doc),
             };
+            a.drain();
+            if let Some(w) = agent
+                && r.is_ok()
+            {
+                a.cut_version("agent", None, Some(&w.principal));
+            }
             a.after();
             r
         })
@@ -391,6 +421,67 @@ impl DocHub {
         Ok(())
     }
 
+    /// 这次加载里新记的作者（client id → 谁），还没存进库的也在里面。页面没打开就是空的。
+    pub async fn recent_owners(&self, page_id: &str) -> HashMap<u64, (PrincipalKind, String)> {
+        let loaded = self
+            .docs()
+            .as_ref()
+            .is_some_and(|d| d.contains_key(page_id));
+        if !loaded {
+            return HashMap::new();
+        }
+        self.call(page_id, |a| a.owners.clone())
+            .await
+            .unwrap_or_default()
+    }
+
+    /// 存一版（手动：kind = manual，带名字），返回版本号。
+    pub async fn save_version(
+        &self,
+        page_id: &str,
+        kind: &str,
+        label: Option<String>,
+        who: Principal,
+    ) -> Result<i64> {
+        let kind = kind.to_string();
+        let rx = self
+            .call(page_id, move |a| {
+                a.ver_touch_if_empty(&who);
+                a.cut_version(&kind, label, Some(&who))
+            })
+            .await?;
+        match rx {
+            Some(rx) => rx.await.map_err(|_| Error::Internal("存版本失败".into())),
+            None => Err(Error::Internal("存版本失败".into())),
+        }
+    }
+
+    /// 恢复到旧内容：先把没存的改动存一版，以 who 的名义整页换成 doc（没变的块沿用编号），再存一版 restore。返回新版本号。
+    pub async fn restore(
+        &self,
+        page_id: &str,
+        who: Principal,
+        doc: oad_doc::Node,
+        label: String,
+    ) -> Result<i64> {
+        let rx = self
+            .call(page_id, move |a| -> Result<_> {
+                a.cut_version("auto", None, None);
+                a.edit_direct(&who, |d| {
+                    d.set_content(&doc);
+                    Ok(())
+                })?;
+                a.drain();
+                a.ver_touch_if_empty(&who);
+                Ok(a.cut_version("restore", Some(label), Some(&who)))
+            })
+            .await??;
+        match rx {
+            Some(rx) => rx.await.map_err(|_| Error::Internal("存版本失败".into())),
+            None => Err(Error::Internal("存版本失败".into())),
+        }
+    }
+
     /// 把攒着的增量存掉（测试、关机前用）。
     pub async fn flush(&self, page_id: &str) -> Result<()> {
         let done = self
@@ -403,7 +494,32 @@ impl DocHub {
         Ok(())
     }
 
-    /// 关闭：所有页面存好、压缩后退出，之后不再接新的。
+    /// 页面打开着的话，等它排着的都存好（读历史版本前用，刚存的版本也读得到）；没打开就什么也不做。
+    pub async fn settle_if_loaded(&self, page_id: &str) {
+        let loaded = self
+            .docs()
+            .as_ref()
+            .is_some_and(|d| d.contains_key(page_id));
+        if loaded {
+            let _ = self.flush(page_id).await;
+        }
+    }
+
+    /// 关掉一个打开着的页面（存好再退出）；没打开就什么也不做。彻底删页面前用。
+    pub async fn unload(&self, page_id: &str) {
+        let tx = self
+            .docs()
+            .as_mut()
+            .and_then(|d| d.remove(page_id))
+            .map(|e| e.tx);
+        if let Some(tx) = tx {
+            let (done, rx) = oneshot::channel();
+            if tx.send(Cmd::Close(done)).is_ok() {
+                let _ = rx.await;
+            }
+        }
+    }
+
     pub async fn shutdown(&self) {
         // 在表锁里取走全部并标记关闭：之后 dispatch 不会再起新的 actor
         let txs: Vec<_> = self
@@ -430,6 +546,7 @@ enum Persist {
     Title(String),
     Compact(Vec<u8>),
     Barrier(oneshot::Sender<()>),
+    Version(NewVersion, Option<oneshot::Sender<i64>>),
 }
 
 /// 写到成功为止：存储出错（库忙、磁盘满之类）退避重试；别的错（比如页面没了）重试也没用，放弃。
@@ -499,6 +616,25 @@ async fn persister(
             Persist::Barrier(done) => {
                 let _ = done.send(());
             }
+            Persist::Version(v, done) => {
+                let r = retry(id, "存版本", || {
+                    st.add_version(
+                        id,
+                        NewVersion {
+                            kind: v.kind.clone(),
+                            label: v.label.clone(),
+                            authors: v.authors.clone(),
+                            created_by: v.created_by.clone(),
+                            snapshot: v.snapshot.clone(),
+                            state_vector: v.state_vector.clone(),
+                        },
+                    )
+                })
+                .await;
+                if let (Some(vid), Some(done)) = (r, done) {
+                    let _ = done.send(vid);
+                }
+            }
         }
     }
 }
@@ -538,6 +674,8 @@ pub struct Actor {
     presence: HashMap<String, Presence>,
     /// 已经记过作者的 client id。
     known: HashSet<u64>,
+    /// 这次加载里新记的作者（存盘任务可能还没写进库）。
+    owners: HashMap<u64, (PrincipalKind, String)>,
     /// 每个 HTTP 写入者在这次加载里用的 client id。
     writers: HashMap<String, u64>,
     /// 每条命令改了文档就加一。
@@ -547,6 +685,7 @@ pub struct Actor {
     /// 提交时记下的、改到的顶层块和 embed 网址。
     touched: Arc<Mutex<Vec<oad_doc::BlockEvent>>>,
     prefetch: Option<mpsc::UnboundedSender<String>>,
+    indexer: Option<mpsc::UnboundedSender<String>>,
     /// 这次加载里交给预取过的网址。
     prefetched: HashSet<String>,
     /// 发出去的版本：(版本的哈希, 当时的序号)，最近的一些。
@@ -554,6 +693,18 @@ pub struct Actor {
     render: RenderCache,
     last_active: Instant,
     cfg: HubConfig,
+    /// 上一版之后的改动（自动存版本用）。
+    ver: VerState,
+}
+
+/// 上一版之后：改过没有、谁改的、攒了多少、什么时候。
+#[derive(Default)]
+struct VerState {
+    dirty: bool,
+    authors: Vec<VersionAuthor>,
+    bytes: usize,
+    first: Option<Instant>,
+    last: Option<Instant>,
 }
 
 const ISSUED: usize = 256;
@@ -645,15 +796,18 @@ impl Actor {
             presence: HashMap::new(),
             last_active: Instant::now(),
             known,
+            owners: HashMap::new(),
             writers: HashMap::new(),
             seq: 0,
             changed: HashMap::new(),
             touched,
             prefetch: inner.prefetch.get().cloned(),
+            indexer: inner.indexer.get().cloned(),
             prefetched: HashSet::new(),
             issued: VecDeque::new(),
             render: RenderCache::default(),
             cfg: inner.cfg.clone(),
+            ver: VerState::default(),
         })
     }
 
@@ -705,6 +859,9 @@ impl Actor {
             .filter(|c| self.known.insert(*c))
             .map(|c| (c, who.kind, who.user_id.clone()))
             .collect();
+        for (c, k, id) in &new {
+            self.owners.insert(*c, (*k, id.clone()));
+        }
         if !new.is_empty() {
             let _ = self.persist.send(Persist::Clients(new));
         }
@@ -780,6 +937,7 @@ impl Actor {
             .or_insert_with(oad_doc::server_client_id);
         let r = self.doc.as_client(cid, f)?;
         self.record([cid], who);
+        self.ver_touch(who);
         Ok(r)
     }
 
@@ -800,6 +958,7 @@ impl Actor {
         let diff = fork.encode_diff(&sv)?;
         self.doc.apply_update(&diff)?;
         self.record([cid], who);
+        self.ver_touch(who);
         Ok(r)
     }
 
@@ -865,6 +1024,15 @@ impl Actor {
                         .filter(|(c, k)| before.get(c) < **k)
                         .map(|(c, _)| c.get())
                         .collect();
+                    if !grown.is_empty()
+                        || !self
+                            .updates
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .is_empty()
+                    {
+                        self.ver_touch(&who);
+                    }
                     self.record(grown, &who);
                 }
                 Ok(Message::Awareness(u)) => {
@@ -899,8 +1067,23 @@ impl Actor {
         self.after();
     }
 
-    /// 每条命令之后：把新增量广播出去，排进待存。
+    /// 每条命令之后：把新增量广播出去，排进待存；改得够多了存一版。
     fn after(&mut self) {
+        self.drain();
+        let now = Instant::now();
+        if self.ver.dirty
+            && (self.ver.bytes >= self.cfg.version_max_bytes
+                || self
+                    .ver
+                    .first
+                    .is_some_and(|f| f + self.cfg.version_max_age <= now))
+        {
+            self.cut_version("auto", None, None);
+        }
+    }
+
+    /// 把新增量广播出去，排进待存。
+    fn drain(&mut self) {
         let ups = std::mem::take(&mut *self.updates.lock().unwrap_or_else(PoisonError::into_inner));
         let touched =
             std::mem::take(&mut *self.touched.lock().unwrap_or_else(PoisonError::into_inner));
@@ -926,11 +1109,16 @@ impl Actor {
                 }
             }
         }
+        let now = Instant::now();
         for (origin, u) in ups {
             let msg = encode(&Message::Sync(SyncMessage::Update(u.clone())));
             self.broadcast(&msg, origin);
+            self.ver.bytes += u.len();
             self.pending.push(u);
         }
+        self.ver.dirty = true;
+        self.ver.last = Some(now);
+        self.ver.first.get_or_insert(now);
         if self.flush_at.is_none() {
             self.flush_at = Some(Instant::now() + self.cfg.flush_window);
         }
@@ -963,6 +1151,9 @@ impl Actor {
                 let _ = self.persist.send(Persist::Append(merged));
                 self.log_len += 1;
             }
+            if let Some(tx) = &self.indexer {
+                let _ = tx.send(self.page_id.clone());
+            }
         }
         let t = self.doc.title();
         if t != self.title {
@@ -977,6 +1168,49 @@ impl Actor {
     fn compact(&mut self) {
         let _ = self.persist.send(Persist::Compact(self.doc.encode_state()));
         self.log_len = 0;
+    }
+
+    fn ver_touch_if_empty(&mut self, who: &Principal) {
+        if self.ver.authors.is_empty() {
+            self.ver_touch(who);
+        }
+    }
+
+    /// 记下这一版里改过的人。
+    fn ver_touch(&mut self, who: &Principal) {
+        if !self.ver.authors.iter().any(|a| a.id == who.user_id) {
+            self.ver.authors.push(VersionAuthor {
+                kind: who.kind,
+                id: who.user_id.clone(),
+                name: who.name.clone(),
+            });
+        }
+    }
+
+    /// 存一版（上一版之后没改过就不存，除非是手动 / 恢复）。先把增量交给存盘任务，快照才对得上。
+    fn cut_version(
+        &mut self,
+        kind: &str,
+        label: Option<String>,
+        by: Option<&Principal>,
+    ) -> Option<oneshot::Receiver<i64>> {
+        if !self.ver.dirty && matches!(kind, "auto" | "agent") {
+            return None;
+        }
+        self.drain();
+        self.flush();
+        let v = std::mem::take(&mut self.ver);
+        let (tx, rx) = oneshot::channel();
+        let nv = NewVersion {
+            kind: kind.to_string(),
+            label,
+            authors: v.authors,
+            created_by: by.map(|p| p.user_id.clone()),
+            snapshot: self.doc.version(),
+            state_vector: self.doc.state_vector(),
+        };
+        let _ = self.persist.send(Persist::Version(nv, Some(tx)));
+        Some(rx)
     }
 
     /// 前面排着的都存好后完成。
@@ -1044,10 +1278,16 @@ impl Actor {
             .conns
             .is_empty()
             .then(|| self.last_active + self.cfg.idle_unload);
+        let ver = self
+            .ver
+            .dirty
+            .then(|| self.ver.last.map(|l| l + self.cfg.version_idle))
+            .flatten();
         [
             self.flush_at,
             self.presence.values().map(|p| p.clear_at).min(),
             idle,
+            ver,
         ]
         .into_iter()
         .flatten()
@@ -1120,7 +1360,10 @@ impl Actor {
 
     /// 存好、压缩（有新增量时），等存盘任务写完。
     async fn settle(&mut self) {
-        self.guarded(|a| a.flush());
+        self.guarded(|a| {
+            a.cut_version("auto", None, None);
+            a.flush();
+        });
         if self.log_len > 0 {
             self.compact();
         }
@@ -1173,6 +1416,9 @@ async fn run_actor(
                 actor.guarded(|a| {
                     if a.flush_at.is_some_and(|t| t <= now) {
                         a.flush();
+                    }
+                    if a.ver.dirty && a.ver.last.is_some_and(|l| l + a.cfg.version_idle <= now) {
+                        a.cut_version("auto", None, None);
                     }
                     a.clear_presence(now);
                 });

@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum Role {
     Viewer,
     Editor,
+    /// 管成员、邀请、工作区设置（不能动所有者）
+    Admin,
     Owner,
 }
 
@@ -14,6 +16,7 @@ impl Role {
         match self {
             Role::Viewer => "viewer",
             Role::Editor => "editor",
+            Role::Admin => "admin",
             Role::Owner => "owner",
         }
     }
@@ -21,12 +24,17 @@ impl Role {
         match s {
             "viewer" => Some(Role::Viewer),
             "editor" => Some(Role::Editor),
+            "admin" => Some(Role::Admin),
             "owner" => Some(Role::Owner),
             _ => None,
         }
     }
     pub fn can_write(self) -> bool {
         self >= Role::Editor
+    }
+    /// 能管成员、邀请、工作区设置。
+    pub fn can_manage(self) -> bool {
+        self >= Role::Admin
     }
 }
 
@@ -85,6 +93,8 @@ pub struct Workspace {
     pub id: String,
     pub name: String,
     pub created_at: i64,
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -273,6 +283,8 @@ pub struct AgentPatch {
     pub about: Option<String>,
     pub scope: Option<Scope>,
     pub webhook: Option<Option<String>>,
+    /// 语言（zh / en；None 不改，Some(None) 清掉）
+    pub locale: Option<Option<String>>,
 }
 
 pub struct NewNotification {
@@ -410,4 +422,92 @@ pub struct SchemaWrite {
     pub before: serde_json::Value,
     pub after: serde_json::Value,
     pub cells: Vec<CellSet>,
+}
+
+/// 一版里改过的人。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct VersionAuthor {
+    pub kind: PrincipalKind,
+    pub id: String,
+    pub name: String,
+}
+
+/// 历史版本（不含快照）。kind：auto（停下来 / 改得多了自动存）、agent（Agent 的一次写入）、restore（恢复）、manual（手动存，带名字）。
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct VersionMeta {
+    pub id: i64,
+    pub page_id: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    pub authors: Vec<VersionAuthor>,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+}
+
+pub struct NewVersion {
+    pub kind: String,
+    pub label: Option<String>,
+    pub authors: Vec<VersionAuthor>,
+    pub created_by: Option<String>,
+    /// PageDoc::version()（Yrs 快照）
+    pub snapshot: Vec<u8>,
+    pub state_vector: Vec<u8>,
+}
+
+/// 库的一格改动（历史）。
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct DbOpRow {
+    pub seq: i64,
+    pub row_id: String,
+    pub prop: String,
+    pub old: Option<serde_json::Value>,
+    pub new: Option<serde_json::Value>,
+    pub by: Option<String>,
+    pub at: i64,
+}
+
+/// 公开分享。
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Share {
+    pub id: String,
+    pub page_id: String,
+    pub token: String,
+    pub include_children: bool,
+    pub indexable: bool,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revoked_at: Option<i64>,
+}
+
+/// 个人偏好（头像、语言、时区）。
+#[derive(Serialize, Clone, Debug, Default, PartialEq)]
+pub struct UserPrefs {
+    pub avatar: Option<String>,
+    pub locale: Option<String>,
+    pub timezone: Option<String>,
+}
+
+/// 偏好的修改：外层 None 不改，Some(None) 清掉。
+#[derive(Default, Clone, Debug)]
+pub struct PrefsPatch {
+    pub name: Option<String>,
+    pub avatar: Option<Option<String>>,
+    pub locale: Option<Option<String>>,
+    pub timezone: Option<Option<String>>,
+}
+
+/// 邀请链接。
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Invite {
+    pub token: String,
+    pub workspace_id: String,
+    pub role: Role,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+    pub expires_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revoked_at: Option<i64>,
+    pub uses: i64,
 }

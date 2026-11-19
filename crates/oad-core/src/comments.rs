@@ -6,6 +6,7 @@
 //!
 //! 人收通知：被 @（mention）、参与的那串有新回复（reply）、参与的那串被解决（resolved）。
 use crate::events::Event;
+use crate::i18n::Lang;
 use crate::ids::{new_id, now_ms};
 use crate::model::*;
 use crate::{Core, Error, Result};
@@ -566,7 +567,8 @@ impl Core {
         let url = self.notes.page_url(&page.id);
         let mut rows = Vec::new();
         for a in agents {
-            let prompt = prompt_for(page, t, c, who, !prior.is_empty());
+            let lang = self.lang_of(&a.id).await;
+            let prompt = prompt_for(page, t, c, who, !prior.is_empty(), lang);
             let data = json!({
                 "agent": { "id": a.id, "name": a.name },
                 "type": "comment",
@@ -658,13 +660,15 @@ impl Core {
         let Some(counts) = self.hub.read(page_id, move |d| d.block_authors(&b)).await? else {
             return Ok(None);
         };
-        let map: HashMap<u64, (PrincipalKind, String)> = self
+        let mut map: HashMap<u64, (PrincipalKind, String)> = self
             .storage
             .doc_clients(page_id)
             .await?
             .into_iter()
             .map(|(cid, kind, id, _)| (cid, (kind, id)))
             .collect();
+        // 刚写的还没存进库的作者
+        map.extend(self.hub.recent_owners(page_id).await);
         let mut by: HashMap<(PrincipalKind, String), usize> = HashMap::new();
         for (cid, n) in counts {
             if let Some(p) = map.get(&cid) {
@@ -689,39 +693,70 @@ fn check_body(body: &str) -> Result<String> {
     Ok(b.to_string())
 }
 
-/// 写给 Agent 的一段话：可以直接当消息发给它。
-fn prompt_for(page: &Page, t: &Thread, c: &Comment, who: &Principal, is_reply: bool) -> String {
+/// 写给 Agent 的一段话：可以直接当消息发给它（按 Agent 的语言）。
+fn prompt_for(
+    page: &Page,
+    t: &Thread,
+    c: &Comment,
+    who: &Principal,
+    is_reply: bool,
+    lang: Lang,
+) -> String {
+    let tr =
+        |zh: &str, args: &[(&str, &str)]| crate::i18n::t_in(&[crate::i18n::CORE], lang, zh, args);
     let title = if page.title.is_empty() {
-        "（无标题）"
+        tr("（无标题）", &[])
     } else {
-        &page.title
+        page.title.clone()
     };
-    let mut s = format!(
-        "你在 Open Agent Docs 里被叫到了。{} 在页面《{}》（page_id: {}）",
-        who.name, title, page.id
-    );
-    match &t.block_id {
-        Some(b) => s.push_str(&format!("的块 ⟦{b}⟧ 上")),
-        None => s.push('里'),
-    }
-    s.push_str(if is_reply {
-        "回复了评论：\n"
-    } else {
-        "写了评论：\n"
-    });
+    let mut s = match (&t.block_id, is_reply) {
+        (Some(b), false) => tr(
+            "你在 Open Agent Docs 里被叫到了。{who} 在页面《{title}》（page_id: {page}）的块 ⟦{block}⟧ 上写了评论：",
+            &[
+                ("who", &who.name),
+                ("title", &title),
+                ("page", &page.id),
+                ("block", b),
+            ],
+        ),
+        (Some(b), true) => tr(
+            "你在 Open Agent Docs 里被叫到了。{who} 在页面《{title}》（page_id: {page}）的块 ⟦{block}⟧ 上回复了评论：",
+            &[
+                ("who", &who.name),
+                ("title", &title),
+                ("page", &page.id),
+                ("block", b),
+            ],
+        ),
+        (None, false) => tr(
+            "你在 Open Agent Docs 里被叫到了。{who} 在页面《{title}》（page_id: {page}）里写了评论：",
+            &[("who", &who.name), ("title", &title), ("page", &page.id)],
+        ),
+        (None, true) => tr(
+            "你在 Open Agent Docs 里被叫到了。{who} 在页面《{title}》（page_id: {page}）里回复了评论：",
+            &[("who", &who.name), ("title", &title), ("page", &page.id)],
+        ),
+    };
+    s.push('\n');
     if let Some(q) = t.quote.as_deref().filter(|q| !q.is_empty()) {
-        s.push_str(&format!("选中的原文：「{}」\n", excerpt(q, 300)));
+        s.push_str(&tr(
+            "选中的原文：「{quote}」",
+            &[("quote", &excerpt(q, 300))],
+        ));
+        s.push('\n');
     }
-    s.push_str(&format!("评论：{}\n\n", excerpt(&c.body, 2000)));
-    s.push_str(&format!(
-        "先用 read_page(page_id: \"{}\") 看上下文{}。\
-回复评论用 comment(thread_id: \"{}\", body: \"...\")；要改页面用 edit_page(page_id, base, ops)（base 来自 read_page）；\
-处理完用 comment(thread_id: \"{}\", resolve: true) 把这串标成已解决。",
-        page.id,
-        if is_reply { "，用 list_comments 看这串之前的对话" } else { "" },
-        t.id,
-        t.id
-    ));
+    s.push_str(&tr("评论：{body}", &[("body", &excerpt(&c.body, 2000))]));
+    s.push_str("\n\n");
+    let zh = if is_reply {
+        "先用 read_page(page_id: \"{page}\") 看上下文，用 list_comments 看这串之前的对话。\
+回复评论用 comment(thread_id: \"{thread}\", body: \"...\")；要改页面用 edit_page(page_id, base, ops)（base 来自 read_page）；\
+处理完用 comment(thread_id: \"{thread}\", resolve: true) 把这串标成已解决。"
+    } else {
+        "先用 read_page(page_id: \"{page}\") 看上下文。\
+回复评论用 comment(thread_id: \"{thread}\", body: \"...\")；要改页面用 edit_page(page_id, base, ops)（base 来自 read_page）；\
+处理完用 comment(thread_id: \"{thread}\", resolve: true) 把这串标成已解决。"
+    };
+    s.push_str(&tr(zh, &[("page", &page.id), ("thread", &t.id)]));
     s
 }
 

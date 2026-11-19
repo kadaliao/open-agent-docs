@@ -14,6 +14,8 @@ pub trait BlobStore: Send + Sync + 'static {
     /// [start, end) 这一段（end 超过长度时截到末尾）。
     async fn range(&self, key: &str, start: u64, end: u64) -> Result<Option<Vec<u8>>>;
     async fn len(&self, key: &str) -> Result<Option<u64>>;
+    /// 删掉（没有也不报错）。
+    async fn delete(&self, key: &str) -> Result<()>;
 }
 
 /// 键只能是字母数字和 `.` `-` `_`，不能拿来跳目录。
@@ -115,6 +117,14 @@ impl BlobStore for FsBlobs {
             Err(e) => Err(io(e)),
         }
     }
+    async fn delete(&self, key: &str) -> Result<()> {
+        let p = self.path(key)?;
+        match tokio::fs::remove_file(&p).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io(e)),
+        }
+    }
 }
 
 /// 放在内存里（测试、没配数据目录时）。
@@ -144,6 +154,10 @@ impl BlobStore for MemBlobs {
     }
     async fn len(&self, key: &str) -> Result<Option<u64>> {
         Ok(self.0.lock().unwrap().get(key).map(|d| d.len() as u64))
+    }
+    async fn delete(&self, key: &str) -> Result<()> {
+        self.0.lock().unwrap().remove(key);
+        Ok(())
     }
 }
 

@@ -25,9 +25,10 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/config", get(auth_config))
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
-        .route("/me", get(me))
+        .route("/me", get(me).patch(crate::members::update_me))
         .route("/workspaces/{ws}/pages", get(list_pages).post(create_page))
         .route("/workspaces/{ws}/events", get(events))
+        .route("/workspaces/{ws}/search", get(search))
         .route(
             "/pages/{id}",
             get(get_page).patch(patch_page).delete(delete_page),
@@ -42,10 +43,32 @@ pub fn routes() -> Router<AppState> {
         .merge(crate::collab::routes())
         .merge(crate::files::routes())
         .merge(crate::dbs::routes())
+        .merge(crate::history::routes())
+        .merge(crate::trash::routes())
+        .merge(crate::share::api_routes())
+        .merge(crate::members::routes())
         .fallback(|| async { ApiError::not_found("没有这个接口") })
 }
 
 pub(crate) type ApiResult<T> = Result<T, ApiError>;
+
+/// 给这个人看的语言：设过的 > 浏览器的 Accept-Language > 中文。
+pub(crate) async fn req_lang(
+    s: &AppState,
+    who: Option<&Principal>,
+    headers: &HeaderMap,
+) -> oad_core::i18n::Lang {
+    if let Some(p) = who
+        && let Some(l) = s.core.locale_of(&p.user_id).await
+    {
+        return l;
+    }
+    headers
+        .get(header::ACCEPT_LANGUAGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(oad_core::i18n::Lang::from_accept)
+        .unwrap_or_default()
+}
 
 /// `?token=` 的值。
 pub fn query_token(query: Option<&str>) -> Option<&str> {
@@ -107,7 +130,11 @@ async fn blocking<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> 
 // ---- 登录 ----
 
 async fn auth_config(State(s): State<AppState>) -> Json<Value> {
-    Json(json!({ "mode": s.core.auth.mode() }))
+    Json(json!({
+        "mode": s.core.auth.mode(),
+        "timezone": oad_core::tz::name(&s.core.timezone),
+        "signup": s.core.signup_mode(),
+    }))
 }
 
 #[derive(Deserialize)]
@@ -116,7 +143,7 @@ struct LoginBody {
     password: String,
 }
 
-fn session_cookie(s: &AppState, token: &str, max_age: i64) -> HeaderValue {
+pub(crate) fn session_cookie(s: &AppState, token: &str, max_age: i64) -> HeaderValue {
     let secure = if s.config.cookie_secure {
         "; Secure"
     } else {
@@ -184,7 +211,7 @@ async fn logout(State(s): State<AppState>, headers: HeaderMap) -> ApiResult<Resp
     Ok(res)
 }
 
-async fn me_json(s: &AppState, p: &Principal) -> ApiResult<Value> {
+pub(crate) async fn me_json(s: &AppState, p: &Principal) -> ApiResult<Value> {
     let user = s
         .core
         .storage
@@ -197,10 +224,14 @@ async fn me_json(s: &AppState, p: &Principal) -> ApiResult<Value> {
         .user_workspaces(&user.id)
         .await?
         .into_iter()
-        .map(|(w, role)| json!({ "id": w.id, "name": w.name, "role": role }))
+        .map(|(w, role)| json!({ "id": w.id, "name": w.name, "icon": w.icon, "role": role }))
         .collect();
+    let prefs = s.core.storage.user_prefs(&user.id).await?;
     Ok(json!({
-        "user": { "id": user.id, "name": user.name, "email": user.email, "kind": user.kind },
+        "user": {
+            "id": user.id, "name": user.name, "email": user.email, "kind": user.kind,
+            "avatar": prefs.avatar, "locale": prefs.locale, "timezone": prefs.timezone,
+        },
         "workspaces": ws,
     }))
 }
@@ -401,6 +432,35 @@ async fn delete_block(
 }
 
 // ---- 实时事件 ----
+
+#[derive(Deserialize)]
+struct SearchParams {
+    q: String,
+    limit: Option<usize>,
+    kind: Option<String>,
+    /// `block`：每块一条（同一页最多两条）；默认每页一条
+    per: Option<String>,
+}
+
+async fn search(
+    State(s): State<AppState>,
+    Auth(p): Auth,
+    Path(ws): Path<String>,
+    Query(q): Query<SearchParams>,
+) -> ApiResult<Json<Value>> {
+    let results = s
+        .core
+        .search_index(
+            &ws,
+            &p,
+            &q.q,
+            q.kind.as_deref(),
+            q.limit.unwrap_or(20),
+            q.per.as_deref() != Some("block"),
+        )
+        .await?;
+    Ok(Json(json!({ "results": results })))
+}
 
 async fn events(
     State(s): State<AppState>,

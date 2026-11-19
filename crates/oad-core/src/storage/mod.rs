@@ -173,6 +173,93 @@ pub trait Storage: Send + Sync + 'static {
     /// 是不是转存的图片。
     async fn is_media(&self, hash: &str) -> Result<bool>;
 
+    // 回收站
+    /// 回收站里的：单独删的页面、库、行（跟着上级一起删的不单列）。新删的在前。
+    async fn trash(&self, workspace_id: &str) -> Result<Vec<Page>>;
+    /// 放回来：连同一起删的子页面（删除时间一样的）；上级不在了就放到最外层。行要库还在。返回放回来的页面。
+    async fn restore_page(&self, id: &str) -> Result<Vec<Page>>;
+    /// 彻底删（必须在回收站里）：连子页面、正文、版本、评论、行；没有别的页面用的上传文件也删掉。
+    /// 返回 (删掉的页面 id, 要从文件存储里删的 blob)。
+    async fn purge_page(&self, id: &str) -> Result<(Vec<String>, Vec<String>)>;
+    /// 在回收站里放了超过这个时刻的（单独删的那些）。
+    async fn trash_before(&self, before: i64) -> Result<Vec<String>>;
+    /// 记下页面用了这些上传文件。
+    async fn add_file_refs(&self, page_id: &str, files: Vec<String>) -> Result<()>;
+    /// 记下谁删的（回收站显示）。
+    async fn set_deleted_by(&self, ids: Vec<String>, by: &str) -> Result<()>;
+    async fn deleted_by(&self, id: &str) -> Result<Option<String>>;
+
+    // 个人、成员、邀请
+    async fn user_prefs(&self, user_id: &str) -> Result<UserPrefs>;
+    async fn update_user(&self, user_id: &str, p: PrefsPatch) -> Result<()>;
+    async fn password_hash(&self, user_id: &str) -> Result<Option<String>>;
+    /// 删掉这个人的会话（keep 留着这一个）。
+    async fn delete_user_sessions(&self, user_id: &str, keep: Option<&str>) -> Result<()>;
+    async fn remove_member(&self, workspace_id: &str, user_id: &str) -> Result<bool>;
+    async fn update_workspace(
+        &self,
+        id: &str,
+        name: Option<String>,
+        icon: Option<Option<String>>,
+    ) -> Result<Workspace>;
+    async fn workspace(&self, id: &str) -> Result<Option<Workspace>>;
+    async fn create_invite(&self, inv: Invite) -> Result<()>;
+    /// 没撤销的，新的在前。
+    async fn invites(&self, workspace_id: &str) -> Result<Vec<Invite>>;
+    async fn invite(&self, token: &str) -> Result<Option<Invite>>;
+    async fn revoke_invite(&self, token: &str) -> Result<bool>;
+    async fn use_invite(&self, token: &str) -> Result<()>;
+
+    // 分享
+    /// 这个页面现在的分享（没撤销的）。
+    async fn share_for_page(&self, page_id: &str) -> Result<Option<Share>>;
+    /// 分享：已经有就改设置（链接不变），没有就新建。
+    async fn put_share(
+        &self,
+        page_id: &str,
+        include_children: bool,
+        indexable: bool,
+        by: &str,
+    ) -> Result<Share>;
+    async fn revoke_share(&self, page_id: &str) -> Result<bool>;
+    async fn share_by_token(&self, token: &str) -> Result<Option<Share>>;
+    /// 页面的上级链（从父页面到最外层）。
+    async fn ancestors(&self, page_id: &str) -> Result<Vec<String>>;
+    /// 页面用过这个文件吗。
+    async fn page_uses_file(&self, page_id: &str, file_id: &str) -> Result<bool>;
+
+    // 历史版本
+    async fn add_version(&self, page_id: &str, v: NewVersion) -> Result<i64>;
+    /// 新的在前。
+    async fn versions(&self, page_id: &str, limit: usize) -> Result<Vec<VersionMeta>>;
+    /// 一版和它的快照。
+    async fn version(&self, page_id: &str, id: i64) -> Result<Option<(VersionMeta, Vec<u8>)>>;
+    /// 库的格子改动：按行、属性过滤，新的在前。
+    async fn db_ops(
+        &self,
+        db_id: &str,
+        row: Option<&str>,
+        prop: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<DbOpRow>>;
+    /// 表结构改动，新的在前。
+    async fn db_schema_ops(&self, db_id: &str, limit: usize) -> Result<Vec<SchemaOpRow>>;
+    /// 撤销第 seq 次的格子改动（新建的行删掉、删掉的放回、格子换回原来的值；之后又被改过的格子不动），记成新的一次。
+    /// 返回 (新 seq, 改了标题的行和新标题, 放回来的行)。
+    #[allow(clippy::type_complexity)]
+    async fn undo_db_ops(
+        &self,
+        db_id: &str,
+        seq: i64,
+        title_key: &str,
+        by: &str,
+    ) -> Result<(i64, Vec<(String, String)>, Vec<String>)>;
+
+    /// 所有页面（含回收站里的，搜索索引启动时对比用）。
+    async fn all_pages(&self) -> Result<Vec<Page>>;
+    /// 所有库现在的 seq。
+    async fn db_seqs(&self) -> Result<Vec<(String, i64)>>;
+
     // 数据库
     /// 建库：一个 kind = database 的页面 + 表结构、视图。
     async fn create_database(

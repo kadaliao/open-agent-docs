@@ -72,8 +72,9 @@ impl Server {
         hub: HubConfig,
         cfg: ServerConfig,
         notify: NotifyConfig,
-        media: oad_core::MediaConfig,
+        mut media: oad_core::MediaConfig,
     ) -> Server {
+        media.search_dir.get_or_insert_with(|| dir.join("search"));
         let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
         let core = Core::open_full(storage, auth, hub, notify, media)
             .await

@@ -22,6 +22,8 @@ const TOOLS: &[&str] = &[
     "db_query",
     "db_add",
     "db_update",
+    "page_history",
+    "restore_version",
 ];
 
 /// 读出来的正文里 ⟦⟧ 中的块编号，按顺序。
@@ -92,7 +94,9 @@ async fn every_tool() {
     let (t, _) = call(&m, "list_pages", json!({ "parent_id": page })).await;
     assert!(t.contains("子页") && !t.contains("- 周报"), "{t}");
 
-    // search_pages：标题和正文
+    // search_pages：标题和正文（等索引跟上）
+    let _ = s.core.hub.flush(&page).await;
+    s.core.search.flush().await;
     let (t, _) = call(&m, "search_pages", json!({ "query": "登录功能" })).await;
     assert!(t.contains(&page) && t.contains("登录功能"), "{t}");
     let (t, _) = call(&m, "search_pages", json!({ "query": "不存在的词" })).await;

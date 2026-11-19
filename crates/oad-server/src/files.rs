@@ -232,7 +232,7 @@ fn disposition(name: &str, attachment: bool) -> HeaderValue {
 }
 
 /// 给出一份内容：缩略图（`?w=`）、Range、ETag、长缓存；SVG 和文字带 `Content-Security-Policy: sandbox`，SVG 当附件。
-async fn serve(
+pub(crate) async fn serve(
     s: &AppState,
     b: &BlobInfo,
     name: Option<&str>,

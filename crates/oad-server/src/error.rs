@@ -39,6 +39,7 @@ impl From<Error> for ApiError {
             Error::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Error::Forbidden(_) => StatusCode::FORBIDDEN,
             Error::Conflict(_) => StatusCode::CONFLICT,
+            Error::Gone(_) => StatusCode::GONE,
             Error::BadGateway(_) => StatusCode::BAD_GATEWAY,
             Error::Storage(_) | Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };

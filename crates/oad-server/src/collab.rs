@@ -61,10 +61,11 @@ async fn members(
     Path(ws): Path<String>,
 ) -> ApiResult<Json<Value>> {
     let (people, agents) = s.core.members(&ws, &p).await?;
-    let members: Vec<Value> = people
-        .into_iter()
-        .map(|(u, role)| json!({ "user": { "id": u.id, "name": u.name, "email": u.email }, "role": role }))
-        .collect();
+    let mut members: Vec<Value> = Vec::with_capacity(people.len());
+    for (u, role) in people {
+        let avatar = s.core.storage.user_prefs(&u.id).await?.avatar;
+        members.push(json!({ "user": { "id": u.id, "name": u.name, "email": u.email, "avatar": avatar }, "role": role }));
+    }
     Ok(Json(json!({ "members": members, "agents": agents })))
 }
 
@@ -101,6 +102,8 @@ struct PatchAgent {
     scope: Option<String>,
     #[serde(default, deserialize_with = "double")]
     webhook: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double")]
+    locale: Option<Option<String>>,
 }
 
 async fn update_agent(
@@ -114,6 +117,7 @@ async fn update_agent(
         about: b.about,
         scope: b.scope.as_deref().map(parse_scope).transpose()?,
         webhook: b.webhook,
+        locale: b.locale,
     };
     Ok(Json(s.core.update_agent(&id, &p, patch).await?).into_response())
 }

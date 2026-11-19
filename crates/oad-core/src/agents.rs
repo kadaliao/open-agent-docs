@@ -228,6 +228,18 @@ impl Core {
                 self.notes.check_webhook(w)?;
             }
         }
+        if let Some(l) = patch.locale.take() {
+            let l = crate::i18n::check_locale(l)?;
+            self.storage
+                .update_user(
+                    id,
+                    PrefsPatch {
+                        locale: Some(l),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+        }
         self.storage.update_agent(id, patch).await
     }
 

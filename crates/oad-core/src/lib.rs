@@ -11,15 +11,22 @@ pub mod dbengine;
 pub mod dbschema;
 mod error;
 pub mod events;
+pub mod history;
 pub mod hub;
+pub mod i18n;
 pub mod ids;
 pub mod media;
+pub mod members;
 pub mod model;
 pub mod notify;
 pub mod position;
+pub mod search;
+pub mod share;
 pub mod ssrf;
 pub mod storage;
+pub mod trash;
 pub mod tree;
+pub mod tz;
 pub mod unfurl;
 
 pub use auth::{AuthMode, AuthProvider, AuthRequest};
@@ -49,6 +56,8 @@ pub struct MediaConfig {
     pub max_upload: usize,
     /// 开不开链接解析（默认开）。
     pub unfurl: bool,
+    /// 搜索索引的目录（`OAD_DATA_DIR/search`）；不给放内存里，每次启动重建。
+    pub search_dir: Option<std::path::PathBuf>,
 }
 
 impl Default for MediaConfig {
@@ -58,6 +67,7 @@ impl Default for MediaConfig {
             fetch: oad_unfurl::FetchConfig::default(),
             max_upload: 100 << 20,
             unfurl: true,
+            search_dir: None,
         }
     }
 }
@@ -98,14 +108,18 @@ pub struct Core {
     pub media: Arc<media::Media>,
     /// 链接解析（没开时为 None）。
     pub unfurls: Option<Arc<unfurl::UnfurlService>>,
+    /// 全文搜索。
+    pub search: Arc<search::SearchService>,
     /// 关机信号：SSE、WebSocket 等长连接看到它就结束，HTTP 服务才能停下来。
     shutdown: tokio::sync::watch::Sender<bool>,
     /// Agent 最后一次记使用时间的时刻（少写库）。
     touched: Mutex<HashMap<String, i64>>,
     /// 数据库的计算引擎（缓存）。
     pub dbcache: dbengine::DbCache,
-    /// 数据库算日期（今天、相对日期、创建时间的显示）用的时区：比 UTC 快几分钟。`OAD_TZ_OFFSET`，默认 480（北京时间）。
-    pub db_tz: i32,
+    /// 服务器的时区（数据库算“今天”、相对日期、创建时间的显示）：`OAD_TZ`（IANA 名字）> 系统的。
+    pub timezone: jiff::tz::TimeZone,
+    /// 本地登录模式下怎么注册（`OAD_SIGNUP`），见 [`Core::signup_mode`]。
+    signup: std::sync::atomic::AtomicU8,
 }
 
 /// 页面属性的修改。`Option<Option<_>>`：外层 None = 不改，Some(None) = 清空。
@@ -204,7 +218,19 @@ impl Core {
         if let Some(u) = &unfurls {
             hub.set_prefetch(u.prefetch_sink());
         }
+        let (stop_tx, _) = tokio::sync::watch::channel(false);
+        let mut stop_rx = stop_tx.subscribe();
+        let (search, index_sink) = search::SearchService::start(
+            media_cfg.search_dir.as_deref(),
+            storage.clone(),
+            events.subscribe(),
+            async move {
+                let _ = stop_rx.wait_for(|s| *s).await;
+            },
+        )?;
+        hub.set_indexer(index_sink);
         let core = Arc::new(Core {
+            search,
             hub,
             media,
             unfurls,
@@ -213,16 +239,14 @@ impl Core {
             auth: provider,
             default_workspace,
             notes: notes.clone(),
-            shutdown: tokio::sync::watch::channel(false).0,
+            shutdown: stop_tx,
             touched: Mutex::new(HashMap::new()),
             dbcache: Default::default(),
-            db_tz: std::env::var("OAD_TZ_OFFSET")
-                .ok()
-                .and_then(|v| v.trim().parse().ok())
-                .filter(|m: &i32| m.abs() <= 14 * 60)
-                .unwrap_or(480),
+            timezone: tz::server_tz(),
+            signup: std::sync::atomic::AtomicU8::new(members::SignupMode::from_env() as u8),
         });
         tokio::spawn(notes.run(Box::pin(core.on_shutdown())));
+        core.spawn_trash_purger();
         Ok(core)
     }
 
@@ -273,6 +297,17 @@ impl Core {
     }
 
     /// 首次启动：还没有用户时用给定的邮箱密码建管理员。返回是否建了。
+    /// 某人看日期用的时区。现在都是服务器的；以后按人 / Agent 的偏好（users.timezone）。
+    pub fn timezone_for(&self, _who: Option<&Principal>) -> jiff::tz::TimeZone {
+        self.timezone.clone()
+    }
+
+    /// 现在的时钟（数据库引擎用）：服务器时区在此刻的偏移。
+    pub fn db_clock(&self) -> oad_db::Clock {
+        let now = oad_db::Clock::system().now_ms;
+        oad_db::Clock::new(now, tz::offset_minutes(&self.timezone, now))
+    }
+
     pub async fn ensure_admin(&self, email: &str, password: &str) -> Result<bool> {
         if self.storage.count_users().await? > 0 {
             return Ok(false);
@@ -373,6 +408,9 @@ impl Core {
     pub async fn delete_page(&self, id: &str, who: &Principal) -> Result<Vec<Page>> {
         let (page, _) = self.page_for(id, who, true).await?;
         let gone = self.storage.delete_page(id).await?;
+        self.storage
+            .set_deleted_by(vec![id.to_string()], &dbengine::person_ref(who))
+            .await?;
         // 库里的行不在侧栏里，不发 page.deleted；删的是一行就发 db.changed
         for p in gone.iter().filter(|p| p.kind != "row") {
             self.events.page(EventKind::Deleted, p.clone());
@@ -588,41 +626,6 @@ impl Core {
             .await
     }
 
-    /// 找页面：标题和正文的子串（不分大小写），返回页面和命中的片段。第 5 阶段换成全文索引。
-    pub async fn search(
-        &self,
-        workspace_id: &str,
-        who: &Principal,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<(Page, String)>> {
-        let q = query.trim().to_lowercase();
-        if q.is_empty() {
-            return Err(Error::BadRequest("要给搜索词".into()));
-        }
-        let mut pages = self.list_pages(workspace_id, who).await?;
-        pages.sort_by_key(|p| std::cmp::Reverse(p.updated_at));
-        let mut hits = Vec::new();
-        for p in pages {
-            if hits.len() >= limit {
-                break;
-            }
-            let text = self
-                .hub
-                .peek(&p.id, |d| d.to_node().plain_text())
-                .await
-                .unwrap_or_default();
-            let lower = text.to_lowercase();
-            if let Some(i) = lower.find(&q) {
-                hits.push((p, snippet(&text, &lower, i, q.len())));
-            } else if p.title.to_lowercase().contains(&q) {
-                let s: String = text.chars().take(80).collect();
-                hits.push((p, s));
-            }
-        }
-        Ok(hits)
-    }
-
     /// 关机：先通知长连接结束，再把所有打开的页面存好。
     pub async fn shutdown(&self) {
         self.shutdown.send_replace(true);
@@ -658,27 +661,4 @@ impl BlockOp {
             BlockOp::Append { .. } => None,
         }
     }
-}
-
-/// 命中位置前后各取一些字。lower 是 text 的小写，i、len 是在 lower 里的字节位置。
-fn snippet(text: &str, lower: &str, i: usize, len: usize) -> String {
-    // 小写后字节位置可能和原文不一样（少数字符），对不上就从原文开头取
-    if lower.len() != text.len() || !text.is_char_boundary(i) || !text.is_char_boundary(i + len) {
-        return text.chars().take(80).collect();
-    }
-    let before: String = text[..i]
-        .chars()
-        .rev()
-        .take(30)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect();
-    let after: String = text[i + len..].chars().take(50).collect();
-    format!(
-        "{}{before}{}{after}…",
-        if before.len() < i { "…" } else { "" },
-        &text[i..i + len]
-    )
-    .replace('\n', " ")
 }

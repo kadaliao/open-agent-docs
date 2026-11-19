@@ -12,6 +12,9 @@ pub enum Error {
     Forbidden(String),
     #[error("{0}")]
     Conflict(String),
+    /// 有过、现在没了（邀请过期、撤销）。
+    #[error("{0}")]
+    Gone(String),
     /// 去别的网站取东西失败了（链接解析）。
     #[error("{0}")]
     BadGateway(String),
@@ -30,6 +33,7 @@ impl Error {
             Error::Unauthorized(_) => "unauthorized",
             Error::Forbidden(_) => "forbidden",
             Error::Conflict(_) => "conflict",
+            Error::Gone(_) => "gone",
             Error::BadGateway(_) => "bad_gateway",
             Error::Storage(_) | Error::Internal(_) => "internal",
         }

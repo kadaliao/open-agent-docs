@@ -14,6 +14,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/002_agents_comments.sql"),
     include_str!("migrations/003_media.sql"),
     include_str!("migrations/004_databases.sql"),
+    include_str!("migrations/005_phase5.sql"),
 ];
 const READERS: usize = 4;
 
@@ -334,6 +335,7 @@ impl Storage for Sqlite {
         let name = name.to_string();
         self.write(move |c| {
             let w = Workspace {
+                icon: None,
                 id: ids::new_id(),
                 name,
                 created_at: ids::now_ms(),
@@ -349,13 +351,15 @@ impl Storage for Sqlite {
 
     async fn workspaces(&self) -> Result<Vec<Workspace>> {
         self.read(|c| {
-            let mut st =
-                c.prepare("SELECT id, name, created_at FROM workspaces ORDER BY created_at, id")?;
+            let mut st = c.prepare(
+                "SELECT id, name, created_at, icon FROM workspaces ORDER BY created_at, id",
+            )?;
             let rows = st.query_map([], |r| {
                 Ok(Workspace {
                     id: r.get(0)?,
                     name: r.get(1)?,
                     created_at: r.get(2)?,
+                    icon: r.get(3)?,
                 })
             })?;
             Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -395,7 +399,7 @@ impl Storage for Sqlite {
         let u = user_id.to_string();
         self.read(move |c| {
             let mut st = c.prepare(
-                "SELECT w.id, w.name, w.created_at, m.role FROM members m
+                "SELECT w.id, w.name, w.created_at, m.role, w.icon FROM members m
                  JOIN workspaces w ON w.id = m.workspace_id WHERE m.user_id = ?1
                  ORDER BY w.created_at, w.id",
             )?;
@@ -405,6 +409,7 @@ impl Storage for Sqlite {
                         id: r.get(0)?,
                         name: r.get(1)?,
                         created_at: r.get(2)?,
+                        icon: r.get(4)?,
                     },
                     r.get::<_, String>(3)?,
                 ))
@@ -596,8 +601,8 @@ impl Storage for Sqlite {
             let mut out = Vec::with_capacity(ids.len());
             for pid in &ids {
                 tx.execute(
-                    "UPDATE pages SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
-                    params![pid, now],
+                    "UPDATE pages SET deleted_at = ?2, trash_root = ?3 WHERE id = ?1 AND deleted_at IS NULL",
+                    params![pid, now, id],
                 )?;
                 if let Some(p) = get_page(&tx, pid)? {
                     out.push(p);
@@ -1281,6 +1286,24 @@ impl Storage for Sqlite {
         .await
     }
 
+    async fn all_pages(&self) -> Result<Vec<Page>> {
+        self.read(|c| {
+            let mut st = c.prepare_cached(&format!("SELECT {PAGE_COLS} FROM pages"))?;
+            let rows = st.query_map([], page_row)?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn db_seqs(&self) -> Result<Vec<(String, i64)>> {
+        self.read(|c| {
+            let mut st = c.prepare_cached("SELECT db_id, seq FROM databases")?;
+            let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
     async fn create_database(
         &self,
         page: NewPage,
@@ -1504,7 +1527,10 @@ impl Storage for Sqlite {
                     continue;
                 };
                 tx.execute("UPDATE db_rows SET deleted_at = ?2, seq = ?3 WHERE row_id = ?1", params![rid, now, seq])?;
-                tx.execute("UPDATE pages SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL", params![rid, now])?;
+                tx.execute(
+                    "UPDATE pages SET deleted_at = ?2, trash_root = ?1 WHERE id = ?1 AND deleted_at IS NULL",
+                    params![rid, now],
+                )?;
                 log_op(&tx, &At { db: &id, seq, by: &by, at: now }, &rid, "*", &Some(serde_json::Value::Object(row.props)), &None)?;
             }
             tx.commit()?;
@@ -1584,6 +1610,689 @@ impl Storage for Sqlite {
                     })
                 })
                 .optional()?)
+        })
+        .await
+    }
+
+    async fn user_prefs(&self, user_id: &str) -> Result<UserPrefs> {
+        let id = user_id.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached("SELECT avatar, locale, timezone FROM users WHERE id = ?1")?
+                    .query_row([id], |r| {
+                        Ok(UserPrefs {
+                            avatar: r.get(0)?,
+                            locale: r.get(1)?,
+                            timezone: r.get(2)?,
+                        })
+                    })
+                    .optional()?
+                    .unwrap_or_default(),
+            )
+        })
+        .await
+    }
+
+    async fn update_user(&self, user_id: &str, p: PrefsPatch) -> Result<()> {
+        let id = user_id.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            if let Some(n) = p.name {
+                tx.execute("UPDATE users SET name = ?2 WHERE id = ?1", params![id, n])?;
+            }
+            if let Some(a) = p.avatar {
+                tx.execute("UPDATE users SET avatar = ?2 WHERE id = ?1", params![id, a])?;
+            }
+            if let Some(l) = p.locale {
+                tx.execute("UPDATE users SET locale = ?2 WHERE id = ?1", params![id, l])?;
+            }
+            if let Some(t) = p.timezone {
+                tx.execute(
+                    "UPDATE users SET timezone = ?2 WHERE id = ?1",
+                    params![id, t],
+                )?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn password_hash(&self, user_id: &str) -> Result<Option<String>> {
+        let id = user_id.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached("SELECT password_hash FROM users WHERE id = ?1")?
+                    .query_row([id], |r| r.get(0))
+                    .optional()?
+                    .flatten(),
+            )
+        })
+        .await
+    }
+
+    async fn delete_user_sessions(&self, user_id: &str, keep: Option<&str>) -> Result<()> {
+        let (id, keep) = (user_id.to_string(), keep.map(str::to_string));
+        self.write(move |c| {
+            c.execute(
+                "DELETE FROM sessions WHERE user_id = ?1 AND (?2 IS NULL OR token_hash != ?2)",
+                params![id, keep],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn remove_member(&self, workspace_id: &str, user_id: &str) -> Result<bool> {
+        let (w, u) = (workspace_id.to_string(), user_id.to_string());
+        self.write(move |c| {
+            Ok(c.execute(
+                "DELETE FROM members WHERE workspace_id = ?1 AND user_id = ?2",
+                params![w, u],
+            )? > 0)
+        })
+        .await
+    }
+
+    async fn update_workspace(
+        &self,
+        id: &str,
+        name: Option<String>,
+        icon: Option<Option<String>>,
+    ) -> Result<Workspace> {
+        let id = id.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            if let Some(n) = name {
+                tx.execute(
+                    "UPDATE workspaces SET name = ?2 WHERE id = ?1",
+                    params![id, n],
+                )?;
+            }
+            if let Some(i) = icon {
+                tx.execute(
+                    "UPDATE workspaces SET icon = ?2 WHERE id = ?1",
+                    params![id, i],
+                )?;
+            }
+            let w = tx
+                .query_row(
+                    "SELECT id, name, created_at, icon FROM workspaces WHERE id = ?1",
+                    [&id],
+                    |r| {
+                        Ok(Workspace {
+                            id: r.get(0)?,
+                            name: r.get(1)?,
+                            created_at: r.get(2)?,
+                            icon: r.get(3)?,
+                        })
+                    },
+                )
+                .optional()?
+                .ok_or_else(|| Error::NotFound(format!("工作区 {id} 不存在")))?;
+            tx.commit()?;
+            Ok(w)
+        })
+        .await
+    }
+
+    async fn workspace(&self, id: &str) -> Result<Option<Workspace>> {
+        let id = id.to_string();
+        self.read(move |c| {
+            Ok(c.query_row(
+                "SELECT id, name, created_at, icon FROM workspaces WHERE id = ?1",
+                [&id],
+                |r| {
+                    Ok(Workspace {
+                        id: r.get(0)?,
+                        name: r.get(1)?,
+                        created_at: r.get(2)?,
+                        icon: r.get(3)?,
+                    })
+                },
+            )
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn create_invite(&self, inv: Invite) -> Result<()> {
+        self.write(move |c| {
+            c.execute(
+                "INSERT INTO invites (token, workspace_id, role, created_by, created_at, expires_at, uses) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+                params![inv.token, inv.workspace_id, inv.role.as_str(), inv.created_by, inv.created_at, inv.expires_at],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn invites(&self, workspace_id: &str) -> Result<Vec<Invite>> {
+        let w = workspace_id.to_string();
+        self.read(move |c| {
+            let mut st = c.prepare_cached(&format!(
+                "SELECT {INVITE_COLS} FROM invites WHERE workspace_id = ?1 AND revoked_at IS NULL ORDER BY created_at DESC"
+            ))?;
+            let rows = st.query_map([w], invite_row)?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn invite(&self, token: &str) -> Result<Option<Invite>> {
+        let t = token.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(&format!(
+                "SELECT {INVITE_COLS} FROM invites WHERE token = ?1"
+            ))?
+            .query_row([t], invite_row)
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn revoke_invite(&self, token: &str) -> Result<bool> {
+        let t = token.to_string();
+        self.write(move |c| {
+            Ok(c.execute(
+                "UPDATE invites SET revoked_at = ?2 WHERE token = ?1 AND revoked_at IS NULL",
+                params![t, ids::now_ms()],
+            )? > 0)
+        })
+        .await
+    }
+
+    async fn use_invite(&self, token: &str) -> Result<()> {
+        let t = token.to_string();
+        self.write(move |c| {
+            c.execute("UPDATE invites SET uses = uses + 1 WHERE token = ?1", [t])?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn share_for_page(&self, page_id: &str) -> Result<Option<Share>> {
+        let id = page_id.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(&format!(
+                "SELECT {SHARE_COLS} FROM shares WHERE page_id = ?1 AND revoked_at IS NULL"
+            ))?
+            .query_row([id], share_row)
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn put_share(
+        &self,
+        page_id: &str,
+        include_children: bool,
+        indexable: bool,
+        by: &str,
+    ) -> Result<Share> {
+        let (id, by) = (page_id.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let n = tx.execute(
+                "UPDATE shares SET include_children = ?2, indexable = ?3 WHERE page_id = ?1 AND revoked_at IS NULL",
+                params![id, include_children, indexable],
+            )?;
+            if n == 0 {
+                tx.execute(
+                    "INSERT INTO shares (id, page_id, token, include_children, indexable, created_by, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![ids::new_id(), id, ids::new_token()[..32].to_string(), include_children, indexable, by, ids::now_ms()],
+                )?;
+            }
+            let s = tx
+                .prepare_cached(&format!("SELECT {SHARE_COLS} FROM shares WHERE page_id = ?1 AND revoked_at IS NULL"))?
+                .query_row([&id], share_row)?;
+            tx.commit()?;
+            Ok(s)
+        })
+        .await
+    }
+
+    async fn revoke_share(&self, page_id: &str) -> Result<bool> {
+        let id = page_id.to_string();
+        self.write(move |c| {
+            Ok(c.execute(
+                "UPDATE shares SET revoked_at = ?2 WHERE page_id = ?1 AND revoked_at IS NULL",
+                params![id, ids::now_ms()],
+            )? > 0)
+        })
+        .await
+    }
+
+    async fn share_by_token(&self, token: &str) -> Result<Option<Share>> {
+        let t = token.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached(&format!("SELECT {SHARE_COLS} FROM shares WHERE token = ?1"))?
+                    .query_row([t], share_row)
+                    .optional()?,
+            )
+        })
+        .await
+    }
+
+    async fn ancestors(&self, page_id: &str) -> Result<Vec<String>> {
+        let id = page_id.to_string();
+        self.read(move |c| {
+            let mut v = ancestors(c, &id)?;
+            v.retain(|x| *x != id);
+            Ok(v)
+        })
+        .await
+    }
+
+    async fn page_uses_file(&self, page_id: &str, file_id: &str) -> Result<bool> {
+        let (p, f) = (page_id.to_string(), file_id.to_string());
+        self.read(move |c| {
+            Ok(c.prepare_cached(
+                "SELECT EXISTS (SELECT 1 FROM file_refs WHERE page_id = ?1 AND file_id = ?2)",
+            )?
+            .query_row(params![p, f], |r| r.get(0))?)
+        })
+        .await
+    }
+
+    async fn trash(&self, workspace_id: &str) -> Result<Vec<Page>> {
+        let w = workspace_id.to_string();
+        self.read(move |c| {
+            let mut st = c.prepare_cached(&format!(
+                "SELECT {PAGE_COLS} FROM pages p WHERE workspace_id = ?1 AND deleted_at IS NOT NULL {TRASH_ROOT}
+                 ORDER BY deleted_at DESC, id"
+            ))?;
+            let rows = st.query_map([w], page_row)?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn restore_page(&self, id: &str) -> Result<Vec<Page>> {
+        let id = id.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let root =
+                get_page(&tx, &id)?.ok_or_else(|| Error::NotFound(format!("页面 {id} 不存在")))?;
+            if root.deleted_at.is_none() {
+                return Err(Error::BadRequest("这个页面不在回收站里".into()));
+            }
+            let parent_live = match &root.parent_id {
+                Some(p) => get_page(&tx, p)?.is_some_and(|x| x.deleted_at.is_none()),
+                None => true,
+            };
+            let now = ids::now_ms();
+            if root.kind == "row" {
+                let db = root.parent_id.clone().unwrap_or_default();
+                if !parent_live {
+                    return Err(Error::BadRequest(
+                        "这一行所在的库也在回收站里，先恢复库".into(),
+                    ));
+                }
+                if let Some(row) = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1"))?
+                    .query_row([&id], db_row_of)
+                    .optional()?
+                    && row.deleted_at.is_some()
+                {
+                    let seq = bump_seq(&tx, &db)?;
+                    tx.execute(
+                        "UPDATE db_rows SET deleted_at = NULL, seq = ?2 WHERE row_id = ?1",
+                        params![id, seq],
+                    )?;
+                    log_op(
+                        &tx,
+                        &At {
+                            db: &db,
+                            seq,
+                            by: "",
+                            at: now,
+                        },
+                        &id,
+                        "*",
+                        &None,
+                        &Some(serde_json::Value::Object(row.props)),
+                    )?;
+                }
+            } else if !parent_live {
+                // 上级不在了：放到最外层的最后
+                let sib = siblings(&tx, &root.workspace_id, None, &id)?;
+                let pos = tree::position_for(&sib, &Placement::Last)?;
+                tx.execute(
+                    "UPDATE pages SET parent_id = NULL, position = ?2 WHERE id = ?1",
+                    params![id, pos],
+                )?;
+            }
+            // 连同一起删的（删除时间一样的）子孙
+            let ids: Vec<String> = {
+                let mut st = tx.prepare(
+                    "WITH RECURSIVE sub(id) AS (
+                        SELECT id FROM pages WHERE id = ?1
+                        UNION ALL
+                        SELECT p.id FROM pages p JOIN sub ON p.parent_id = sub.id
+                        WHERE p.deleted_at IS NOT NULL AND p.trash_root = ?1
+                     ) SELECT id FROM sub",
+                )?;
+                st.query_map(params![id], |r| r.get(0))?
+                    .collect::<rusqlite::Result<_>>()?
+            };
+            let mut out = Vec::with_capacity(ids.len());
+            for pid in &ids {
+                tx.execute(
+                    "UPDATE pages SET deleted_at = NULL, trash_root = NULL WHERE id = ?1",
+                    params![pid],
+                )?;
+                if let Some(p) = get_page(&tx, pid)? {
+                    out.push(p);
+                }
+            }
+            tx.commit()?;
+            Ok(out)
+        })
+        .await
+    }
+
+    async fn purge_page(&self, id: &str) -> Result<(Vec<String>, Vec<String>)> {
+        let id = id.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let root = get_page(&tx, &id)?.ok_or_else(|| Error::NotFound(format!("页面 {id} 不存在")))?;
+            if root.deleted_at.is_none() {
+                return Err(Error::BadRequest("要先移到回收站才能彻底删除".into()));
+            }
+            let ids: Vec<String> = {
+                let mut st = tx.prepare(
+                    "WITH RECURSIVE sub(id, depth) AS (
+                        SELECT id, 0 FROM pages WHERE id = ?1
+                        UNION ALL
+                        SELECT p.id, sub.depth + 1 FROM pages p JOIN sub ON p.parent_id = sub.id
+                     ) SELECT id FROM sub ORDER BY depth DESC",
+                )?;
+                st.query_map([&id], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?
+            };
+            let mut files: Vec<String> = Vec::new();
+            for pid in &ids {
+                let mut st = tx.prepare_cached("SELECT file_id FROM file_refs WHERE page_id = ?1")?;
+                files.extend(st.query_map([pid], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?);
+            }
+            for pid in &ids {
+                tx.execute("DELETE FROM pages WHERE id = ?1", [pid])?;
+            }
+            // 没有别的页面用的文件、没有别的文件和图片用的内容
+            files.sort();
+            files.dedup();
+            let mut blobs = Vec::new();
+            for f in files {
+                let used: bool = tx.query_row("SELECT EXISTS (SELECT 1 FROM file_refs WHERE file_id = ?1)", [&f], |r| r.get(0))?;
+                if used {
+                    continue;
+                }
+                let Some(hash) = tx
+                    .query_row("SELECT hash FROM files WHERE id = ?1", [&f], |r| r.get::<_, String>(0))
+                    .optional()?
+                else {
+                    continue;
+                };
+                tx.execute("DELETE FROM files WHERE id = ?1", [&f])?;
+                let shared: bool = tx.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM files WHERE hash = ?1) OR EXISTS (SELECT 1 FROM media WHERE hash = ?1)",
+                    [&hash],
+                    |r| r.get(0),
+                )?;
+                if !shared {
+                    tx.execute("DELETE FROM blobs WHERE hash = ?1", [&hash])?;
+                    blobs.push(hash);
+                }
+            }
+            tx.commit()?;
+            Ok((ids, blobs))
+        })
+        .await
+    }
+
+    async fn trash_before(&self, before: i64) -> Result<Vec<String>> {
+        self.read(move |c| {
+            let mut st = c.prepare_cached(&format!(
+                "SELECT id FROM pages p WHERE deleted_at IS NOT NULL AND deleted_at < ?1 {TRASH_ROOT}"
+            ))?;
+            let rows = st.query_map([before], |r| r.get(0))?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn set_deleted_by(&self, ids: Vec<String>, by: &str) -> Result<()> {
+        let by = by.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            for id in ids {
+                tx.prepare_cached("UPDATE pages SET deleted_by = ?2 WHERE id = ?1")?
+                    .execute(params![id, by])?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn deleted_by(&self, id: &str) -> Result<Option<String>> {
+        let id = id.to_string();
+        self.read(move |c| {
+            Ok(
+                c.prepare_cached("SELECT deleted_by FROM pages WHERE id = ?1")?
+                    .query_row([id], |r| r.get(0))
+                    .optional()?
+                    .flatten(),
+            )
+        })
+        .await
+    }
+
+    async fn add_file_refs(&self, page_id: &str, files: Vec<String>) -> Result<()> {
+        let id = page_id.to_string();
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            for f in files {
+                tx.prepare_cached("INSERT OR IGNORE INTO file_refs (page_id, file_id) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM pages WHERE id = ?1)")?
+                    .execute(params![id, f])?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn add_version(&self, page_id: &str, v: NewVersion) -> Result<i64> {
+        let id = page_id.to_string();
+        self.write(move |c| {
+            let authors = serde_json::to_string(&v.authors).unwrap_or_else(|_| "[]".into());
+            let vid: i64 = c
+                .prepare_cached(
+                    "INSERT INTO doc_versions (page_id, state, label, created_by, created_at, kind, authors, state_vector)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id",
+                )?
+                .query_row(
+                    params![id, v.snapshot, v.label, v.created_by, ids::now_ms(), v.kind, authors, v.state_vector],
+                    |r| r.get(0),
+                )?;
+            Ok(vid)
+        })
+        .await
+    }
+
+    async fn versions(&self, page_id: &str, limit: usize) -> Result<Vec<VersionMeta>> {
+        let id = page_id.to_string();
+        self.read(move |c| {
+            let mut st = c.prepare_cached(
+                "SELECT id, page_id, kind, label, authors, created_by, created_at FROM doc_versions
+                 WHERE page_id = ?1 ORDER BY id DESC LIMIT ?2",
+            )?;
+            let rows = st.query_map(params![id, limit as i64], version_meta)?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn version(&self, page_id: &str, vid: i64) -> Result<Option<(VersionMeta, Vec<u8>)>> {
+        let id = page_id.to_string();
+        self.read(move |c| {
+            Ok(c.prepare_cached(
+                "SELECT id, page_id, kind, label, authors, created_by, created_at, state FROM doc_versions
+                 WHERE page_id = ?1 AND id = ?2",
+            )?
+            .query_row(params![id, vid], |r| Ok((version_meta(r)?, r.get(7)?)))
+            .optional()?)
+        })
+        .await
+    }
+
+    async fn db_ops(
+        &self,
+        db_id: &str,
+        row: Option<&str>,
+        prop: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<DbOpRow>> {
+        let (id, row, prop) = (
+            db_id.to_string(),
+            row.map(str::to_string),
+            prop.map(str::to_string),
+        );
+        self.read(move |c| {
+            let mut st = c.prepare_cached(
+                "SELECT seq, row_id, prop, old, new, by, at FROM db_ops
+                 WHERE db_id = ?1 AND (?2 IS NULL OR row_id = ?2) AND (?3 IS NULL OR prop = ?3)
+                 ORDER BY id DESC LIMIT ?4",
+            )?;
+            let rows = st.query_map(params![id, row, prop, limit as i64], |r| {
+                let old: Option<String> = r.get(3)?;
+                let new: Option<String> = r.get(4)?;
+                Ok(DbOpRow {
+                    seq: r.get(0)?,
+                    row_id: r.get(1)?,
+                    prop: r.get(2)?,
+                    old: old.and_then(|x| serde_json::from_str(&x).ok()),
+                    new: new.and_then(|x| serde_json::from_str(&x).ok()),
+                    by: r.get(5)?,
+                    at: r.get(6)?,
+                })
+            })?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn db_schema_ops(&self, db_id: &str, limit: usize) -> Result<Vec<SchemaOpRow>> {
+        let id = db_id.to_string();
+        self.read(move |c| {
+            let mut st = c.prepare_cached(
+                "SELECT seq, op, before, after, by, at FROM db_schema_ops WHERE db_id = ?1 ORDER BY seq DESC LIMIT ?2",
+            )?;
+            let rows = st.query_map(params![id, limit as i64], |r| {
+                let b: Option<String> = r.get(2)?;
+                let a: Option<String> = r.get(3)?;
+                Ok(SchemaOpRow {
+                    seq: r.get(0)?,
+                    op: r.get(1)?,
+                    before: b.and_then(|x| serde_json::from_str(&x).ok()).unwrap_or_default(),
+                    after: a.and_then(|x| serde_json::from_str(&x).ok()).unwrap_or_default(),
+                    by: r.get(4)?,
+                    at: r.get(5)?,
+                })
+            })?;
+            Ok(rows.collect::<rusqlite::Result<_>>()?)
+        })
+        .await
+    }
+
+    async fn undo_db_ops(
+        &self,
+        db_id: &str,
+        seq: i64,
+        title_key: &str,
+        by: &str,
+    ) -> Result<(i64, Vec<(String, String)>, Vec<String>)> {
+        let (id, tk, by) = (db_id.to_string(), title_key.to_string(), by.to_string());
+        self.write(move |c| {
+            let tx = c.transaction()?;
+            let ops: Vec<(String, String, Option<String>, Option<String>)> = tx
+                .prepare_cached("SELECT row_id, prop, old, new FROM db_ops WHERE db_id = ?1 AND seq = ?2 ORDER BY id DESC")?
+                .query_map(params![id, seq], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            if ops.is_empty() {
+                return Err(Error::NotFound(format!("第 {seq} 次没有格子改动")));
+            }
+            let new_seq = bump_seq(&tx, &id)?;
+            let now = ids::now_ms();
+            let at = At { db: &id, seq: new_seq, by: &by, at: now };
+            let parse = |x: &Option<String>| x.as_ref().and_then(|v| serde_json::from_str::<serde_json::Value>(v).ok());
+            let mut titles = Vec::new();
+            let mut back = Vec::new();
+            for (rid, prop, old, new) in ops {
+                let (old, new) = (parse(&old), parse(&new));
+                let Some(mut row) = tx
+                    .prepare_cached(&format!("SELECT {ROW_COLS} FROM db_rows WHERE row_id = ?1 AND db_id = ?2"))?
+                    .query_row(params![rid, id], db_row_of)
+                    .optional()?
+                else {
+                    continue;
+                };
+                match prop.as_str() {
+                    // 新建的行：删掉
+                    "*" if old.is_none() => {
+                        if row.deleted_at.is_none() {
+                            tx.execute("UPDATE db_rows SET deleted_at = ?2, seq = ?3 WHERE row_id = ?1", params![rid, now, new_seq])?;
+                            tx.execute(
+                    "UPDATE pages SET deleted_at = ?2, trash_root = ?1 WHERE id = ?1 AND deleted_at IS NULL",
+                    params![rid, now],
+                )?;
+                            log_op(&tx, &at, &rid, "*", &Some(serde_json::Value::Object(row.props)), &None)?;
+                        }
+                    }
+                    // 删掉的行：放回
+                    "*" => {
+                        if row.deleted_at.is_some() {
+                            tx.execute("UPDATE db_rows SET deleted_at = NULL, seq = ?2 WHERE row_id = ?1", params![rid, new_seq])?;
+                            tx.execute("UPDATE pages SET deleted_at = NULL, trash_root = NULL WHERE id = ?1", params![rid])?;
+                            log_op(&tx, &at, &rid, "*", &None, &Some(serde_json::Value::Object(row.props)))?;
+                            back.push(rid.clone());
+                        }
+                    }
+                    "@position" => {
+                        let cur = Some(serde_json::Value::String(row.position.clone()));
+                        if cur == new
+                            && let Some(p) = old.as_ref().and_then(|v| v.as_str())
+                        {
+                            tx.execute("UPDATE db_rows SET position = ?2, seq = ?3 WHERE row_id = ?1", params![rid, p, new_seq])?;
+                            tx.execute("UPDATE pages SET position = ?2 WHERE id = ?1", params![rid, p])?;
+                            log_op(&tx, &at, &rid, "@position", &cur, &old)?;
+                        }
+                    }
+                    k => {
+                        let cur = row.props.get(k).cloned();
+                        // 之后又被人改过的不动
+                        if cur != new || row.deleted_at.is_some() {
+                            continue;
+                        }
+                        match &old {
+                            Some(v) => row.props.insert(k.to_string(), v.clone()),
+                            None => row.props.remove(k),
+                        };
+                        if k == tk {
+                            let t = old.as_ref().and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            tx.execute("UPDATE pages SET title = ?2, updated_at = ?3 WHERE id = ?1", params![rid, t, now])?;
+                            titles.push((rid.clone(), t));
+                        }
+                        tx.prepare_cached("UPDATE db_rows SET props = ?2, seq = ?3, updated_at = ?4, updated_by = ?5 WHERE row_id = ?1")?
+                            .execute(params![rid, serde_json::Value::Object(row.props).to_string(), new_seq, now, by])?;
+                        log_op(&tx, &at, &rid, k, &cur, &old)?;
+                    }
+                }
+            }
+            tx.commit()?;
+            Ok((new_seq, titles, back))
         })
         .await
     }
@@ -1957,6 +2666,41 @@ fn get_db_meta(c: &Connection, db_id: &str) -> Result<Option<DbMeta>> {
     )
 }
 
+const INVITE_COLS: &str =
+    "token, workspace_id, role, created_by, created_at, expires_at, revoked_at, uses";
+
+fn invite_row(r: &Row) -> rusqlite::Result<Invite> {
+    Ok(Invite {
+        token: r.get(0)?,
+        workspace_id: r.get(1)?,
+        role: Role::parse(&r.get::<_, String>(2)?).unwrap_or(Role::Viewer),
+        created_by: r.get(3)?,
+        created_at: r.get(4)?,
+        expires_at: r.get(5)?,
+        revoked_at: r.get(6)?,
+        uses: r.get(7)?,
+    })
+}
+
+const SHARE_COLS: &str =
+    "id, page_id, token, include_children, indexable, created_by, created_at, revoked_at";
+
+fn share_row(r: &Row) -> rusqlite::Result<Share> {
+    Ok(Share {
+        id: r.get(0)?,
+        page_id: r.get(1)?,
+        token: r.get(2)?,
+        include_children: r.get(3)?,
+        indexable: r.get(4)?,
+        created_by: r.get(5)?,
+        created_at: r.get(6)?,
+        revoked_at: r.get(7)?,
+    })
+}
+
+/// 回收站里单独删的（上级没有跟它同时删）。
+const TRASH_ROOT: &str = "AND (p.trash_root = p.id OR p.trash_root IS NULL AND (p.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM pages q WHERE q.id = p.parent_id AND q.deleted_at = p.deleted_at)))";
+
 const ROW_COLS: &str = "row_id, db_id, seq, position, props, unique_id, created_at, created_by, updated_at, updated_by, deleted_at";
 
 fn db_row_of(r: &Row) -> rusqlite::Result<DbRow> {
@@ -2020,4 +2764,17 @@ fn title_key_of(schema: &serde_json::Value) -> Option<String> {
         .find(|p| p["type"] == "title")
         .and_then(|p| p["key"].as_str())
         .map(str::to_string)
+}
+
+fn version_meta(r: &Row) -> rusqlite::Result<VersionMeta> {
+    let authors: String = r.get(4)?;
+    Ok(VersionMeta {
+        id: r.get(0)?,
+        page_id: r.get(1)?,
+        kind: r.get(2)?,
+        label: r.get(3)?,
+        authors: serde_json::from_str(&authors).unwrap_or_default(),
+        created_by: r.get(5)?,
+        created_at: r.get(6)?,
+    })
 }
