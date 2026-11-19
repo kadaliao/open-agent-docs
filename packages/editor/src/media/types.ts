@@ -1,4 +1,4 @@
-// 链接解析结果（服务器 GET /api/v1/unfurl 的输出，和 spikes/unfurl/src/model.rs 的 Unfurl 一样）。字段都是尽力而为。
+// 链接解析结果（服务器 GET /api/v1/unfurl 的输出，和 crates/oad-unfurl 的 Unfurl 一样）。字段都是尽力而为。
 export type UnfurlKind = 'video' | 'post' | 'repo' | 'issue' | 'pull_request' | 'article' | 'image' | 'file' | 'bookmark' | 'database'
 export type Provider = 'youtube' | 'x' | 'github' | 'bilibili' | 'wechat' | 'generic' | string
 

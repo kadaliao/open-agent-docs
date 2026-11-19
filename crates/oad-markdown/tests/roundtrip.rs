@@ -1,5 +1,4 @@
 use oad_markdown::{Mark, Node, parse, serialize};
-use serde_json::Value;
 
 /// md → doc → md → doc：两次的 doc 一样，第二次的 md 和第一次一样。
 fn stable(md: &str) -> (Node, String) {
@@ -385,56 +384,12 @@ fn random_docs_roundtrip() {
     }
 }
 
-// ---------- CRDT 实验生成的大文档（Tiptap schema）----------
-
-fn norm_tiptap(v: &Value) -> Value {
-    // 去掉 id、null 属性、Tiptap 的默认值，链接只留 href / title
-    match v {
-        Value::Object(o) => {
-            let mut m = serde_json::Map::new();
-            for (k, x) in o {
-                if k == "attrs" {
-                    let ty = o.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                    let mut a = serde_json::Map::new();
-                    for (ak, av) in x.as_object().unwrap() {
-                        if av.is_null()
-                            || ak == "id"
-                            || (ty == "orderedList" && ak == "start" && av == 1)
-                        {
-                            continue;
-                        }
-                        if ty == "link" && ak != "href" && ak != "title" {
-                            continue;
-                        }
-                        a.insert(ak.clone(), av.clone());
-                    }
-                    if !a.is_empty() {
-                        m.insert(k.clone(), Value::Object(a));
-                    }
-                } else {
-                    m.insert(k.clone(), norm_tiptap(x));
-                }
-            }
-            Value::Object(m)
-        }
-        Value::Array(a) => Value::Array(a.iter().map(norm_tiptap).collect()),
-        _ => v.clone(),
-    }
-}
+// ---------- 1 万块的大文档：速度和来回一致 ----------
 
 #[test]
 fn big_generated_doc() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../spikes/crdt/out/base10k.json"
-    );
-    let Ok(raw) = std::fs::read(path) else {
-        eprintln!("没有 {path}，跳过");
-        return;
-    };
-    let doc: Node =
-        serde_json::from_value(norm_tiptap(&serde_json::from_slice(&raw).unwrap())).unwrap();
-    let doc = Node::new("doc").children(doc.content.into_iter().map(fix_inline).collect());
+    let mut r = Rng(0x2545F4914F6CDD1D);
+    let doc = Node::new("doc").children((0..10_000).map(|_| rand_block(&mut r, 0)).collect());
     let t = std::time::Instant::now();
     let md = serialize(&doc);
     let ser_ms = t.elapsed().as_secs_f64() * 1000.0;
@@ -445,25 +400,6 @@ fn big_generated_doc() {
         "10000 块：输出 Markdown {ser_ms:.1}ms（{} KB），解析 {parse_ms:.1}ms",
         md.len() / 1024
     );
-    assert_eq!(doc.content.len(), back.content.len());
-    for (i, (a, b)) in doc.content.iter().zip(back.content.iter()).enumerate() {
-        assert_eq!(a.ty, b.ty, "第 {i} 块类型不一样");
-        assert_eq!(
-            a.plain_text(),
-            b.plain_text(),
-            "第 {i} 块文字不一样\n{}",
-            oad_markdown::serialize_block(a)
-        );
-    }
-    assert_eq!(parse(&serialize(&back)), back, "第二遍不稳定");
-}
-
-/// 生成器的文字前后带空格，按 Markdown 的规矩规整一下
-fn fix_inline(mut n: Node) -> Node {
-    if n.content.iter().any(|c| c.is_text()) && n.ty != "codeBlock" {
-        n.content = tidy(n.content);
-    } else {
-        n.content = n.content.into_iter().map(fix_inline).collect();
-    }
-    n
+    assert_eq!(back, doc, "1 万块的文档来回不一致");
+    assert_eq!(serialize(&back), md, "第二遍不稳定");
 }

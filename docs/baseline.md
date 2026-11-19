@@ -1,7 +1,7 @@
 # 性能基线：旧版和新版
 
-旧版（`legacy/`，Python + FastAPI + SQLite + 官方 MCP SDK，网页是 React + Tiptap）在几个关键场景下的数，给 Rust 重写当要超过的线。
-2026-11-18 测的，脚本是 `spikes/baseline/bench.py`，三轮的原始结果在 `spikes/baseline/results-2026-11-18.json`。
+旧版（git 标签 `python-final` 里的 `legacy/`，Python + FastAPI + SQLite + 官方 MCP SDK，网页是 React + Tiptap）在几个关键场景下的数，给 Rust 重写当要超过的线。
+2026-11-18 测的，脚本是 `bench/bench.py`，三轮的原始结果在 `bench/results-2026-11-18.json`。
 
 新版（Rust 二进制）的验收复测在下面第一节（2026-11-19，同一台机器）。旧版的详细结果和分析在后面，没改。
 
@@ -13,12 +13,12 @@
 - **机器**：和旧版同一台（Apple M2，8 核，16 GB，macOS 27.3），Node 26.13，Playwright 自带的 Chromium。
 - **机器很忙**：测的时候别的 Agent 在同一台机器上编原生扩展（好几个 clang、rustc 进程），**load average 一直在 160 到 290 之间**（8 核，旧版测的时候是 8 到 28）。
   每一节的前后都记了 load average，写在每节后面。新版的数是在比旧版忙得多的机器上测的，空闲的机器上应该只会更好。
-- **服务端**：`spikes/baseline/bench-new.mjs`（冷启动、内存、大小、搜索、链接卡片）。搜索用的是旧版同一份语料和同样的 50 个查询：
-  `spikes/baseline/gen-corpus.py` 直接调 `bench.py` 的生成函数、用同样的随机种子导出（500 页，约 10.08 万段，602 万字）。
+- **服务端**：`bench/bench-new.mjs`（冷启动、内存、大小、搜索、链接卡片）。搜索用的是旧版同一份语料和同样的 50 个查询：
+  `bench/gen-corpus.py` 直接调 `bench.py` 的生成函数、用同样的随机种子导出（500 页，约 10.08 万段，602 万字）。
   客户端是同一台机器上的 Node `fetch`，时间是客户端看到的，含 HTTP 往返。服务器用 `OAD_AUTH=none`、`OAD_RATE_LIMIT=0`（不然灌数据会被限流）。
 - **浏览器**：`apps/web/e2e/perf.spec.ts`、`db-perf.spec.ts`（第 1、4 阶段写的验收测试），跑 3 次，每次每项 7 个样本。1000 段的页面是 1000 个顶层块（算上列表项、表格行等嵌套的共 2998 个节点；旧版的“1002 段”是按服务器的切法，列表每项、表格每行各算一段，规模相当）。
   1 万行的库是 db-perf 自己生成的 12 列（和旧版的列不完全一样，规模一样）。
-- **原始数据**：`spikes/baseline/results-new-2026-11-19.json`（`bench-new.mjs` 每轮的数，三次 `perf.json`、`db-perf.json`，每次前后的 load average）；跑法见 `bench-new.mjs` 开头。
+- **原始数据**：`bench/results-new-2026-11-19.json`（`bench-new.mjs` 每轮的数，三次 `perf.json`、`db-perf.json`，每次前后的 load average）；跑法见 `bench-new.mjs` 开头。
 
 | 指标 | 目标 | 旧版 | 新版（3 轮中位数） | 达标 |
 | --- | --- | --- | --- | --- |
@@ -98,7 +98,7 @@
 - **机器不空闲**：测的时候别的 Agent 在同一台机器上编译、跑东西，load average 在 8 到 28 之间（8 核）。同一项在三轮之间最多差 2 到 3 倍。
   所以下面的表写的是**三轮里最好那轮的 p50**（p95 也取那一轮），括号里是三轮 p50 的范围。对服务端的接口还记了**服务进程每次请求花的 CPU 时间**（user+sys），它受干扰小一些。
   在空闲的机器上，数大概会贴近或者低于“最好那轮”。
-- **怎么跑**：在仓库根目录 `uv run spikes/baseline/bench.py --out <临时目录>`（Python 依赖写在脚本头里，uv 会自己装）。整套约 8 分钟。
+- **怎么跑**：在仓库根目录 `uv run bench/bench.py --out <临时目录>`（Python 依赖写在脚本头里，uv 会自己装）。整套约 8 分钟。
   `--only coldstart,pages` 只跑某几项，`--no-frontend` 不开浏览器。
 - **客户端**：httpx 从同一台机器发请求，绕开代理。时间是客户端看到的，包含 HTTP 往返（本机约 1 ms）。每个接口先预热 1 次再量，一般量 30 次（数据库那几项量 10 次）。
 - **数据**：脚本按固定随机种子生成中英混合的文本：常用词按 Zipf 分布抽，中文句子里夹英文词，英文句子里偶尔夹中文词。

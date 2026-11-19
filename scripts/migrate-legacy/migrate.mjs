@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 把旧版（Python，legacy/）的数据导进新版服务器。读旧版的 SQLite（docs.db），经 @oad/client 调新版的接口写进去。
+// 把旧版（Python，git 标签 python-final）的数据导进新版服务器。读旧版的 SQLite（docs.db），经 @oad/client 调新版的接口写进去。
 //
 //   node scripts/migrate-legacy/migrate.mjs --from ~/.open-agent-docs --to http://127.0.0.1:8848 [--token <token>] \
 //        [--tokens-out ./agent-tokens.txt] [--map ./oad-migration-map.json] [--report ./oad-migration-report.md] [--dry-run]

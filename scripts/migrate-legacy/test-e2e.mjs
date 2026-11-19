@@ -1,10 +1,10 @@
-// 端到端：用旧版自己的代码造一份旧数据（make-fixture.py），起一个新版服务器，先 --dry-run（不能写任何东西），
+// 端到端：拿旧版数据（默认是 fixture/docs.db，当初用旧版自己的代码造的），起一个新版服务器，先 --dry-run（不能写任何东西），
 // 再真导一遍、逐项核对，再跑一遍（什么都不该多出来）。
 //   OAD_BIN=/path/to/open-agent-docs node test-e2e.mjs [旧版数据目录]
-// 不给数据目录就现造（要 uv：cd legacy && uv run …）。先 pnpm --filter @oad/client build。
+// 先 pnpm --filter @oad/client build。
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createClient } from '@oad/client/core'
@@ -16,8 +16,7 @@ const work = mkdtempSync(join(tmpdir(), 'oad-migrate-'))
 let fixture = process.argv[2]
 if (!fixture) {
   fixture = join(work, 'legacy')
-  const r = spawnSync('uv', ['run', 'python', join(here, 'make-fixture.py'), fixture], { cwd: join(root, 'legacy'), stdio: 'inherit' })
-  assert.equal(r.status, 0, '造旧数据失败（要 uv）')
+  cpSync(join(here, 'fixture'), fixture, { recursive: true })
 }
 
 const PORT = 18896

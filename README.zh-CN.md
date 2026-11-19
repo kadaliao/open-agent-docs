@@ -45,7 +45,7 @@ pnpm dev                             # 网页（热更新，/api 转给 :8848）
 pnpm -r test && cargo test           # 测试
 ```
 
-旧的 Python 版在 [legacy/](legacy/)，迁移做完以前留着。
+旧的 Python 版在 git 标签 `python-final` 上；数据搬过来见[迁移](docs/zh/migration.md)。
 
 ## 许可
 

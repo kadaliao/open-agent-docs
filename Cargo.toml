@@ -11,7 +11,7 @@ version = "0.1.0"
 # 默认按体积优化，整体 LTO（fat 比 thin 小好几 MB）：二进制从 39MB 降到 28MB。下面这些热路径（搜索、协作、
 # 数据库引擎、JSON、SQLite、压缩、密码哈希）照样 opt-level 3。改动后用
 # `CARGO_PROFILE_RELEASE_STRIP=false cargo bloat --release -p oad-bin --crates` 看体积，
-# 用 oad-search 的 bench 和 spikes/baseline/bench-new.mjs 看速度。
+# 用 oad-search 的 bench 和 bench/bench-new.mjs 看速度。
 opt-level = "s"
 lto = "fat"
 codegen-units = 1

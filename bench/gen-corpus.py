@@ -4,7 +4,7 @@
 # dependencies = ["httpx>=0.27", "psutil>=5.9"]
 # ///
 """把旧版基线（bench.py）用的那份搜索语料和查询原样导出成 JSON，新版的 bench-new.mjs 灌同一份数据、跑同样的查询。
-   uv run spikes/baseline/gen-corpus.py <输出.json>
+   uv run bench/gen-corpus.py <输出.json>
 同样的随机种子（2024 / 5），和 bench.py 的 bench_search 一模一样：500 页 × 约 200 段，50 个查询（中英各 25）。"""
 import importlib.util
 import json

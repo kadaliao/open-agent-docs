@@ -3,13 +3,13 @@
 # requires-python = ">=3.11"
 # dependencies = ["httpx>=0.27", "psutil>=5.9", "playwright>=1.45"]
 # ///
-"""旧版（legacy/，Python + FastAPI + SQLite）的性能基线：给 Rust 重写定一组要超过的数。
+"""旧版（git 标签 python-final 里的 legacy/，Python + FastAPI + SQLite）的性能基线：给 Rust 重写定一组要超过的数。
 
 在仓库根目录跑：
 
-  uv run spikes/baseline/bench.py --out /tmp/oad-baseline            # 全部
-  uv run spikes/baseline/bench.py --out ... --only coldstart,pages   # 只跑某几项
-  uv run spikes/baseline/bench.py --out ... --no-frontend            # 不开浏览器
+  uv run bench/bench.py --out /tmp/oad-baseline            # 全部
+  uv run bench/bench.py --out ... --only coldstart,pages   # 只跑某几项
+  uv run bench/bench.py --out ... --no-frontend            # 不开浏览器
 
 做的事（结果写进 <out>/results.json，最后打印一张表）：
   footprint  在 <out>/venv 里装一份不带开发依赖的旧版（uv sync --no-dev --no-editable），量大小、import 时间

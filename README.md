@@ -50,7 +50,7 @@ pnpm dev                             # web app with hot reload, proxies /api to 
 pnpm -r test && cargo test           # tests
 ```
 
-The previous Python version lives in [legacy/](legacy/) until the migration is complete.
+The previous Python version is tagged `python-final` in git; to move its data over, see [migration](docs/en/migration.md).
 
 ## License
 

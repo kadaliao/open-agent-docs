@@ -2,8 +2,8 @@
 // 10 万段搜索（和旧版 bench.py 同一份语料、同样的查询：先跑 gen-corpus.py）、X / YouTube 卡片（接口和浏览器里贴链接）。
 // 浏览器里打开 1000 段页面、打字、1 万行数据库在 apps/web/e2e 的 perf.spec.ts / db-perf.spec.ts 里量。
 //
-//   uv run spikes/baseline/gen-corpus.py /tmp/corpus.json
-//   node spikes/baseline/bench-new.mjs --bin target/release/open-agent-docs --corpus /tmp/corpus.json --out /tmp/oad-new [--rounds 3] [--only coldstart,search,unfurl]
+//   uv run bench/gen-corpus.py /tmp/corpus.json
+//   node bench/bench-new.mjs --bin target/release/open-agent-docs --corpus /tmp/corpus.json --out /tmp/oad-new [--rounds 3] [--only coldstart,search,unfurl]
 //
 // 每项跑 --rounds 轮，结果里每轮的数都留着，再给中位数；每项前后记 load average（机器忙不忙）。不打印 token。
 import { spawn } from 'node:child_process'

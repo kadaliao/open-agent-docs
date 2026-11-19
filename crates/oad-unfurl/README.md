@@ -1,6 +1,6 @@
 # oad-unfurl：链接解析
 
-服务器端把粘贴进来的链接（X、YouTube、GitHub、B 站、公众号、普通网页）变成卡片数据。第 0 阶段在 `spikes/unfurl/` 做的实验，第 3 阶段做成了这个 crate。
+服务器端把粘贴进来的链接（X、YouTube、GitHub、B 站、公众号、普通网页）变成卡片数据。第 0 阶段先做了实验，第 3 阶段做成了这个 crate。
 这里只管抓和解析（带 SSRF 防护、按网站限速）；缓存、图片转存、后台预取在 oad-core 的 `unfurl.rs`，接口见 `docs/phase3-contract.md`。
 
 ```sh
