@@ -307,3 +307,32 @@ test('内嵌：页面里单独一行库的网址，显示成能用的库', async
   await shot(page, 'embed')
   await ctx.close()
 })
+
+test('标题列的 key 不叫 title 时（接口、MCP 建的库会随机分配），卡片、日历、列表照样显示行标题', async ({ browser, request }) => {
+  test.skip(MOCK, '要真服务器分配 key')
+  const r = await request.post(`/api/v1/workspaces/${ws}/databases`, {
+    data: {
+      title: '随机 key',
+      schema: { props: [{ name: '名称', type: 'title' }, { name: '截止', type: 'date' }, { name: '状态', type: 'status' }] },
+    },
+  })
+  expect(r.ok()).toBeTruthy()
+  const { page: pg, schema } = await r.json()
+  const titleKey = schema.props.find((p: { type: string }) => p.type === 'title').key
+  expect(titleKey).not.toBe('title')
+  const dateKey = schema.props.find((p: { type: string }) => p.type === 'date').key
+  const statusKey = schema.props.find((p: { type: string }) => p.type === 'status').key
+  const views = [{ name: '看板', type: 'board', group_by: statusKey }, { name: '日历', type: 'calendar', calendar_by: dateKey }, { name: '列表', type: 'list' }]
+  expect((await request.put(`/api/v1/databases/${pg.id}/views`, { data: { views } })).ok()).toBeTruthy()
+  const today = new Date().toISOString().slice(0, 10)
+  await request.post(`/api/v1/databases/${pg.id}/rows`, { data: { rows: [{ props: { [titleKey]: '随机键的行', [dateKey]: { start: today } } }] } })
+  const { ctx, page } = await newCtx(browser)
+  await page.goto(`/p/${pg.id}`)
+  await page.waitForSelector('.db[data-status="ready"]', { timeout: 20_000 })
+  await expect(page.locator('.db-card-title')).toHaveText('随机键的行')
+  await page.locator('.db-tab', { hasText: '日历' }).click()
+  await expect(page.locator('.db-cal-item, .db-cal-ev').first()).toContainText('随机键的行')
+  await page.locator('.db-tab', { hasText: '列表' }).click()
+  await expect(page.locator('.db-list-title')).toHaveText('随机键的行')
+  await ctx.close()
+})

@@ -143,6 +143,15 @@ export class DbStore {
   prop(key: string): Prop | undefined {
     return this.meta?.schema.props.find((p) => p.key === key)
   }
+  /** 标题列的 key（建库时随机分配，不一定叫 title） */
+  get titleKey(): string {
+    return this.schema.props.find((p) => p.type === 'title')?.key ?? 'title'
+  }
+  /** 一行的标题；没有就是空字符串 */
+  rowTitle(row: Row | undefined): string {
+    const v = row?.props[this.titleKey]
+    return typeof v === 'string' ? v : ''
+  }
 
   /** 打开：缓存先出，再和服务器同步。可以多次调用 */
   open(events?: EventSource_) {
@@ -386,15 +395,16 @@ export class DbStore {
     return id
   }
 
-  /** 行页面里改了标题（标题在行页面的协作文档里，服务器同步到 props.title）：只改本地显示，不再发一遍 */
+  /** 行页面里改了标题（标题在行页面的协作文档里，服务器同步到标题列）：只改本地显示，不再发一遍 */
   localTitle(id: string, title: string) {
     const r = this.rows.get(id)
-    if (!r || (r.props.title ?? '') === title) return
+    const key = this.titleKey
+    if (!r || this.rowTitle(r) === title) return
     const props = { ...r.props }
-    if (title) props.title = title
-    else delete props.title
+    if (title) props[key] = title
+    else delete props[key]
     this.rows.set(id, { ...r, props })
-    this.engine?.apply([{ row_id: id, props: { title: title || null } }])
+    this.engine?.apply([{ row_id: id, props: { [key]: title || null } }])
     this.emit()
   }
 

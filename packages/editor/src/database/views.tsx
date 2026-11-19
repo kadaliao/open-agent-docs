@@ -33,11 +33,12 @@ function cardProps(props: Prop[], view: View) {
 function Card({ row, props, onOpen, cover, draggable, onDragStart }: { row: Row; props: Prop[]; onOpen: () => void; cover?: string | null; draggable?: boolean; onDragStart?: (e: React.DragEvent) => void }) {
   const { store } = useDb()
   const shown = props.filter((p) => !isEmptyVal(cellValue(store, p, row)))
+  const title = store.rowTitle(row)
   return (
     <div className="db-card" role="button" tabIndex={0} draggable={draggable} onDragStart={onDragStart} onClick={onOpen} onKeyDown={(e) => e.key === 'Enter' && onOpen()} data-row={row.id}>
       {cover !== undefined && <div className="db-card-cover">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="db-card-nocover" />}</div>}
       <div className="db-card-body">
-        <div className={'db-card-title' + (row.props.title ? '' : ' is-empty')}>{(row.props.title as string) || t('untitled')}</div>
+        <div className={'db-card-title' + (title ? '' : ' is-empty')}>{title || t('untitled')}</div>
         {shown.map((p) => (
           <div key={p.key} className={'db-card-prop is-' + p.type + (LABELED.has(p.type) ? ' has-label' : '')} title={p.name}>
             {LABELED.has(p.type) && <PropLabel p={p} />}
@@ -320,9 +321,9 @@ export function CalendarView({ view, result }: VProps) {
                   }}
                   onDragEnd={() => setDrag(null)}
                   onClick={() => openRow(row.id)}
-                  title={(row.props.title as string) || t('untitled')}
+                  title={store.rowTitle(row) || t('untitled')}
                 >
-                  {(row.props.title as string) || t('untitled')}
+                  {store.rowTitle(row) || t('untitled')}
                 </button>
               ))}
               {list.length > max && <span className="db-cal-more">+{list.length - max}</span>}
@@ -443,7 +444,7 @@ export function ListView({ view, result, maxHeight }: VProps) {
           return (
             <button key={row.id} type="button" className="db-list-row" style={{ top: vi.start }} onClick={() => openRow(row.id)}>
               <span className="db-list-ico">▤</span>
-              <span className={'db-list-title' + (row.props.title ? '' : ' is-empty')}>{(row.props.title as string) || t('untitled')}</span>
+              <span className={'db-list-title' + (store.rowTitle(row) ? '' : ' is-empty')}>{store.rowTitle(row) || t('untitled')}</span>
               <span className="db-list-props">
                 {props.map((p) =>
                   isEmptyVal(cellValue(store, p, row)) ? null : (

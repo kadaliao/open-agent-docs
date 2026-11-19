@@ -45,7 +45,7 @@ function personName(people: Map<string, Person>, ref: string) {
 function relatedTitle(store: DbStore, dbId: string | undefined, id: string) {
   if (!dbId) return id
   const s = store.client.database(dbId)
-  return (s.rows.get(id)?.props.title as string) || t('untitled')
+  return s.rowTitle(s.rows.get(id)) || t('untitled')
 }
 
 /** 只显示 */
@@ -620,7 +620,7 @@ function RelationEditor({ p, row, anchor, onDone }: EditProps) {
   const all = [...target.rows.values()]
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return all.filter((r) => !s || String(r.props.title ?? '').toLowerCase().includes(s)).slice(0, 60)
+    return all.filter((r) => !s || target.rowTitle(r).toLowerCase().includes(s)).slice(0, 60)
   }, [q, all.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (id: string) => store.setCells([{ row_id: row.id, key: p.key, value: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }])
   return (
@@ -634,7 +634,7 @@ function RelationEditor({ p, row, anchor, onDone }: EditProps) {
           <button key={r.id} type="button" className="db-opt-row" onClick={() => toggle(r.id)}>
             <span className="db-rel">
               <span className="db-rel-ico">↗</span>
-              {(r.props.title as string) || t('untitled')}
+              {target.rowTitle(r) || t('untitled')}
             </span>
             {cur.includes(r.id) && <span className="db-opt-check">✓</span>}
           </button>

@@ -108,7 +108,7 @@ export function DbHistory({ rowId, onClose }: { rowId?: string; onClose?: () => 
       <div className="dbh-list">
         {shown.map((x) => {
           const who = personOf(x.by, people)
-          const row = x.row_id ? x.row_title ?? (store.rows.get(x.row_id)?.props.title as string | undefined) : null
+          const row = x.row_id ? x.row_title ?? (store.rowTitle(store.rows.get(x.row_id)) || undefined) : null
           return (
             <div key={x.seq} className={'dbh-item is-' + x.kind + (x.undone ? ' is-undone' : '')} data-seq={x.seq}>
               {who ? (

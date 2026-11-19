@@ -64,9 +64,9 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
         const v = eng.computed(r.id)[p.key]
         const d = eng.display(p.key, v)
         eng.setSchema(schema)
-        return { title: (r.props.title as string) || t('untitled'), v: d || '—' }
+        return { title: store.rowTitle(r) || t('untitled'), v: d || '—' }
       } catch {
-        return { title: String(r.props.title ?? ''), v: '—' }
+        return { title: store.rowTitle(r), v: '—' }
       }
     })
   }, [check, src, store])
