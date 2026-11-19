@@ -147,16 +147,19 @@ input {
   display: grid;
   gap: 14px;
 }
-.login-mark,
-.home-mark {
-  width: 44px;
-  height: 44px;
+.login-mark {
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
   display: grid;
   place-items: center;
   background: var(--oad-fg);
   color: var(--oad-bg);
-  font-size: 22px;
+  font-size: 24px;
+}
+.oad-logo {
+  flex: none;
+  display: block;
 }
 .login-card h1 {
   margin: 6px 0 0;
@@ -1322,4 +1325,7 @@ button.me:hover {
 }
 .oad-embed .db-page-head {
   padding-top: 20px;
+}
+.home-inner .oad-logo {
+  margin: 0 auto;
 }

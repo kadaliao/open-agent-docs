@@ -1,3 +1,5 @@
+<img src="apps/web/public/icon.svg" width="72" alt="Open Agent Docs 的 Logo">
+
 # Open Agent Docs
 
 [English](README.md) | 简体中文

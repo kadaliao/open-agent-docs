@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, type InviteInfo, type Me } from '../api'
 import { useLocale } from '../i18n'
+import { Logo } from '../icons'
 import { navigate } from '../lib'
 import { t, type AppStrings } from '../strings'
 import './settings.css'
@@ -61,9 +62,13 @@ export default function InvitePage({ token, me, onJoined }: { token: string; me:
   return (
     <div className="login">
       <div className="login-card invite-card">
-        <div className="login-mark" aria-hidden>
-          {info?.workspace.icon || '✦'}
-        </div>
+        {info?.workspace.icon ? (
+          <div className="login-mark" aria-hidden>
+            {info.workspace.icon}
+          </div>
+        ) : (
+          <Logo size={48} />
+        )}
         {bad ? (
           <>
             <h1>{t('inviteInvalid')}</h1>

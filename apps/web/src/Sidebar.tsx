@@ -1,7 +1,7 @@
 // 侧栏：页面树。新建、重命名、拖动排序和移进别的页面、删除；别人（或 Agent）改了会通过 SSE 实时更新。
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Me, type Page } from './api'
-import { SidebarIcon } from './icons'
+import { Logo, SidebarIcon } from './icons'
 import { applyTheme, colorFor, initials, navigate, onCommand, pagePath, runCommand, storageGet, storageSet, useTheme, type Theme } from './lib'
 import { buildTree, createAndOpen, usePages, type PageStore, type TreeNode } from './store'
 import { useLocale } from './i18n'
@@ -102,9 +102,13 @@ export function Sidebar({ store, me, workspaceName, currentId, canWrite, canLogo
     <aside className="sidebar" onClick={() => setMenu(null)}>
       <div className="side-head">
         <div className="ws">
-          <span className="ws-mark" aria-hidden>
-            {me.workspaces[0]?.icon || '✦'}
-          </span>
+          {me.workspaces[0]?.icon ? (
+            <span className="ws-mark" aria-hidden>
+              {me.workspaces[0].icon}
+            </span>
+          ) : (
+            <Logo size={22} />
+          )}
           <span className="ws-name">{workspaceName}</span>
         </div>
         <button className="icon-btn" onClick={onCollapse} aria-label={t('toggleSidebar')} title={t('toggleSidebar')}>

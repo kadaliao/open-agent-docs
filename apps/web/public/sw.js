@@ -4,7 +4,7 @@
 // - 读接口（/me、页面列表、页面信息、库的行……）先问网络，断网用上次的结果；
 // - 文件、缩略图先读缓存。
 // 改了缓存的做法就改 VERSION，旧的缓存会被清掉。
-const VERSION = 'v1'
+const VERSION = 'v2'
 const SHELL = 'oad-shell-' + VERSION
 const ASSETS = 'oad-assets-' + VERSION
 const API = 'oad-api-' + VERSION

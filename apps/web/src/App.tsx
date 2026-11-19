@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, type AuthMode, type Me } from './api'
-import { SidebarIcon } from './icons'
+import { Logo, SidebarIcon } from './icons'
 import { Login } from './Login'
 import { Sidebar } from './Sidebar'
 import { adoptAccountLocale, useLocale } from './i18n'
@@ -314,9 +314,7 @@ function Home({ store, canWrite, collapsed, onExpand }: { store: PageStore; canW
         </button>
       )}
       <div className="home-inner">
-        <div className="home-mark" aria-hidden>
-          ✦
-        </div>
+        <Logo size={56} />
         <h1>{t('emptyTitle')}</h1>
         <p className="muted">{t('emptyHint')}</p>
         {canWrite && (

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, ApiError, type Me } from './api'
 import { t } from './strings'
+import { Logo } from './icons'
 
 export function Login({ onDone }: { onDone: (me: Me) => void }) {
   const [email, setEmail] = useState('')
@@ -24,9 +25,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-mark" aria-hidden>
-          ✦
-        </div>
+        <Logo size={48} />
         <h1>{t('appName')}</h1>
         <p className="muted">{t('loginSubtitle')}</p>
         <label className="field">
