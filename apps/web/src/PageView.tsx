@@ -27,6 +27,8 @@ import { closePage, dropPreopened, takeConn, type Conn, type Status } from './co
 import { SidebarIcon } from './icons'
 import { colorFor, initials, navigate, onCommand, pagePath, threadOf, usePath } from './lib'
 import { readSnapshot, saveSnapshot, takeSnapshot } from './snapshot'
+import { firstScreen, markFirstContent, peekFirstScreen } from './firstscreen'
+import { PageTitle } from './PageTitle'
 import { usePages, type PageStore } from './store'
 import { t } from './strings'
 
@@ -126,9 +128,28 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
   const [conn, setConn] = useState<Conn | null>(null)
   // ready：内容到了（本机缓存或服务器）；编辑器先装好藏着，内容一到就露出来
   const [ready, setReady] = useState(false)
+  const readyRef = useRef(false)
+  readyRef.current = ready
   // 编辑器装好之前先画上次的首屏快照；有快照时等它画出来再装编辑器，不然装编辑器的那几十毫秒会把快照那一帧挤掉
   const [snapshot] = useState(() => readSnapshot(pageId))
   const [canMount, setCanMount] = useState(!snapshot)
+  // 第一次打开、本机没有快照：先向服务器要正文（和 WebSocket 同时），前几十块画成静态的首屏，
+  // 不等 Y.Doc 同步完、编辑器把整页装好（1000 段时这两步要 100–200ms）
+  // （启动时就开始要了，见 firstscreen.ts；外面的 App 在这个包下载时已经先画了一份，这里接着画同一份，不闪）
+  const [serverSnap, setServerSnap] = useState<{ title: string; html: string } | null>(() => {
+    const html = snapshot ? null : peekFirstScreen(pageId)
+    return html ? { title: store.pages.get(pageId)?.title ?? '', html } : null
+  })
+  useEffect(() => {
+    if (snapshot || serverSnap) return
+    let alive = true
+    firstScreen(pageId).then((html) => {
+      if (alive && html) setServerSnap({ title: store.pages.get(pageId)?.title ?? '', html })
+    })
+    return () => {
+      alive = false
+    }
+  }, [pageId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [editor, setEditor] = useState<Editor | null>(null)
   const [notFound, setNotFound] = useState(false)
   const editorRef = useRef<Editor | null>(null)
@@ -257,8 +278,14 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
     let alive = true
     c.ready.then(() => {
       performance.mark('oad:ready')
-      if (alive) setReady(true)
-      if (alive) post({ type: 'oad:ready', pageId })
+      if (!alive) return
+      // 内容到了：标题从这时起跟着 Y.Doc（之前的空标题没往外传，见 OadTitle 的 onChange）
+      readyRef.current = true
+      const title = c.ydoc.getText('title').toString()
+      store.setLocalTitle(pageId, title)
+      document.title = (title || t('untitled')) + ' · ' + t('appName')
+      setReady(true)
+      post({ type: 'oad:ready', pageId })
     })
     api.page(pageId).then(
       (p) => {
@@ -388,6 +415,8 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
                 readOnly={!editable}
                 placeholder={t('untitled')}
                 onChange={(title) => {
+                  // 内容到之前 Y.Doc 是空的：别把侧栏、首屏上已经知道的标题改成空的
+                  if (!readyRef.current) return
                   store.setLocalTitle(pageId, title)
                   document.title = (title || t('untitled')) + ' · ' + t('appName')
                 }}
@@ -426,7 +455,13 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
             </div>
           )}
           {!(ready && canMount) &&
-            (snapshot ? <SnapshotView snapshot={snapshot} onPainted={() => setCanMount(true)} /> : <DocSkeleton />)}
+            (snapshot ? (
+              <SnapshotView snapshot={snapshot} onPainted={() => setCanMount(true)} />
+            ) : serverSnap ? (
+              <SnapshotView snapshot={serverSnap} kind="server" onPainted={() => {}} title={<PageTitle store={store} pageId={pageId} />} />
+            ) : (
+              <DocSkeleton />
+            ))}
         </article>
       </div>
       {hist && version && tools && (
@@ -476,20 +511,6 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
       </div>
     </div>
   )
-}
-
-// 给性能测试用：正文第一次画出来的时间（快照或编辑器，哪个先到算哪个），以及编辑器装好的时间
-function markFirstContent(kind: 'snapshot' | 'editor' = 'editor') {
-  requestAnimationFrame(() => {
-    const w = window as unknown as { __oadFirstContent?: number; __oadEditorReady?: number; __oadFirstKind?: string }
-    const now = performance.now()
-    if (w.__oadFirstContent === undefined) {
-      w.__oadFirstContent = now
-      w.__oadFirstKind = kind
-    }
-    if (kind === 'editor' && w.__oadEditorReady === undefined) w.__oadEditorReady = now
-    performance.mark('oad:' + kind)
-  })
 }
 
 function Breadcrumb({ store, pageId, row }: { store: PageStore; pageId: string; row?: Page | null }) {
@@ -595,15 +616,15 @@ function StatusPill({ status, readOnly }: { status: Status; readOnly: boolean })
   )
 }
 
-function SnapshotView({ snapshot, onPainted }: { snapshot: { title: string; html: string }; onPainted: () => void }) {
+function SnapshotView({ snapshot, onPainted, kind = 'snapshot', title }: { snapshot: { title: string; html: string }; onPainted: () => void; kind?: 'snapshot' | 'server'; title?: React.ReactNode }) {
   // 画出来以后的下一帧算“出内容”（和 docs/baseline.md 的量法一样：DOM 里有了、再过一帧）
   useLayoutEffect(() => {
-    markFirstContent('snapshot')
+    markFirstContent(kind)
     requestAnimationFrame(() => setTimeout(onPainted, 0))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="doc-snapshot" aria-busy="true">
-      <div className="oad-title">{snapshot.title || t('untitled')}</div>
+      <div className="oad-title">{title ?? (snapshot.title || t('untitled'))}</div>
       <div className="oad-editor">
         <div className="oad-prose ProseMirror" dangerouslySetInnerHTML={{ __html: snapshot.html }} />
       </div>

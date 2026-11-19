@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { makeDb, type Backend } from './db-backend'
 import { taskRows, taskSchema } from './db-mock'
 import { workspace } from './helpers'
+import { traced } from './trace'
+import { loadavg, tmpdir } from 'node:os'
 
 const ROUNDS = Number(process.env.OAD_PERF_ROUNDS ?? 7)
 const N = 10_000
@@ -202,13 +204,23 @@ test('滚动：上下、左右', async ({ browser }) => {
         }),
       { axis, px, ms },
     )
-  // 每帧滚 120px（约 3.5 行）、4 秒；再快速甩（每帧 600px）2 秒
-  const y = await run('y', 120, 4000)
-  const fling = await run('y', 600, 2000)
-  const x = await run('x', 40, 3000)
-  results.scroll = { vertical: y, fling, horizontal: x }
-  console.log('滚动：', results.scroll)
+  // 每帧滚 120px（约 3.5 行）、4 秒；再快速甩（每帧 600px）2 秒。每段都录 trace：
+  // 掉帧时分清是页面主线程的活太多（CPU 时间长），还是机器太忙、线程被系统挂起（墙上时间长、CPU 时间短）
+  const la0 = loadavg()[0]
+  const tr = (name: string, axis: 'y' | 'x', px: number, ms: number) => traced(browser, page, join(tmpdir(), `oad-db-scroll-${name}.json`), () => run(axis, px, ms))
+  const y = await tr('vertical', 'y', 120, 4000)
+  const fling = await tr('fling', 'y', 600, 2000)
+  const x = await tr('horizontal', 'x', 40, 3000)
+  const one = (r: Awaited<ReturnType<typeof tr>>) => ({ ...r.result, mainThread: r.main })
+  results.scroll = { vertical: one(y), fling: one(fling), horizontal: one(x), loadavg: [+la0.toFixed(1), +loadavg()[0].toFixed(1)] }
+  console.log('滚动：', JSON.stringify(results.scroll, null, 1))
   await ctx.close()
+  // 页面自己的活：每帧主线程 CPU 时间要在一帧（16ms）以内，CPU 时间超过 50ms 的任务一个都不能有。
+  // 墙上时间的掉帧（被系统挂起）记在 dropped / preempted 里，不算代码的问题（机器忙时会有）。
+  for (const r of [y, fling, x]) {
+    expect(r.main.cpuLong, JSON.stringify(r.main.longTasks)).toBe(0)
+    expect(r.main.frameCpu.p95).toBeLessThan(16)
+  }
 })
 
 test('筛选、排序、分组：改视图到画出来', async ({ browser }) => {

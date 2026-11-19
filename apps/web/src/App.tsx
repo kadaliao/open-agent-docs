@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, type AuthMode, type Me } from './api'
 import { SidebarIcon } from './icons'
 import { Login } from './Login'
@@ -8,6 +8,8 @@ import { clearLocalData, navigate, onCommand, pageIdOf, pagePath, pushRecent, st
 import { Overlays } from './Overlays'
 import { EMBED, post } from './embed'
 import { PageStore, usePages } from './store'
+import { markFirstContent, onFirstScreen, peekFirstScreen, prefetchFirstScreen } from './firstscreen'
+import { PageTitle } from './PageTitle'
 import { t } from './strings'
 
 // 编辑器那一块单独打包；一启动就开始下载，和外壳并行。
@@ -29,7 +31,40 @@ const firstIsDb = (() => {
 })()
 // 库的本机缓存（IndexedDB）和引擎（WASM）在界面启动之前就开始读
 if (firstPage && firstIsDb) import('./db/DbPage').then((m) => m.prefetchDb(firstPage))
-else if (firstPage) import('./conn').then((m) => m.preopenPage(firstPage))
+else if (firstPage) {
+  // 正文的 JSON 和 WebSocket 一起要：第一次打开时先画首屏（见 firstscreen.ts）
+  prefetchFirstScreen(firstPage)
+  import('./conn').then((m) => m.preopenPage(firstPage))
+}
+
+/** 页面那个包还在下载时：服务器的首屏到了就先画（第一次打开、本机没有快照时，见 firstscreen.ts），不然是骨架 */
+function PageLoading({ pageId, store }: { pageId: string; store: PageStore }) {
+  const [html, setHtml] = useState(() => peekFirstScreen(pageId))
+  useEffect(() => (html ? undefined : onFirstScreen(() => setHtml(peekFirstScreen(pageId)))), [pageId, html])
+  useLayoutEffect(() => {
+    if (html) markFirstContent('server')
+  }, [html])
+  if (!html) return <div className="page-skeleton" />
+  return (
+    <div className="page">
+      <header className="topbar" />
+      <div className="page-body">
+        <div className="page-scroll">
+          <article className="doc">
+            <div className="doc-snapshot" aria-busy="true">
+              <div className="oad-title">
+                <PageTitle store={store} pageId={pageId} />
+              </div>
+              <div className="oad-editor">
+                <div className="oad-prose ProseMirror" dangerouslySetInnerHTML={{ __html: html }} />
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function usePageView() {
   const [m, setM] = useState(pageViewModule)
@@ -243,7 +278,7 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
               }}
             />
           ) : (
-            <div className="page-skeleton" />
+            <PageLoading pageId={pageId} store={store} />
           )
         ) : path.startsWith('/settings') ? (
           <Suspense fallback={<div className="page-skeleton" />}>
