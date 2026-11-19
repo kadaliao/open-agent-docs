@@ -3,6 +3,8 @@
 [简体中文](../zh/configuration.md) · [Contents](README.md)
 
 Everything is an environment variable; the first few `serve` settings are also command-line flags (`open-agent-docs serve --help`).
+When starting in-process (Node's `@oad/server`, Python's `open_agent_docs`) the same names are options; `OAD_DATA_DIR` can also be written
+`dataDir` / `data_dir`, and anything not given falls back to the environment (see [Embedding](embedding.md#in-process-node--python)).
 An empty value counts as unset. The tables list every `OAD_*` variable the code reads (under `crates/`).
 
 ## Server
@@ -21,19 +23,34 @@ An empty value counts as unset. The tables list every `OAD_*` variable the code 
 | `OAD_MAX_UPLOAD_MB` | | `100` | Upload size limit (MB) |
 | `OAD_TZ` | | system | Server time zone, IANA name such as `Europe/Berlin`. Used for "today", relative dates and time display in databases; falls back to the system zone if unknown |
 
+## Storage
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OAD_DATABASE_URL` | none | `postgres://user:pass@host:5432/db`: use Postgres instead of SQLite in the data dir. Uploads and the search index stay in `OAD_DATA_DIR`. Add `?sslmode=require` for TLS (verified against public CAs); otherwise unencrypted |
+| `OAD_BLOB_URL` | none | `s3://<bucket>/<prefix>?region=<region>&endpoint=<url>`: keep uploads and thumbnails in S3-compatible storage (AWS S3, MinIO, R2…). With `endpoint`, path-style addressing (MinIO-style); without, AWS virtual-hosted |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | none | Credentials for `OAD_BLOB_URL` (required); optional `AWS_SESSION_TOKEN`, `AWS_REGION` (when the URL has no region) |
+
+## Multi-tenancy
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OAD_TENANTS` | none (single tenant) | `host:<domain>`: tenant by subdomain (`acme.docs.example.com` is tenant `acme`, `docs.example.com` itself is `main`); `header:<header name>`: by request header (e.g. `header:x-oad-tenant`; only behind a trusted reverse proxy). Each tenant's data lives in `<OAD_DATA_DIR>/tenants/<tenant>/`; with Postgres in schema `t_<tenant>`, with S3 under `<prefix>/<tenant>`. Tenant names: lowercase letters, digits, `-` |
+| `OAD_TENANT_SECRET` | none | Optional for `header:`: also require `X-OAD-Tenant-Secret` to match |
+
 Log level uses the standard `RUST_LOG` (default `info`), e.g. `RUST_LOG=warn` or `RUST_LOG=oad_server=debug`.
 
 ## Sign-in
 
 | Variable | Flag | Default | Meaning |
 | --- | --- | --- | --- |
-| `OAD_AUTH` | `--auth` | `local` | `local`: built-in accounts; `header`: a host app signs people in and forwards user headers; `none`: single local user, no sign-in; `jwt`: the host signs JWTs (coming, see [Embedding](embedding.md#jwt-coming)) |
+| `OAD_AUTH` | `--auth` | `local` | `local`: built-in accounts; `header`: a host app signs people in and forwards user headers; `none`: single local user, no sign-in; `jwt`: the host signs JWTs (see [Embedding](embedding.md#jwt)) |
 | `OAD_ADMIN_EMAIL`, `OAD_ADMIN_PASSWORD` | | none | `local` mode: when there are no users yet, create the admin (workspace owner) at startup. Ignored once any user exists |
 | `OAD_SIGNUP` | | `invite` | `local` mode sign-up: `invite` only with an invite link; `open` anyone; `off` nobody |
 | `OAD_USER_PASSWORD` | | none | Password for `open-agent-docs user add`; read from the terminal if unset |
 | `OAD_HEADER_SECRET` | | none | Required in `header` mode: the `X-OAD-Secret` request header must match it |
-| `OAD_JWT_SECRET` | | none | `jwt` mode: HS256 key (or use `OAD_JWT_JWKS_URL`) |
-| `OAD_JWT_JWKS_URL` | | none | `jwt` mode: JWKS URL (RS256 / ES256 and so on) |
+| `OAD_JWT_SECRET` | | none | `jwt` mode: HS256 / HS384 / HS512 shared secret (give this and/or `OAD_JWT_JWKS_URL`) |
+| `OAD_JWT_JWKS_URL` | | none | `jwt` mode: JWKS URL (RS256 / RS384 / RS512, ES256 / ES384, EdDSA). Cached by kid for 10 minutes; an unknown kid triggers a refetch (at most every 30 seconds) |
 | `OAD_JWT_ISSUER`, `OAD_JWT_AUDIENCE` | | none | `jwt` mode: check `iss` / `aud` when set |
 | `OAD_JWT_LEEWAY` | | `60` | `jwt` mode: allowed clock skew for expiry (seconds) |
 
@@ -49,7 +66,8 @@ Log level uses the standard `RUST_LOG` (default `info`), e.g. `RUST_LOG=warn` or
 ## Test-only
 
 `OAD_UNFURL_SKIP` (skip link-preview steps), `OAD_FUZZ` (rounds of the Markdown fuzz test), `OAD_WRITE_OPENAPI=1` (regenerate
-`docs/openapi.json`). Not used in deployments.
+`docs/openapi.json`), `OAD_TEST_POSTGRES_URL` (run the whole server test suite on Postgres), `OAD_TEST_S3_URL` (test the blob store
+against a real S3 / MinIO). Not used in deployments.
 
 ## Request origin (Host and Origin)
 

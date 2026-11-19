@@ -75,12 +75,29 @@ impl Default for MediaConfig {
 }
 
 /// 登录方式的配置。
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum AuthConfig {
     Local,
-    Header { secret: String },
+    Header {
+        secret: String,
+    },
     None,
     Jwt(jwt::JwtConfig),
+    /// 宿主自己的实现（Rust 服务把 oad-server 挂进自己的 axum 时用：宿主已经知道用户是谁）。
+    /// 返回的 Principal 要是存储里有的用户（`Storage::create_user` / `user_by_external` 建、找），进工作区用 [`join_default`]。
+    Custom(Arc<dyn AuthProvider>),
+}
+
+impl std::fmt::Debug for AuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AuthConfig::Local => f.write_str("Local"),
+            AuthConfig::Header { .. } => f.write_str("Header"),
+            AuthConfig::None => f.write_str("None"),
+            AuthConfig::Jwt(_) => f.write_str("Jwt"),
+            AuthConfig::Custom(_) => f.write_str("Custom"),
+        }
+    }
 }
 
 /// 翻页的 cursor（上一页给的 next_cursor，是个数）。
@@ -181,6 +198,7 @@ impl Core {
         };
         let provider: Arc<dyn AuthProvider> = match auth {
             AuthConfig::Local => Arc::new(auth::LocalAuth::new(storage.clone())),
+            AuthConfig::Custom(p) => p,
             AuthConfig::Header { secret } => Arc::new(auth::HeaderAuth::new(
                 storage.clone(),
                 secret,

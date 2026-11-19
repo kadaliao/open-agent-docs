@@ -2,14 +2,18 @@
 
 [简体中文](../zh/embedding.md) · [Contents](README.md)
 
-Two ways:
+Two ways on the web side:
 
 - **iframe**: point an iframe at an Open Agent Docs page. No front-end code.
 - **JS packages**: `@oad/client` (API, live events, collaborative documents, local databases) and `@oad/editor` (React components:
   editor, comment panel, database views). The editor lives inside your page and follows your styles.
 
-Three ways to sign people in: Open Agent Docs' own accounts (cookie) on the same domain; the host signs people in and forwards
-user headers ([header auth](#header-auth)); or the host signs a JWT ([coming](#jwt-coming)).
+Three ways to run the server: a separate `open-agent-docs serve` next to the host (behind its reverse proxy); inside the host's
+Node / Python process ([in-process](#in-process-node--python)); or mounted into a Rust service's axum app ([Rust mount](#mounting-into-a-rust-service)).
+
+Four ways to sign people in: Open Agent Docs' own accounts (cookie) on the same domain; the host signs people in and forwards
+user headers ([header auth](#header-auth)); the host signs a JWT ([JWT](#jwt)); or a Rust host implements `AuthProvider`
+([Rust mount](#mounting-into-a-rust-service)).
 
 ## iframe
 
@@ -132,18 +136,66 @@ OAD_AUTH=header OAD_HEADER_SECRET='a long random string' OAD_HOST=127.0.0.1 open
 - If the browser sees a different domain than the server, add the host's address to `OAD_ALLOWED_ORIGINS` (WebSocket handshakes check Origin).
 - Agents still connect to `/mcp` with their own tokens; header auth doesn't affect them.
 
-## JWT (coming)
-
-> The server side is still in progress. This is the planned usage and may change before release.
+## JWT
 
 The host signs a short-lived JWT with its own key and hands it to the browser, which connects to Open Agent Docs directly (no proxy):
 
 ```sh
-OAD_AUTH=jwt OAD_JWT_SECRET='…' open-agent-docs serve          # HS256
-OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json open-agent-docs serve
+OAD_AUTH=jwt OAD_JWT_SECRET='…' open-agent-docs serve          # HS256 / HS384 / HS512
+OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json open-agent-docs serve   # RS* / ES256 / ES384 / EdDSA
 # Optional: OAD_JWT_ISSUER, OAD_JWT_AUDIENCE, OAD_JWT_LEEWAY (seconds, default 60)
 ```
 
 - Send it as `Authorization: Bearer <jwt>`, as `?token=<jwt>` on WebSockets, or in the `oad_token` cookie. `@oad/client`'s `token` option handles this.
 - Claims: `sub` (required, user id), `exp` (required), `name`, `email`, `workspaces` (array of workspace ids, or
   `[{ "id": "…", "role": "editor" }]`; the default workspace if omitted).
+- Users are matched by `sub` and created on first sight; the name follows the claims; a role given in the claims wins, new members default to editor.
+- JWKS keys are cached by `kid` for 10 minutes and refetched when the host rotates keys (a new kid); the token's algorithm must match the key's.
+- Agents keep using their own tokens.
+
+## In-process (Node / Python)
+
+If you'd rather not run a separate process, start the server inside the host's own process. It runs on its own thread and tokio
+runtime, so it doesn't block Node's event loop or hold Python's GIL. Options are exactly the command-line ones (`OAD_*`, see
+[Configuration](configuration.md)), also writable as `dataDir` / `data_dir`, with the environment as fallback; without a port it picks a free one.
+
+**Node** (`@oad/server`, napi-rs, `packages/server-node`):
+
+```js
+import { start } from '@oad/server'
+
+const oad = await start({ dataDir: './data', auth: 'header', headerSecret: process.env.OAD_HEADER_SECRET })
+console.log(oad.url)               // http://127.0.0.1:<port>
+app.use(oad.handler)               // Express / Node http: forwards requests (streaming, SSE works)
+server.on('upgrade', oad.upgrade)  // collaborative-editing WebSocket
+await oad.close()                  // resolves once open pages are saved
+```
+
+`handler` forwards the request to the in-process server rather than calling Rust directly from Node: the server is async with its
+own runtime, a per-request FFI call would copy request and response bodies, and long-lived SSE / WebSocket connections wouldn't fit;
+forwarding over loopback is cheap. The web app's links assume the root path, so either mount at `/` or forward only `/api` and `/s`.
+Example: [examples/node-inprocess](../../examples/node-inprocess) (Express, header auth).
+
+**Python** (`open-agent-docs`, a PyO3 abi3 wheel, `crates/oad-py`, built with maturin):
+
+```python
+import open_agent_docs as oad
+
+with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server:
+    print(server.url)              # closed (pages saved) when the with block ends
+# or: server = oad.start(...); ...; server.close()
+```
+
+Example: [examples/python-inprocess](../../examples/python-inprocess) (started in FastAPI's lifespan; the host calls the API as a user via httpx).
+
+## Mounting into a Rust service
+
+A Rust (axum) host depends on `oad-core` and `oad-server` directly:
+
+1. Implement your own `AuthProvider`: recognise the user from the host's session, find or create them by external id
+   (`Storage::user_by_external` / `create_user`), and add them to the default workspace with `oad_core::join_default`;
+2. `Core::open_full(storage, AuthConfig::Custom(Arc::new(your_provider)), …)`;
+3. `merge` `oad_server::router(AppState::new(core, ServerConfig::default()))` with your own routes (API only, no web app:
+   `oad_server::api_router`). For multiple tenants use `oad_server::tenant::multi_tenant` (tenant by Host or header, one setup each).
+
+Example: [examples/rust-mount](../../examples/rust-mount).

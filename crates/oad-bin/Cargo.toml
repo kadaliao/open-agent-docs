@@ -4,6 +4,10 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+name = "oad_bin"
+path = "src/lib.rs"
+
 [[bin]]
 name = "open-agent-docs"
 path = "src/main.rs"

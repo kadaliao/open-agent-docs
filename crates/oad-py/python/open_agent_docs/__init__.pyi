@@ -1,0 +1,13 @@
+from types import TracebackType
+
+__version__: str
+
+class Server:
+    url: str
+    port: int
+    closed: bool
+    def close(self) -> None: ...
+    def __enter__(self) -> "Server": ...
+    def __exit__(self, t: type[BaseException] | None, v: BaseException | None, tb: TracebackType | None) -> bool: ...
+
+def start(**options: object) -> Server: ...

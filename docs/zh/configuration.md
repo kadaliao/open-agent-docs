@@ -3,6 +3,8 @@
 [English](../en/configuration.md) · [文档目录](README.md)
 
 都是环境变量；`serve` 的前几项也能写成命令行参数（`open-agent-docs serve --help`）。
+进程内启动时（Node 的 `@oad/server`、Python 的 `open_agent_docs`）同样的名字写成选项，`OAD_DATA_DIR` 也可以写成 `dataDir` / `data_dir`，
+选项里没给的再看环境变量（见[嵌入](embedding.md#进程内启动node--python)）。
 空值等于没设。下表是代码里读到的全部 `OAD_*`（`crates/` 下）。
 
 ## 服务器
@@ -21,19 +23,34 @@
 | `OAD_MAX_UPLOAD_MB` | | `100` | 上传文件的大小上限（MB） |
 | `OAD_TZ` | | 系统时区 | 服务器时区，IANA 名字，如 `Asia/Shanghai`。数据库里的“今天”、相对日期、时间的显示按它算；认不出时用系统的 |
 
+## 存储
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `OAD_DATABASE_URL` | 无 | `postgres://user:pass@host:5432/db`：数据库改用 Postgres（不设就是数据目录里的 SQLite）。上传的文件和搜索索引还在 `OAD_DATA_DIR`。地址里加 `?sslmode=require` 走 TLS（按公共 CA 验证书），否则不加密 |
+| `OAD_BLOB_URL` | 无 | `s3://<bucket>/<前缀>?region=<区域>&endpoint=<地址>`：上传的文件、缩略图放进 S3 兼容的存储（AWS S3、MinIO、R2……）。给了 `endpoint` 用路径式地址（MinIO 这样），不给用 AWS 的 |
+| `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` | 无 | `OAD_BLOB_URL` 用的密钥（必填）；可选 `AWS_SESSION_TOKEN`、`AWS_REGION`（地址里没写 region 时） |
+
+## 多租户
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `OAD_TENANTS` | 无（单租户） | `host:<域名>`：按子域名分租户（`acme.docs.example.com` 是租户 `acme`，`docs.example.com` 本身是 `main`）；`header:<请求头名>`：按请求头（如 `header:x-oad-tenant`，只能放在可信的反向代理后面）。每个租户的数据在 `<OAD_DATA_DIR>/tenants/<租户>/`；用 Postgres 时是 schema `t_<租户>`，用 S3 时键前缀后面加 `/<租户>`。租户名只能是小写字母、数字、`-` |
+| `OAD_TENANT_SECRET` | 无 | `header:` 方式时可选：还要请求头 `X-OAD-Tenant-Secret` 和它一样 |
+
 日志级别用标准的 `RUST_LOG`（默认 `info`），如 `RUST_LOG=warn`、`RUST_LOG=oad_server=debug`。
 
 ## 登录
 
 | 变量 | 参数 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `OAD_AUTH` | `--auth` | `local` | `local`：内置账号；`header`：宿主在前面登录、转发时带用户头；`none`：本机单人，不登录；`jwt`：宿主签 JWT（即将推出，见[嵌入](embedding.md#jwt即将推出)） |
+| `OAD_AUTH` | `--auth` | `local` | `local`：内置账号；`header`：宿主在前面登录、转发时带用户头；`none`：本机单人，不登录；`jwt`：宿主签 JWT（见[嵌入](embedding.md#jwt)） |
 | `OAD_ADMIN_EMAIL`、`OAD_ADMIN_PASSWORD` | | 无 | `local` 模式：还没有任何用户时，启动时用它们建管理员（工作区所有者）。已经有用户就不管 |
 | `OAD_SIGNUP` | | `invite` | `local` 模式的注册：`invite` 只能凭邀请链接；`open` 谁都能注册；`off` 不能注册 |
 | `OAD_USER_PASSWORD` | | 无 | `open-agent-docs user add` 用的密码；没设就从终端读一行 |
 | `OAD_HEADER_SECRET` | | 无 | `header` 模式必填：请求头 `X-OAD-Secret` 要和它一样才认 |
-| `OAD_JWT_SECRET` | | 无 | `jwt` 模式：HS256 密钥（和 `OAD_JWT_JWKS_URL` 二选一） |
-| `OAD_JWT_JWKS_URL` | | 无 | `jwt` 模式：JWKS 地址（RS256 / ES256 等） |
+| `OAD_JWT_SECRET` | | 无 | `jwt` 模式：HS256 / HS384 / HS512 的共享密钥（和 `OAD_JWT_JWKS_URL` 至少给一个） |
+| `OAD_JWT_JWKS_URL` | | 无 | `jwt` 模式：JWKS 地址（RS256 / RS384 / RS512、ES256 / ES384、EdDSA）。按 kid 缓存 10 分钟，遇到不认识的 kid 再取（最多 30 秒一次） |
 | `OAD_JWT_ISSUER`、`OAD_JWT_AUDIENCE` | | 无 | `jwt` 模式：设了就检查 `iss` / `aud` |
 | `OAD_JWT_LEEWAY` | | `60` | `jwt` 模式：过期时间允许的误差（秒） |
 
@@ -48,7 +65,8 @@
 
 ## 只在测试里用的
 
-`OAD_UNFURL_SKIP`（跳过链接预览的某几步）、`OAD_FUZZ`（Markdown 随机测试的轮数）、`OAD_WRITE_OPENAPI=1`（重新生成 `docs/openapi.json`）。部署时不用管。
+`OAD_UNFURL_SKIP`（跳过链接预览的某几步）、`OAD_FUZZ`（Markdown 随机测试的轮数）、`OAD_WRITE_OPENAPI=1`（重新生成 `docs/openapi.json`）、
+`OAD_TEST_POSTGRES_URL`（设了就把服务器的整套测试跑在 Postgres 上）、`OAD_TEST_S3_URL`（设了就对真的 S3 / MinIO 测文件存储）。部署时不用管。
 
 ## 请求来源（Host 和 Origin）
 

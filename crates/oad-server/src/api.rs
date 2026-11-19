@@ -665,6 +665,8 @@ pub(crate) async fn events(
         }
     });
     // 关机时结束，不然 HTTP 服务停不下来
-    let stream = stream.take_until(s.core.on_shutdown());
+    // 先发一行注释：响应头马上出去（不然要等第一个事件，经代理时客户端一直等着）
+    let hello = futures_util::stream::once(async { Ok(SseEvent::default().comment("ok")) });
+    let stream = hello.chain(stream).take_until(s.core.on_shutdown());
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

@@ -513,7 +513,9 @@ pub(crate) async fn stream_notes(
             }
         },
     );
-    let stream = stream.take_until(s.core.on_shutdown());
+    // 先发一行注释：响应头马上出去
+    let hello = futures_util::stream::once(async { Ok(SseEvent::default().comment("ok")) });
+    let stream = hello.chain(stream).take_until(s.core.on_shutdown());
     Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(25))))
 }
 

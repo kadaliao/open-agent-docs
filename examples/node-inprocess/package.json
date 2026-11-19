@@ -1,0 +1,14 @@
+{
+  "name": "@oad/example-node-inprocess",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@oad/client": "workspace:*",
+    "@oad/server": "workspace:*",
+    "express": "^5.1.0"
+  }
+}
