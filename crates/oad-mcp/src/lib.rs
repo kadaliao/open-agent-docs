@@ -918,6 +918,7 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
                     oad_core::db::NewDb {
                         title: Some(a.title),
                         parent_id: opt_id(a.parent_id),
+                        lang,
                         ..Default::default()
                     }
                 )
@@ -953,7 +954,7 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
         }
         let mut seq_note = String::new();
         if !ops.is_empty() {
-            match self.core.change_schema(&db.page.id, &who, ops).await {
+            match self.core.change_schema(&db.page.id, &who, ops, lang).await {
                 Ok(r) => seq_note = warnings_text(lang, &r),
                 Err(e) => {
                     // 表结构不对：库不留着
@@ -1004,7 +1005,7 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
             ));
         }
         if !rest.is_empty() {
-            let r = tri!(lang, self.core.change_schema(&id, &who, rest).await);
+            let r = tri!(lang, self.core.change_schema(&id, &who, rest, lang).await);
             let changes = r["changes"].as_array().map(|a| a.len()).unwrap_or(0);
             if changes == 0 {
                 notes.push_str(&tr!(lang, "没有变化"));

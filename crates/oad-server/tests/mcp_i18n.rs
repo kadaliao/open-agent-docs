@@ -146,6 +146,52 @@ async fn english_agent() {
         "{t}"
     );
 
+    // 没写标题、没给状态选项：默认的列名和状态选项按 Agent 的语言（之前写死成中文，“Done” 会报没有这个选项）
+    let (t, err) = call(
+        &m,
+        "db_create",
+        json!({ "title": "Launch", "props": [{ "name": "Status", "type": "status" }] }),
+    )
+    .await;
+    assert!(!err && no_cjk(&t), "{t}");
+    let launch = field(&t, "db_id");
+    let (st, info) = json(c.get(s.api(&format!("/databases/{launch}")))).await;
+    assert_eq!(st, 200, "{info}");
+    let props = info["schema"]["props"].as_array().unwrap();
+    assert_eq!(props[0]["name"], "Name", "{info}");
+    let opts: Vec<&str> = props[1]["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(opts, ["Not started", "In progress", "Done"]);
+    assert_eq!(info["views"][0]["name"], "Table", "{info}");
+    let (t, err) = call(
+        &m,
+        "db_add",
+        json!({ "db_id": launch, "rows": [{ "Name": "Ship", "Status": "Done" }] }),
+    )
+    .await;
+    assert!(!err, "{t}");
+    // 加列也一样
+    let (t, err) = call(
+        &m,
+        "db_schema",
+        json!({ "db_id": launch, "ops": [{ "op": "add", "name": "Review", "type": "status" }] }),
+    )
+    .await;
+    assert!(!err, "{t}");
+    let (_, info) = json(c.get(s.api(&format!("/databases/{launch}")))).await;
+    let review = info["schema"]["props"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "Review")
+        .unwrap()
+        .clone();
+    assert_eq!(review["options"][2]["name"], "Done", "{review}");
+
     // 出错也是英文
     let (t, err) = call(&m, "read_page", json!({ "page_id": "nope" })).await;
     assert!(err && t.starts_with("Not found: ") && no_cjk(&t), "{t}");

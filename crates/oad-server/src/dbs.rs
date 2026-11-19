@@ -49,8 +49,10 @@ pub(crate) async fn create(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
-    Body(b): Body<NewDb>,
+    headers: HeaderMap,
+    Body(mut b): Body<NewDb>,
 ) -> ApiResult<Response> {
+    b.lang = crate::api::req_lang(&s, Some(&p), &headers).await;
     let db = s.core.create_database(&ws, &p, b).await?;
     Ok((StatusCode::CREATED, Json(db)).into_response())
 }
@@ -281,9 +283,11 @@ pub(crate) async fn change_schema(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
+    headers: HeaderMap,
     Body(b): Body<SchemaOps>,
 ) -> ApiResult<Json<Value>> {
-    Ok(Json(s.core.change_schema(&id, &p, b.ops).await?))
+    let lang = crate::api::req_lang(&s, Some(&p), &headers).await;
+    Ok(Json(s.core.change_schema(&id, &p, b.ops, lang).await?))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -577,6 +581,7 @@ pub(crate) async fn import(
     Query(q): Query<std::collections::HashMap<String, String>>,
     req: Request,
 ) -> ApiResult<Response> {
+    let lang = crate::api::req_lang(&s, Some(&p), req.headers()).await;
     let is_multipart = req
         .headers()
         .get(header::CONTENT_TYPE)
@@ -619,7 +624,10 @@ pub(crate) async fn import(
             .map_err(|e| ApiError::bad_request(e.to_string()))?
             .to_vec()
     };
-    let db = s.core.import_csv(&ws, &p, title, parent, &data).await?;
+    let db = s
+        .core
+        .import_csv(&ws, &p, title, parent, &data, lang)
+        .await?;
     Ok((StatusCode::CREATED, Json(db)).into_response())
 }
 

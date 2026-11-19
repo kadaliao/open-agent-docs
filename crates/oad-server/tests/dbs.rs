@@ -1304,3 +1304,51 @@ async fn survives_restart() {
     assert_eq!(info["seq"], 1);
     s.stop().await;
 }
+
+/// 网页“新建数据库”不带表结构：默认的标题列、视图名按请求的人的语言（没设过就按 Accept-Language）；加状态列的默认选项也是。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn default_names_follow_language() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Server::start(dir.path(), AuthConfig::None, fast_hub()).await;
+    let c = http();
+    let ws = s.ws_id();
+    let (st, en) = json(
+        c.post(s.api(&format!("/workspaces/{ws}/databases")))
+            .header("accept-language", "en-US,en;q=0.9")
+            .json(&json!({ "title": "Tasks" })),
+    )
+    .await;
+    assert_eq!(st, 201, "{en}");
+    assert_eq!(en["schema"]["props"][0]["name"], "Name", "{en}");
+    assert_eq!(en["views"][0]["name"], "Table", "{en}");
+    let id = en["page"]["id"].as_str().unwrap();
+    let (st, v) = json(
+        c.patch(s.api(&format!("/databases/{id}/schema")))
+            .header("accept-language", "en")
+            .json(&json!({ "ops": [{ "op": "add", "name": "Status", "type": "status" }] })),
+    )
+    .await;
+    assert_eq!(st, 200, "{v}");
+    let status = v["schema"]["props"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["type"] == "status")
+        .unwrap()
+        .clone();
+    let names: Vec<&str> = status["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Not started", "In progress", "Done"]);
+    // 中文（默认）照旧
+    let (_, zh) = json(
+        c.post(s.api(&format!("/workspaces/{ws}/databases")))
+            .json(&json!({ "title": "任务" })),
+    )
+    .await;
+    assert_eq!(zh["schema"]["props"][0]["name"], "名称", "{zh}");
+    assert_eq!(zh["views"][0]["name"], "表格", "{zh}");
+}

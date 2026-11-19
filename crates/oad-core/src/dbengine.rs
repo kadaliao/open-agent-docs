@@ -109,7 +109,7 @@ pub fn to_value(s: &Schema) -> Value {
 }
 
 /// 新表结构：补 key、选项 id；第一个属性是标题（没有就加一个）；名字不能重复、不能空。
-pub fn check_schema(mut v: Value) -> Result<Value> {
+pub fn check_schema(mut v: Value, lang: crate::i18n::Lang) -> Result<Value> {
     // 没给 key 的补空（下面换成随机的）；类型可以写中文名、别名
     if let Some(props) = v.get_mut("props").and_then(Value::as_array_mut) {
         for p in props {
@@ -155,7 +155,7 @@ pub fn check_schema(mut v: Value) -> Result<Value> {
         if p.kind == PropType::Unknown {
             return Err(Error::BadRequest(format!("「{}」的类型不认识", p.name)));
         }
-        fill_options(p);
+        fill_options(p, lang);
     }
     match s.props.iter().position(|p| p.kind == PropType::Title) {
         Some(0) => {}
@@ -164,9 +164,13 @@ pub fn check_schema(mut v: Value) -> Result<Value> {
             s.props.insert(0, t);
         }
         None => {
-            let mut name = "名称".to_string();
-            if names.contains(&name) {
-                name = "标题".into();
+            let (a, b) = match lang {
+                crate::i18n::Lang::Zh => ("名称", "标题"),
+                crate::i18n::Lang::En => ("Name", "Title"),
+            };
+            let mut name = a.to_string();
+            if names.contains(&name.to_lowercase()) {
+                name = b.into();
             }
             s.props
                 .insert(0, Prop::new(&fresh_key(&taken), &name, PropType::Title));
@@ -188,13 +192,17 @@ pub fn fresh_key(taken: &HashSet<String>) -> String {
     }
 }
 
-/// 选项补上 id、颜色；状态没有选项时给默认的三组。
-pub fn fill_options(p: &mut Prop) {
+/// 选项补上 id、颜色；状态没有选项时给默认的三组（名字按 lang：建库、加列的人用的语言）。
+pub fn fill_options(p: &mut Prop, lang: crate::i18n::Lang) {
     if p.kind == PropType::Status && p.options.is_empty() {
+        let names = match lang {
+            crate::i18n::Lang::Zh => ["未开始", "进行中", "已完成"],
+            crate::i18n::Lang::En => ["Not started", "In progress", "Done"],
+        };
         for (name, group, color) in [
-            ("未开始", "todo", "gray"),
-            ("进行中", "doing", "blue"),
-            ("已完成", "done", "green"),
+            (names[0], "todo", "gray"),
+            (names[1], "doing", "blue"),
+            (names[2], "done", "green"),
         ] {
             p.options.push(oad_db::schema::SelectOption {
                 id: short_id(6),

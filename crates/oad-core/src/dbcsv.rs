@@ -250,6 +250,7 @@ impl Core {
         title: Option<String>,
         parent_id: Option<String>,
         data: &[u8],
+        lang: crate::i18n::Lang,
     ) -> Result<DbInfo> {
         self.require(workspace_id, who, true).await?;
         let (header, rows) = parse_csv(data)?;
@@ -296,15 +297,23 @@ impl Core {
         let t = props.remove(tcol);
         props.insert(0, t);
         let schema = json!({ "props": props, "next_id": 1 });
-        let schema = eng::check_schema(schema)?;
+        let schema = eng::check_schema(schema, lang)?;
         let db = self
             .create_database(
                 workspace_id,
                 who,
                 NewDb {
-                    title: title.or(Some("导入的表格".into())),
+                    title: title.or(Some(
+                        if lang == crate::i18n::Lang::En {
+                            "Imported table"
+                        } else {
+                            "导入的表格"
+                        }
+                        .into(),
+                    )),
                     parent_id,
                     schema: Some(schema),
+                    lang,
                     ..Default::default()
                 },
             )

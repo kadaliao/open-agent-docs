@@ -3,6 +3,7 @@
 //! 见 docs/phase4-contract.md。
 use crate::dbengine as eng;
 use crate::events::Event;
+use crate::i18n::Lang;
 use crate::model::*;
 use crate::{Core, Error, PageDoc, Result};
 use oad_db::schema::{PropType, View};
@@ -18,12 +19,14 @@ pub fn short_id(n: usize) -> String {
 }
 
 /// 新库的表结构：只有标题。
-pub fn default_schema() -> Value {
-    json!({ "props": [{ "key": short_id(4), "name": "名称", "type": "title" }], "next_id": 1 })
+pub fn default_schema(lang: Lang) -> Value {
+    let name = if lang == Lang::En { "Name" } else { "名称" };
+    json!({ "props": [{ "key": short_id(4), "name": name, "type": "title" }], "next_id": 1 })
 }
 
-pub fn default_views() -> Value {
-    json!([{ "id": short_id(6), "name": "表格", "type": "table", "filter": { "op": "and", "items": [] },
+pub fn default_views(lang: Lang) -> Value {
+    let name = if lang == Lang::En { "Table" } else { "表格" };
+    json!([{ "id": short_id(6), "name": name, "type": "table", "filter": { "op": "and", "items": [] },
              "sorts": [], "hidden": [], "order": [], "widths": {} }])
 }
 
@@ -41,6 +44,9 @@ pub struct NewDb {
     /// 视图（和 DbView 一样，id 可以不给）；不给是一个表格视图
     #[schema(value_type = Option<Vec<Object>>)]
     pub views: Option<Value>,
+    /// 默认的列名、视图名、状态选项用哪种语言：服务器按建库的人填，不从正文读
+    #[serde(skip)]
+    pub lang: Lang,
 }
 
 /// 库的信息（GET /databases/{id}）。
@@ -112,15 +118,16 @@ impl Core {
             after,
             schema,
             views,
+            lang,
         } = d;
         self.require(workspace_id, who, true).await?;
         let schema = match schema {
-            Some(s) => eng::check_schema(s)?,
-            None => default_schema(),
+            Some(s) => eng::check_schema(s, lang)?,
+            None => default_schema(lang),
         };
         let views = match views {
             Some(v) if v.as_array().is_some_and(|a| !a.is_empty()) => eng::check_views(v, &schema)?,
-            _ => default_views(),
+            _ => default_views(lang),
         };
         let title = title.unwrap_or_default();
         let doc = PageDoc::new(oad_doc::server_client_id());

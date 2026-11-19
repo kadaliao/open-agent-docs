@@ -336,7 +336,19 @@ pub struct Applied {
 }
 
 /// 按顺序做一批改动。
-fn apply_ops(c: &mut Cached, db_id: &str, ops: &[Value], others: &Others) -> Result<Applied> {
+/// 改表结构时每一步都要的：关联到的库、默认选项用的语言。
+struct OpCx<'a> {
+    others: &'a Others,
+    lang: crate::i18n::Lang,
+}
+
+fn apply_ops(
+    c: &mut Cached,
+    db_id: &str,
+    ops: &[Value],
+    others: &Others,
+    lang: crate::i18n::Lang,
+) -> Result<Applied> {
     let mut s = c.eng.schema().clone();
     let mut a = Applied {
         schema: Schema::default(),
@@ -360,7 +372,7 @@ fn apply_ops(c: &mut Cached, db_id: &str, ops: &[Value], others: &Others) -> Res
             }
             e => e,
         };
-        apply_one(c, db_id, &mut s, &mut a, kind, o, others).map_err(step)?;
+        apply_one(c, db_id, &mut s, &mut a, kind, o, &OpCx { others, lang }).map_err(step)?;
     }
     a.schema = s;
     Ok(a)
@@ -373,8 +385,9 @@ fn apply_one(
     a: &mut Applied,
     kind: &str,
     o: &Map<String, Value>,
-    others: &Others,
+    cx: &OpCx,
 ) -> Result<()> {
+    let (others, lang) = (cx.others, cx.lang);
     match kind {
         "add" => {
             if s.props.len() >= MAX_PROPS {
@@ -391,7 +404,7 @@ fn apply_one(
             if let Some(opts) = o.get("options") {
                 p.options = options_of(opts, &[])?;
             }
-            fill_options(&mut p);
+            fill_options(&mut p, lang);
             apply_config(&mut p, o, s, db_id, others)?;
             if t == PropType::Relation
                 && o.get("twoway").and_then(Value::as_bool).unwrap_or(false)
@@ -490,7 +503,7 @@ fn apply_one(
             if kind == "set_formula" && p.kind != PropType::Formula {
                 return Err(bad(format!("「{}」不是公式", p.name)));
             }
-            fill_options(&mut p);
+            fill_options(&mut p, lang);
             apply_config(&mut p, o, s, db_id, others)?;
             if p == old {
                 return Ok(());
@@ -658,6 +671,7 @@ impl Core {
         db_id: &str,
         who: &Principal,
         ops: Vec<Value>,
+        lang: crate::i18n::Lang,
     ) -> Result<Value> {
         let (page, meta) = self.db_for(db_id, who, true).await?;
         // 关联到的库（现有的、这批里新指向的）的表结构
@@ -692,7 +706,7 @@ impl Core {
             .into_iter()
             .map(|e| format!("{}{}", e.key, e.msg))
             .collect();
-        let r = apply_ops(&mut c, db_id, &ops, &others).and_then(|a| {
+        let r = apply_ops(&mut c, db_id, &ops, &others, lang).and_then(|a| {
             c.eng.set_schema(a.schema.clone());
             // 这批动过的公式、汇总写错了就不改；别的属性因此出了问题的（比如删了公式用到的列）只提醒
             let mut warnings = vec![];
