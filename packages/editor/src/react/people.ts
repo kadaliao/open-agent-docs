@@ -1,0 +1,76 @@
+// 工作区里认识的人和 Agent：@ 候选、评论作者名字。人从成员列表（/workspaces/{ws}/members）、页面作者、评论作者里攒；
+// Agent 从 /workspaces/{ws}/agents 拉。
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import type { Agent, Me, OadClient, Person, Thread } from '@oad/client/core'
+import type { Candidate } from '../comments/Composer'
+
+const agentCache = new Map<string, { list: Agent[]; at: number }>()
+const listeners = new Set<() => void>()
+let version = 0
+
+export async function loadAgents(client: OadClient, ws: string, force = false) {
+  const c = agentCache.get(ws)
+  if (c && !force && Date.now() - c.at < 30_000) return c.list
+  try {
+    const list = await client.agents(ws)
+    agentCache.set(ws, { list, at: Date.now() })
+    version++
+    listeners.forEach((l) => l())
+    return list
+  } catch {
+    return c?.list ?? []
+  }
+}
+
+export function useAgents(client: OadClient, ws: string) {
+  useSyncExternalStore(
+    (l) => {
+      listeners.add(l)
+      return () => listeners.delete(l)
+    },
+    () => version,
+  )
+  useEffect(() => {
+    loadAgents(client, ws)
+  }, [client, ws])
+  return agentCache.get(ws)?.list ?? []
+}
+
+const memberCache = new Map<string, Person[]>()
+
+export function usePeople(client: OadClient, ws: string, me: Me, authors: Record<string, Person>, threads: Thread[]) {
+  const agents = useAgents(client, ws)
+  // 工作区成员（GET /workspaces/{ws}/members）
+  const [members, setMembers] = useState<Person[]>(() => memberCache.get(ws) ?? [])
+  useEffect(() => {
+    client.members(ws).then(
+      (ms) => {
+        const list = ms.map((m) => ({ kind: 'user', id: m.user.id, name: m.user.name }))
+        memberCache.set(ws, list)
+        setMembers(list)
+      },
+      () => {},
+    )
+  }, [client, ws])
+  const [extra] = useState(() => new Map<string, Person>())
+  return useMemo(() => {
+    const users = new Map<string, Person>()
+    users.set(me.user.id, { kind: 'user', id: me.user.id, name: me.user.name })
+    for (const m of members) users.set(m.id, m)
+    for (const p of Object.values(authors)) if (p.kind === 'user') users.set(p.id, p)
+    for (const th of threads)
+      for (const c of th.comments ?? []) if (c.author?.kind === 'user') users.set(c.author.id, c.author)
+    extra.forEach((p, k) => users.set(k, p))
+    const agentMap = new Map(agents.map((a) => [a.id, a]))
+    const candidates: Candidate[] = [
+      ...agents.filter((a) => !a.revoked_at).map((a) => ({ kind: 'agent', id: a.id, name: a.name, about: a.about })),
+      ...[...users.values()].filter((u) => u.id !== me.user.id),
+    ]
+    const nameOf = (kind: string, id: string) => {
+      if (kind === 'agent') return agentMap.get(id)?.name ?? 'Agent'
+      if (id === me.user.id) return me.user.name
+      return users.get(id)?.name ?? id
+    }
+    return { candidates, nameOf }
+  }, [agents, authors, threads, me, extra, members])
+}

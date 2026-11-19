@@ -1,0 +1,58 @@
+// 评论栏的文字（中文 / 英文，跟着界面语言）。
+import { makeT } from '../i18n'
+
+const zh = {
+  agentTag: 'Agent',
+  anchorLost: '原文已被删除或改动',
+  cancel: '取消',
+  closePanel: '关闭评论栏',
+  commentDeleted: '这条评论已删除',
+  comments: '评论',
+  commentsOpen: '未解决',
+  commentsResolved: '已解决',
+  delete: '删除',
+  deleteComment: '删除这条评论？',
+  edit: '编辑',
+  edited: '已编辑',
+  mentionEmpty: '没有匹配的人或 Agent',
+  noComments: '还没有评论。选中正文里的文字，点格式菜单里的“评论”。',
+  noResolved: '没有已解决的评论',
+  pageComment: '整页的评论',
+  reopen: '重新打开',
+  reply: '回复',
+  replyPlaceholder: '回复…',
+  resolve: '解决',
+  save: '保存',
+  send: '发送',
+  sendHint: '⌘↩ 发送',
+  writeComment: '写评论，输入 @ 叫人或 Agent',
+}
+
+const en: typeof zh = {
+  agentTag: 'Agent',
+  anchorLost: 'The original text was changed or deleted',
+  cancel: 'Cancel',
+  closePanel: 'Close comments',
+  commentDeleted: 'This comment was deleted',
+  comments: 'Comments',
+  commentsOpen: 'Open',
+  commentsResolved: 'Resolved',
+  delete: 'Delete',
+  deleteComment: 'Delete this comment?',
+  edit: 'Edit',
+  edited: 'edited',
+  mentionEmpty: 'No matching people or agents',
+  noComments: 'No comments yet. Select some text and click “Comment”.',
+  noResolved: 'No resolved comments',
+  pageComment: 'Page comment',
+  reopen: 'Reopen',
+  reply: 'Reply',
+  replyPlaceholder: 'Reply…',
+  resolve: 'Resolve',
+  save: 'Save',
+  send: 'Send',
+  sendHint: '⌘↩ to send',
+  writeComment: 'Write a comment; type @ to mention a person or agent',
+}
+
+export const t = makeT<typeof zh>({ zh, en })

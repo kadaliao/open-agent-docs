@@ -1,21 +1,25 @@
 // 数据库整页（PageView 按 kind 切过来，单独一个包）：标题 + 库。也带出行页面用的属性头、内嵌用的挂载函数。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { api, type Me } from '../api'
+import { registerPlugin } from '@oad/client/core'
+import { databasePlugin, preloadEngine } from '@oad/client/db'
+import { DatabaseView, dbT as t, readDbSnapshot, saveDbSnapshot, takeDbSnapshot } from '@oad/editor/database'
+import { api, client, type Me } from '../api'
+import { post } from '../embed'
+import { navigate, pagePath } from '../lib'
+import { mediaServices } from '../media'
 import { usePages, type PageStore } from '../store'
-import { DatabaseView } from './DatabaseView'
-import { readDbSnapshot, saveDbSnapshot, takeDbSnapshot } from './snapshot'
-import { DbStore } from './store'
-import { t } from './strings'
-import { preloadEngine } from './engine'
-import './db.css'
 
-export { RowHeader } from './RowPanel'
+// 登记 client.database（本机缓存、增量同步、WASM 引擎）
+registerPlugin('database', databasePlugin)
+
+export { RowHeader } from '@oad/editor/database'
 export { mountDatabaseEmbed } from './embed'
 
 export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me: Me; store: PageStore; canWrite: boolean }) {
   const pages = usePages(store)
   const page = pages.find((p) => p.id === pageId)
-  const db = DbStore.get(pageId)
+  const db = client.database(pageId)
+  const media = useMemo(() => mediaServices(store.ws), [store.ws])
   const dbs = useMemo(() => pages.filter((p) => p.kind === 'database').map((p) => ({ id: p.id, title: p.title })), [pages])
   const [title, setTitle] = useState(() => page?.title ?? db.meta?.page.title ?? '')
   const typing = useRef(0)
@@ -35,6 +39,9 @@ export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me
     db.open(store)
   }, [db, store])
   const live = !!db.meta
+  useEffect(() => {
+    if (live) post({ type: 'oad:ready', pageId })
+  }, [live, pageId])
   const box = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     if (snap && !live) {
@@ -80,7 +87,7 @@ export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
       </div>
-      <DatabaseView dbId={pageId} me={me} ws={store.ws} canWrite={canWrite} events={store} dbs={dbs} />
+      <DatabaseView client={client} dbId={pageId} me={me} ws={store.ws} canWrite={canWrite} events={store} dbs={dbs} navigate={navigate} pageHref={pagePath} media={media} />
     </div>
   )
 }
@@ -89,8 +96,8 @@ export { preloadEngine }
 
 /** 提前开始打开一个库（App 在认出地址是库时调） */
 export function prefetchDb(id: string, events?: PageStore) {
-  DbStore.get(id).open(events)
+  client.database(id).open(events)
 }
 
 // 调试和端到端测试用
-;(window as unknown as { __oadDb?: typeof DbStore }).__oadDb = DbStore
+;(window as unknown as { __oadDb?: { get: (id: string) => unknown } }).__oadDb = { get: (id: string) => client.database(id) }

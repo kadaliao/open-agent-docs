@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { DbEngine, initSync } from '@oad/db'
-import { safeQuery, tryNormalize } from '../src/db/engine'
-import type { DbEngine as Eng, Schema } from '../src/db/types'
+import { safeQuery, tryNormalize } from '@oad/client/db'
+import type { DbEngine as Eng, Schema } from '@oad/client'
 
 const schema: Schema = {
   props: [

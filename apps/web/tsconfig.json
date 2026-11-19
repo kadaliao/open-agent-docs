@@ -11,7 +11,9 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "noUnusedLocals": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "customConditions": ["oad-source"],
+    "allowImportingTsExtensions": true
   },
   "include": ["src"]
 }

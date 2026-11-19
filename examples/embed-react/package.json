@@ -1,0 +1,26 @@
+{
+  "name": "@oad/example-embed-react",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "start": "node server.mjs",
+    "dev": "vite",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@oad/client": "workspace:*",
+    "@oad/editor": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "yjs": "^13.6.33"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "playwright-core": "1.65.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

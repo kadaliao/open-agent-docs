@@ -134,6 +134,7 @@ export const zh = {
   retry: '重试',
   // 搜索面板（⌘K）
   searchShort: '搜索',
+  moreHits: '另有 {n} 处',
   searchPlaceholder: '搜索页面，或输入命令…',
   recent: '最近看过',
   results: '页面',
@@ -434,6 +435,7 @@ export const en: AppStrings = {
   error: 'Something went wrong',
   retry: 'Retry',
   searchShort: 'Search',
+  moreHits: '{n} more',
   searchPlaceholder: 'Search pages or type a command…',
   recent: 'Recent',
   results: 'Pages',

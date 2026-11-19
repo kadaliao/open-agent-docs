@@ -151,7 +151,18 @@ export function Palette({ store, me, pageId, onClose }: { store: PageStore; me: 
         out.push({ key: 'r' + id, section: 'recent', title: p.title || t('untitled'), icon: p.icon, kind: p.kind, run: () => go(id) })
       }
     } else {
-      const shown = hits ?? localHits(pages, query)
+      // 一页只列一次（服务器还没按页合并时，这里合并：留分数最高的片段，记下还有几处命中）
+      const seen = new Map<string, SearchHit & { more: number }>()
+      for (const h of hits ?? localHits(pages, query)) {
+        const cur = seen.get(h.page_id)
+        if (!cur) seen.set(h.page_id, { ...h, more: h.hits ? h.hits - 1 : 0 })
+        else {
+          cur.more++
+          // 标题命中的那条没有正文片段：换成有片段的
+          if (cur.snippet?.replace(/<\/?mark>/g, '') === cur.title && h.snippet && h.snippet.replace(/<\/?mark>/g, '') !== h.title) Object.assign(cur, { snippet: h.snippet, block_id: h.block_id })
+        }
+      }
+      const shown = [...seen.values()]
       for (const h of shown)
         out.push({
           key: 'h' + h.page_id + (h.block_id ?? ''),
@@ -160,7 +171,7 @@ export function Palette({ store, me, pageId, onClose }: { store: PageStore; me: 
           icon: h.icon ?? byId.get(h.page_id)?.icon,
           kind: h.kind,
           snippet: h.snippet,
-          hint: h.kind === 'row' ? t('kindRow') : h.kind === 'database' ? t('kindDatabase') : parentTitle(h.page_id),
+          hint: [h.kind === 'row' ? t('kindRow') : h.kind === 'database' ? t('kindDatabase') : parentTitle(h.page_id), h.more > 0 ? t('moreHits', { n: h.more }) : ''].filter(Boolean).join(' · ') || undefined,
           run: () => go(h.page_id, h.block_id),
         })
     }

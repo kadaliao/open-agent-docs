@@ -21,3 +21,4 @@ legacy/open_agent_docs/static/
 
 # 实验生成的数据
 spikes/*/out/
+dist-packs/

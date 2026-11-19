@@ -1,6 +1,8 @@
 // 一页：标题 + 正文。本地优先：先从 IndexedDB 读出上次的内容马上显示，再连 WebSocket 和服务器同步。
 import {
   setEditorLocale,
+  CommentsPanel,
+  usePageComments,
   OadEditor,
   OadTitle,
   flashBlock,
@@ -15,9 +17,9 @@ import {
 } from '@oad/editor'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebsocketProvider } from 'y-websocket'
-import { api, ApiError, threadAnchor, type Me, type Page, type Version } from './api'
-import { CommentsPanel, usePageComments } from './comments/CommentsPanel'
+import { api, ApiError, client, threadAnchor, type Me, type Page, type Version } from './api'
 import { Inbox } from './Inbox'
+import { post } from './embed'
 import { getLocale, onLocale, useLocale } from './i18n'
 import { mediaServices, type DbHost } from './media'
 import { usePeople } from './people'
@@ -135,7 +137,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
   const saveRef = useRef<() => void>(() => {})
 
   // ---- 评论 ----
-  const { threads, reload: reloadThreads } = usePageComments(pageId, store)
+  const { threads, reload: reloadThreads } = usePageComments(client, pageId, store)
   const wantThread = threadOf(usePath())
   // 换了语言：编辑器里的占位文字重画
   const locale = useLocale()
@@ -256,6 +258,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
     c.ready.then(() => {
       performance.mark('oad:ready')
       if (alive) setReady(true)
+      if (alive) post({ type: 'oad:ready', pageId })
     })
     api.page(pageId).then(
       (p) => {
@@ -390,7 +393,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
                 }}
                 onEnter={() => editorRef.current && focusStart(editorRef.current)}
               />
-              {isRow && (rowMod ? <rowMod.RowHeader rowId={pageId} dbId={page!.parent_id!} me={me} ws={store.ws} canWrite={editable} events={store} /> : <div className="db-rowprops is-loading" />)}
+              {isRow && (rowMod ? <rowMod.RowHeader client={client} navigate={navigate} pageHref={pagePath} rowId={pageId} dbId={page!.parent_id!} me={me} ws={store.ws} canWrite={editable} events={store} /> : <div className="db-rowprops is-loading" />)}
               <OadEditor
                 ydoc={conn.ydoc}
                 provider={conn.provider}
@@ -448,6 +451,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
       )}
       {panel && (
         <CommentsPanel
+          client={client}
           pageId={pageId}
           me={me}
           editor={ready ? editor : null}

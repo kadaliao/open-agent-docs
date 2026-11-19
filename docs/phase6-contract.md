@@ -49,3 +49,18 @@
 
 - 旧版数据迁移脚本（`legacy` 的 SQLite → 新版），测一份真实形状的数据。
 - 全部测试过、性能目标复测一遍写进 `docs/baseline.md`（新旧对照）后，next 合回 main，删掉 `legacy/` 和 `spikes/`（用户确认后再合、再推）。
+
+## JS 包（实际的样子，网页这边）
+
+- `@oad/client`：`createClient({ baseUrl, token?, credentials?, fetch?, locale?, headers?, WebSocket? })`。入口：
+  `@oad/client`（全部）、`@oad/client/core`（只有 HTTP 方法和事件，没有 Yjs / WASM）、`@oad/client/page`（`openPage`）、`@oad/client/db`（`DbStore`、引擎）。
+  只用 core 时要显式 `registerPlugin('openPage', openPage)` / `registerPlugin('database', databasePlugin)`（只为副作用的 import 会被打包工具摇掉）。
+  类型在 `src/types.ts` 手写；有了 `docs/openapi.json` 以后 `pnpm --filter @oad/client gen:types` 生成 `src/openapi.ts`，types.ts 改成从那里取。
+  WebSocket 带 token 用 `?token=`。apps/web 的 HTTP、协作文档连接、数据库本地对象都用这一份。
+- `@oad/editor`：入口 `@oad/editor`（编辑器、标题、`OadComments`、按需加载的 `OadDatabaseView`、`useOadPage`、`OadProvider`）、
+  `@oad/editor/database`（数据库视图直接打进去的版本、行的属性头）、`@oad/editor/i18n`（`setLocale`）、`@oad/editor/schema`、`@oad/editor/style.css`。
+  `react`、`react-dom`、`yjs`、`@oad/client` 是 peer 依赖。组件里的通用控件样式只在 `.oad-root` 里生效。apps/web 的评论栏、数据库界面、界面语言都从这里拿。
+- 工作区里的包 `exports` 多一个 `oad-source` 条件指向源码（apps/web、examples 开发时用，不用先打包）；发出去的包用 `dist/`。`pnpm pack` 前 `prepack` 构建。
+- 版本号：`node scripts/versions.mjs` 检查（`node scripts/versions.mjs 0.2.0` 一起改）；互相依赖写 `workspace:*`，pack 时换成真的版本号。
+- iframe 嵌入（`?embed=1`）：没有侧栏、顶栏；参数 `theme`、`lang`；`postMessage`：发 `oad:ready`、`oad:navigate`、`oad:height`，收 `oad:navigate`、`oad:theme`、`oad:locale`。
+  服务器那边不需要改（没有 X-Frame-Options）。

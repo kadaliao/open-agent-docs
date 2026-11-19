@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyToDraft, draftToBody, mentionedAgents, renderBody } from '../src/comments/body'
+import { bodyToDraft, draftToBody, mentionedAgents, renderBody } from '../../../packages/editor/src/comments/body'
 
 describe('评论正文', () => {
   it('提到：输入框里显示 @名字，存成 @[名字](agent:<id>)', () => {

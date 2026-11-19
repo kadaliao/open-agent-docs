@@ -1,23 +1,50 @@
 {
   "name": "@oad/editor",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "./dist/types/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts",
-    "./style.css": "./src/style.css"
+    ".": {
+      "oad-source": "./src/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./database": {
+      "oad-source": "./src/database/index.ts",
+      "types": "./dist/types/database/index.d.ts",
+      "import": "./dist/database.js"
+    },
+    "./schema": {
+      "oad-source": "./src/schema/index.ts",
+      "types": "./dist/types/schema/index.d.ts",
+      "import": "./dist/schema.js"
+    },
+    "./i18n": {
+      "oad-source": "./src/i18n.ts",
+      "types": "./dist/types/i18n.d.ts",
+      "import": "./dist/i18n.js"
+    },
+    "./style.css": {
+      "oad-source": "./src/style.css",
+      "types": "./dist/style.css.d.ts",
+      "default": "./dist/style.css"
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": [
-    "*.css"
+    "*.css",
+    "./src/database/index.ts",
+    "./dist/database.js"
   ],
   "scripts": {
+    "build": "rm -rf dist && vite build && tsc -p tsconfig.build.json && node scripts/clean-dts.mjs",
+    "prepack": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3",
     "@tiptap/core": "3.34.0",
     "@tiptap/extension-blockquote": "3.34.0",
     "@tiptap/extension-bold": "3.34.0",
@@ -50,19 +77,30 @@
     "y-protocols": "^1.0.7"
   },
   "peerDependencies": {
+    "@oad/client": "workspace:*",
     "react": "^19",
     "react-dom": "^19",
     "yjs": "^13.6"
   },
   "devDependencies": {
+    "@oad/client": "workspace:*",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
     "jsdom": "^31.0.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
+    "vite": "^8.3.8",
     "vitest": "^5.1.1",
     "yjs": "^13.6.33"
-  }
+  },
+  "description": "Open Agent Docs 的编辑器和组件：协作编辑器（Tiptap + Yjs）、标题、评论栏、数据库视图，useOadPage hook",
+  "license": "MIT",
+  "module": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ]
 }

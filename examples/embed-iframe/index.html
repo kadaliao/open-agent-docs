@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>用 iframe 嵌入 Open Agent Docs</title>
+    <style>
+      body { margin: 0; font: 14px/1.5 -apple-system, 'PingFang SC', sans-serif; background: #f3f4f6; color: #111827; }
+      header { display: flex; gap: 12px; align-items: center; padding: 12px 20px; background: #111827; color: #fff; }
+      header input { width: 260px; padding: 4px 8px; border-radius: 6px; border: 0; }
+      header button { padding: 4px 10px; border-radius: 6px; border: 0; cursor: pointer; }
+      main { display: grid; grid-template-columns: 1fr 260px; gap: 16px; padding: 16px 20px; }
+      iframe { width: 100%; height: calc(100vh - 100px); border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+      #log { font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; background: #fff; border-radius: 12px; padding: 10px; border: 1px solid #e5e7eb; height: calc(100vh - 120px); overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>我的产品</b>
+      <label>页面 id <input id="page" placeholder="粘贴一个页面 id" /></label>
+      <button id="open">打开</button>
+      <button id="light">浅色</button>
+      <button id="dark">深色</button>
+      <button id="en">English</button>
+      <button id="zh">中文</button>
+    </header>
+    <main>
+      <iframe id="oad" title="Open Agent Docs" allow="clipboard-write"></iframe>
+      <div id="log"></div>
+    </main>
+    <script>
+      // Open Agent Docs 在哪：?oad=http://127.0.0.1:8848（默认这个）；?page=<页面 id> 一打开就嵌这一页
+      const q = new URLSearchParams(location.search)
+      const OAD = (q.get('oad') || 'http://127.0.0.1:8848').replace(/\/$/, '')
+      const frame = document.getElementById('oad')
+      const log = (s) => (document.getElementById('log').textContent += s + '\n')
+      const open = (id) => {
+        // embed=1：没有侧栏和顶栏；theme、lang 可选
+        frame.src = `${OAD}/p/${encodeURIComponent(id)}?embed=1`
+      }
+      const send = (msg) => frame.contentWindow.postMessage(msg, OAD)
+      document.getElementById('open').onclick = () => open(document.getElementById('page').value.trim())
+      document.getElementById('light').onclick = () => send({ type: 'oad:theme', theme: 'light' })
+      document.getElementById('dark').onclick = () => send({ type: 'oad:theme', theme: 'dark' })
+      document.getElementById('en').onclick = () => send({ type: 'oad:locale', locale: 'en' })
+      document.getElementById('zh').onclick = () => send({ type: 'oad:locale', locale: 'zh' })
+      // 嵌进来的页面发的消息：oad:ready、oad:navigate、oad:height
+      window.addEventListener('message', (e) => {
+        if (e.origin !== OAD || !e.data || typeof e.data.type !== 'string' || !e.data.type.startsWith('oad:')) return
+        log(JSON.stringify(e.data))
+        window.__oadMessages = [...(window.__oadMessages || []), e.data]
+      })
+      if (q.get('page')) {
+        document.getElementById('page').value = q.get('page')
+        open(q.get('page'))
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,68 @@
+{
+  "name": "@oad/client",
+  "version": "0.1.0",
+  "description": "Open Agent Docs 的 JS 客户端：HTTP 接口、实时事件、协作文档（Yjs）、本地数据库（WASM 引擎）。浏览器和 Node 18+ 都能用",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "oad-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "oad-source": "./src/core.ts",
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./page": {
+      "oad-source": "./src/page.ts",
+      "types": "./dist/page.d.ts",
+      "import": "./dist/page.js"
+    },
+    "./db": {
+      "oad-source": "./src/db/index.ts",
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./src/page.ts",
+    "./src/db/store.ts",
+    "./dist/page.js",
+    "./dist/db/store.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "gen:types": "npx openapi-typescript ../../docs/openapi.json -o src/openapi.ts"
+  },
+  "dependencies": {
+    "@oad/db": "workspace:*",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0"
+  },
+  "peerDependencies": {
+    "yjs": "^13.6"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
+    "yjs": "^13.6.33"
+  }
+}

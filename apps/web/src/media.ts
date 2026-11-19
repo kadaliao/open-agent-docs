@@ -1,7 +1,7 @@
 // 编辑器用到的外部服务：链接解析（GET /api/v1/unfurl，结果在内存和 IndexedDB 里各存一份，离线、再打开时直接画）、
 // 上传（POST /api/v1/workspaces/{ws}/files，带进度）、Markdown 解析（WASM 版 oad-markdown，按需加载）。
 import type { MediaServices, Unfurl, Uploaded } from '@oad/editor'
-import { API } from './api'
+import { API, client } from './api'
 
 const mem = new Map<string, Unfurl>()
 const inflight = new Map<string, Promise<Unfurl | null>>()
@@ -75,26 +75,7 @@ export function unfurl(url: string): Promise<Unfurl | null> {
 
 // ---------- 上传 ----------
 export function uploader(ws: string) {
-  return (file: File, onProgress: (f: number) => void) =>
-    new Promise<Uploaded>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${API}/workspaces/${ws}/files`)
-      xhr.withCredentials = true
-      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total)
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            resolve(JSON.parse(xhr.responseText))
-          } catch (e) {
-            reject(e)
-          }
-        } else reject(new Error(`HTTP ${xhr.status}`))
-      }
-      xhr.onerror = () => reject(new Error('network'))
-      const fd = new FormData()
-      fd.append('file', file, file.name || 'file')
-      xhr.send(fd)
-    })
+  return (file: File, onProgress: (f: number) => void) => client.upload(ws, file, onProgress) as Promise<Uploaded>
 }
 
 // ---------- Markdown（WASM） ----------

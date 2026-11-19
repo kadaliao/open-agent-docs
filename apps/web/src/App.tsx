@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar'
 import { adoptAccountLocale, useLocale } from './i18n'
 import { clearLocalData, navigate, onCommand, pageIdOf, pagePath, pushRecent, storageGet, storageSet, usePath } from './lib'
 import { Overlays } from './Overlays'
+import { EMBED, post } from './embed'
 import { PageStore, usePages } from './store'
 import { t } from './strings'
 
@@ -176,9 +177,13 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
 
   useEffect(() => {
     if (!pageId) return
+    if (EMBED) {
+      post({ type: 'oad:navigate', pageId, title: store?.pages.get(pageId)?.title ?? '' })
+      return
+    }
     storageSet(LAST_KEY, pageId)
     pushRecent(pageId)
-  }, [pageId])
+  }, [pageId]) // eslint-disable-line react-hooks/exhaustive-deps
   // ⌘\ 收起 / 展开侧栏
   useEffect(
     () =>
@@ -208,8 +213,8 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
   }
 
   return (
-    <div className={'app' + (collapsed ? ' is-collapsed' : '')}>
-      <Sidebar
+    <div className={'app' + (collapsed || EMBED ? ' is-collapsed' : '') + (EMBED ? ' is-embed' : '')}>
+      {!EMBED && <Sidebar
         store={store}
         me={me}
         workspaceName={ws.name}
@@ -221,7 +226,7 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
           setCollapsed(true)
           storageSet('oad:sidebar-collapsed', true)
         }}
-      />
+      />}
       <main className="main">
         {pageId ? (
           PageView ? (
@@ -253,8 +258,8 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
         )}
       </main>
       {/* 窄屏：侧栏是抽屉，点外面收起 */}
-      {!collapsed && <div className="drawer-mask" onClick={() => setCollapsed(true)} aria-hidden />}
-      <Overlays store={store} me={me} pageId={pageId} />
+      {!collapsed && !EMBED && <div className="drawer-mask" onClick={() => setCollapsed(true)} aria-hidden />}
+      {!EMBED && <Overlays store={store} me={me} pageId={pageId} />}
     </div>
   )
 }

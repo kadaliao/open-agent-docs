@@ -1,0 +1,255 @@
+/* 组件里用到的通用控件（按钮、头像、分段、弹窗、骨架），只在 .oad-root 里面生效，不碰宿主页面的同名样式。
+   颜色都用 CSS 变量，宿主可以在自己的样式里改（见 README「换主题」）。 */
+:root {
+  --side-w: 260px;
+  --side-bg: #f8f8f7;
+  --side-hover: rgba(55, 53, 47, 0.06);
+  --side-active: rgba(55, 53, 47, 0.09);
+  --topbar-h: 46px;
+  --ok: #2f9e6a;
+  --warn: #c98a17;
+  --bad: #d1453b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --side-bg: #202020;
+    --side-hover: rgba(255, 255, 255, 0.055);
+    --side-active: rgba(255, 255, 255, 0.085);
+    --ok: #4fbf8a;
+    --warn: #e0a548;
+    --bad: #f07368;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --side-bg: #202020;
+  --side-hover: rgba(255, 255, 255, 0.055);
+  --side-active: rgba(255, 255, 255, 0.085);
+  --ok: #4fbf8a;
+  --warn: #e0a548;
+  --bad: #f07368;
+}
+/* 组件里的按钮先清掉浏览器默认样式（宿主页面没做全局重置时）；:where 不加权重，组件自己的样式照样生效 */
+:where(.oad-root) button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+:where(.oad-root),
+:where(.oad-root) *,
+:where(.oad-root) *::before,
+:where(.oad-root) *::after {
+  box-sizing: border-box;
+}
+@keyframes sk {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+.oad-root .muted, .muted.oad-root {
+  color: var(--oad-fg-2);
+}
+.oad-root .btn, .btn.oad-root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--oad-line-2);
+  background: var(--oad-bg);
+  color: var(--oad-fg);
+  font-weight: 500;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.oad-root .btn:hover, .btn:hover.oad-root {
+  background: var(--oad-bg-2);
+}
+.oad-root .btn:active, .btn:active.oad-root {
+  transform: scale(0.98);
+}
+.oad-root .btn-primary, .btn-primary.oad-root {
+  background: var(--oad-fg);
+  border-color: var(--oad-fg);
+  color: var(--oad-bg);
+}
+.oad-root .btn-primary:hover, .btn-primary:hover.oad-root {
+  background: var(--oad-fg);
+  opacity: 0.88;
+}
+.oad-root .btn:disabled, .btn:disabled.oad-root {
+  opacity: 0.55;
+  cursor: default;
+}
+.oad-root .btn-block, .btn-block.oad-root {
+  width: 100%;
+  height: 38px;
+}
+.oad-root .icon-btn, .icon-btn.oad-root {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--oad-fg-2);
+  font-size: 15px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.oad-root .icon-btn:hover, .icon-btn:hover.oad-root {
+  background: var(--side-hover);
+  color: var(--oad-fg);
+}
+.oad-root .field, .field.oad-root {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--oad-fg-2);
+  font-weight: 500;
+}
+.oad-root .field input, .field input.oad-root {
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--oad-line-2);
+  background: var(--oad-bg);
+  padding: 0 12px;
+  font-size: 14.5px;
+  color: var(--oad-fg);
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.oad-root .field input:focus, .field input:focus.oad-root {
+  border-color: var(--oad-accent);
+  box-shadow: 0 0 0 3px var(--oad-accent-soft);
+}
+.oad-root .form-error, .form-error.oad-root {
+  color: var(--bad);
+  font-size: 13px;
+}
+.oad-root .avatar, .avatar.oad-root {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+.oad-root .avatar.is-agent, .avatar.is-agent.oad-root {
+  border-radius: 7px;
+}
+.oad-root .avatar.is-more, .avatar.is-more.oad-root {
+  background: var(--oad-bg-3);
+  color: var(--oad-fg-2);
+}
+.oad-root .sk, .sk.oad-root {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--oad-bg-2), var(--oad-bg-3), var(--oad-bg-2));
+  background-size: 200% 100%;
+  animation: sk 1.4s ease-in-out infinite;
+}
+.oad-root .sk-title, .sk-title.oad-root {
+  height: 36px;
+  width: 45%;
+  margin-bottom: 16px;
+  border-radius: 9px;
+}
+.oad-root .btn-sm, .btn-sm.oad-root {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+.oad-root .btn-danger, .btn-danger.oad-root {
+  color: var(--bad);
+}
+.oad-root .btn-danger:hover, .btn-danger:hover.oad-root {
+  background: color-mix(in srgb, var(--bad) 8%, var(--oad-bg));
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--oad-line-2));
+}
+.oad-root .avatar-sm, .avatar-sm.oad-root {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+.oad-root .seg, .seg.oad-root {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--oad-bg-2);
+}
+.oad-root .seg button, .seg button.oad-root {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--oad-fg-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.oad-root .seg button[aria-selected='true'], .seg button[aria-selected='true'].oad-root {
+  background: var(--oad-bg);
+  color: var(--oad-fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--oad-line);
+}
+.oad-root .modal-mask, .modal-mask.oad-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 15, 15, 0.38);
+  animation: fade 0.12s ease-out;
+}
+.oad-root .modal, .modal.oad-root {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border-radius: 14px;
+  background: var(--oad-bg);
+  box-shadow: var(--oad-shadow);
+  animation: oad-pop 0.14s ease-out;
+}
+.oad-root .modal-head, .modal-head.oad-root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 4px 22px;
+}
+.oad-root .modal-head h2, .modal-head h2.oad-root {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+.oad-root .modal-body, .modal-body.oad-root {
+  padding: 12px 22px 20px;
+  display: grid;
+  gap: 14px;
+}
+.oad-root .modal-foot, .modal-foot.oad-root {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.oad-root .field small, .field small.oad-root {
+  color: var(--oad-fg-3);
+  font-weight: 400;
+}

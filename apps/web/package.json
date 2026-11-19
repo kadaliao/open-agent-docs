@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@oad/client": "workspace:*",
     "@oad/db": "workspace:*",
     "@oad/editor": "workspace:*",
     "@tanstack/react-virtual": "^3",

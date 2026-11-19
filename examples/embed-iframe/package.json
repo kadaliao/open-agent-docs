@@ -1,0 +1,12 @@
+{
+  "name": "@oad/example-embed-iframe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.1"
+  }
+}
