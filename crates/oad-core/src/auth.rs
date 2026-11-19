@@ -1,4 +1,4 @@
-//! 登录方式。三种：内置账号（argon2 + 会话 cookie）、宿主可信请求头、不登录（本机单人）。
+//! 登录方式：内置账号（argon2 + 会话 cookie）、宿主可信请求头、宿主签的 JWT（见 [`crate::jwt`]）、不登录（本机单人）。
 //! 只管“这是谁”；能不能进某个工作区由成员表决定（[`crate::Core::role`]）。
 use crate::model::*;
 use crate::storage::Storage;
@@ -19,12 +19,13 @@ pub const H_USER_NAME: &str = "x-oad-user-name";
 pub const H_USER_EMAIL: &str = "x-oad-user-email";
 pub const H_SECRET: &str = "x-oad-secret";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthMode {
     Local,
     Header,
     None,
+    Jwt,
 }
 
 impl AuthMode {
@@ -33,6 +34,7 @@ impl AuthMode {
             "local" => Some(AuthMode::Local),
             "header" => Some(AuthMode::Header),
             "none" => Some(AuthMode::None),
+            "jwt" => Some(AuthMode::Jwt),
             _ => None,
         }
     }

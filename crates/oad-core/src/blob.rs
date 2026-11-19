@@ -1,5 +1,5 @@
 //! 存文件内容的地方。按键存取，键是内容的 SHA-256（十六进制）或者由它派生的（缩略图 `<hash>.w640.webp`）。
-//! 首版是本地目录（[`FsBlobs`]），S3 之类以后实现同一个 trait。
+//! 本地目录（[`FsBlobs`]）、内存（[`MemBlobs`]）、S3 兼容的（[`crate::s3::S3Blobs`]）。
 use crate::{Error, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ pub trait BlobStore: Send + Sync + 'static {
 }
 
 /// 键只能是字母数字和 `.` `-` `_`，不能拿来跳目录。
-fn check_key(key: &str) -> Result<()> {
+pub(crate) fn check_key(key: &str) -> Result<()> {
     if key.len() < 3
         || key.len() > 200
         || key.starts_with('.')

@@ -852,7 +852,10 @@ append{markdown} 加到最后；delete{block} 删掉。block 是 read_page 里 �
         let id = bid(&a.page_id);
         let (page, _) = tri!(lang, self.core.page_for(&id, &who, false).await);
         let limit = a.limit.unwrap_or(30).clamp(1, 200) as usize;
-        let versions = tri!(lang, self.core.list_versions(&id, &who, limit + 1).await);
+        let (versions, _) = tri!(
+            lang,
+            self.core.list_versions(&id, &who, limit + 1, None).await
+        );
         // 每一版和它的上一版比
         let mut changes = Vec::new();
         for w in versions.windows(2).take(limit) {

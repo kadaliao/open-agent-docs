@@ -24,7 +24,7 @@ pub struct Media {
 }
 
 /// 上传接口的返回。
-#[derive(serde::Serialize, Clone, Debug)]
+#[derive(serde::Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct Uploaded {
     pub id: String,
     pub url: String,

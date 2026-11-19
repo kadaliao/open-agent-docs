@@ -3,7 +3,7 @@ use crate::model::Page;
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 pub enum EventKind {
     #[serde(rename = "page.created")]
     Created,

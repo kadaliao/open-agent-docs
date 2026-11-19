@@ -21,7 +21,7 @@ pub const DEBOUNCE: Duration = Duration::from_secs(1);
 const BATCH: usize = 200;
 
 /// 一条搜索结果（GET /workspaces/{ws}/search）。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct SearchResult {
     pub page_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]

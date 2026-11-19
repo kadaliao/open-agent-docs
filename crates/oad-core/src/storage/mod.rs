@@ -1,6 +1,10 @@
-//! 存储接口。首版只有 SQLite（[`sqlite::Sqlite`]），以后加 Postgres 实现同一个 trait。
+//! 存储接口。实现有两个：SQLite（[`sqlite::Sqlite`]）和 Postgres（[`pg::Postgres`]），共用一份 SQL 和逻辑（[`sql`]），
+//! 驱动的差别收在 [`db`] 里。
 //! 页面树的改动（建、移动、删除）要在一个事务里读同级、算位置、查环，所以做成整体的方法；
 //! 位置和查环的算法在 [`crate::position`] / [`crate::tree`]，各实现共用。
+pub mod db;
+pub mod pg;
+pub mod sql;
 pub mod sqlite;
 
 use crate::Result;
@@ -231,7 +235,13 @@ pub trait Storage: Send + Sync + 'static {
     // 历史版本
     async fn add_version(&self, page_id: &str, v: NewVersion) -> Result<i64>;
     /// 新的在前。
-    async fn versions(&self, page_id: &str, limit: usize) -> Result<Vec<VersionMeta>>;
+    /// 新的在前；before 给了就只要编号比它小的（翻页）。
+    async fn versions(
+        &self,
+        page_id: &str,
+        limit: usize,
+        before: Option<i64>,
+    ) -> Result<Vec<VersionMeta>>;
     /// 一版和它的快照。
     async fn version(&self, page_id: &str, id: i64) -> Result<Option<(VersionMeta, Vec<u8>)>>;
     /// 库的格子改动：按行、属性过滤，新的在前。
@@ -241,9 +251,15 @@ pub trait Storage: Send + Sync + 'static {
         row: Option<&str>,
         prop: Option<&str>,
         limit: usize,
+        before_seq: Option<i64>,
     ) -> Result<Vec<DbOpRow>>;
-    /// 表结构改动，新的在前。
-    async fn db_schema_ops(&self, db_id: &str, limit: usize) -> Result<Vec<SchemaOpRow>>;
+    /// 表结构改动，新的在前（before_seq 翻页）。
+    async fn db_schema_ops(
+        &self,
+        db_id: &str,
+        limit: usize,
+        before_seq: Option<i64>,
+    ) -> Result<Vec<SchemaOpRow>>;
     /// 撤销第 seq 次的格子改动（新建的行删掉、删掉的放回、格子换回原来的值；之后又被改过的格子不动），记成新的一次。
     /// 返回 (新 seq, 改了标题的行和新标题, 放回来的行)。
     #[allow(clippy::type_complexity)]

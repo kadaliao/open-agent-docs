@@ -15,11 +15,13 @@ pub mod history;
 pub mod hub;
 pub mod i18n;
 pub mod ids;
+pub mod jwt;
 pub mod media;
 pub mod members;
 pub mod model;
 pub mod notify;
 pub mod position;
+pub mod s3;
 pub mod search;
 pub mod share;
 pub mod ssrf;
@@ -78,6 +80,18 @@ pub enum AuthConfig {
     Local,
     Header { secret: String },
     None,
+    Jwt(jwt::JwtConfig),
+}
+
+/// 翻页的 cursor（上一页给的 next_cursor，是个数）。
+pub fn parse_cursor(c: Option<&str>) -> Result<Option<i64>> {
+    match c.map(str::trim).filter(|c| !c.is_empty()) {
+        None => Ok(None),
+        Some(c) => c
+            .parse::<i64>()
+            .map(Some)
+            .map_err(|_| Error::BadRequest("cursor 不对：用上一页给的 next_cursor".into())),
+    }
 }
 
 /// 把用户加进默认工作区：工作区里还没人就当所有者，否则是编辑者。已经是成员的不动。
@@ -172,6 +186,11 @@ impl Core {
                 secret,
                 default_workspace.id.clone(),
             )),
+            AuthConfig::Jwt(cfg) => Arc::new(jwt::JwtAuth::new(
+                storage.clone(),
+                cfg,
+                default_workspace.id.clone(),
+            )?),
             AuthConfig::None => {
                 let user = match storage.user_by_email(LOCAL_USER_EMAIL).await? {
                     Some((u, _)) => u,

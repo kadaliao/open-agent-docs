@@ -29,7 +29,7 @@ pub fn new_webhook_secret() -> String {
 }
 
 /// Agent 列表里的一项：加上没处理的通知数和最近的 webhook 错误。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct AgentView {
     #[serde(flatten)]
     pub agent: Agent,

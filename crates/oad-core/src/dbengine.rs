@@ -559,3 +559,54 @@ pub fn schema_text(
 pub fn is_title_type(s: &str) -> bool {
     PropType::from_name(s) == Some(PropType::Title)
 }
+
+/// 引擎给人看的文字（oad-db 的 display 出中文的几种：是、无标题、今天 / 明天……）按语言换。多值是 ", " 分开的。
+pub fn localize_display(text: &str, lang: crate::i18n::Lang) -> String {
+    if lang == crate::i18n::Lang::Zh || text.is_empty() {
+        return text.to_string();
+    }
+    text.split(", ")
+        .map(|part| {
+            for (zh, en) in [("是", "Yes"), ("否", "No"), ("无标题", "Untitled")] {
+                if part == zh {
+                    return en.to_string();
+                }
+            }
+            // 相对日期：“今天”“明天 14:00”
+            for (zh, en) in [
+                ("今天", "Today"),
+                ("明天", "Tomorrow"),
+                ("昨天", "Yesterday"),
+                ("后天", "In 2 days"),
+                ("前天", "2 days ago"),
+            ] {
+                if let Some(rest) = part.strip_prefix(zh)
+                    && (rest.is_empty() || rest.starts_with(' '))
+                {
+                    return format!("{en}{rest}");
+                }
+            }
+            part.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::localize_display;
+    use crate::i18n::Lang;
+
+    #[test]
+    fn display_in_english() {
+        assert_eq!(localize_display("是", Lang::En), "Yes");
+        assert_eq!(localize_display("无标题, 甲", Lang::En), "Untitled, 甲");
+        assert_eq!(localize_display("明天 14:00", Lang::En), "Tomorrow 14:00");
+        assert_eq!(
+            localize_display("今天会议", Lang::En),
+            "今天会议",
+            "用户写的字不动"
+        );
+        assert_eq!(localize_display("是", Lang::Zh), "是");
+    }
+}

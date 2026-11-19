@@ -1,4 +1,5 @@
 //! `/api/v1` 下的 JSON 接口。
+use crate::openapi::{DocNode, ErrorBody};
 use crate::{ApiError, AppState, sync};
 use axum::extract::{ConnectInfo, FromRequest, FromRequestParts, Path, Query, Request, State};
 use axum::http::request::Parts;
@@ -10,18 +11,21 @@ use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures_util::{Stream, StreamExt};
+use oad_core::Page;
 use oad_core::auth::SESSION_COOKIE;
 use oad_core::{AuthRequest, Node, PagePatch, Principal};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
-use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use tokio::sync::broadcast::error::RecvError;
+use utoipa::{IntoParams, OpenApi, ToSchema};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/openapi.json", get(openapi_json))
         .route("/auth/config", get(auth_config))
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
@@ -51,6 +55,30 @@ pub fn routes() -> Router<AppState> {
 }
 
 pub(crate) type ApiResult<T> = Result<T, ApiError>;
+
+/// 这个模块的接口（合进 [`crate::openapi`]）。
+#[derive(OpenApi)]
+#[openapi(paths(
+    auth_config,
+    login,
+    logout,
+    me,
+    list_pages,
+    create_page,
+    get_page,
+    patch_page,
+    delete_page,
+    get_content,
+    put_content,
+    get_block,
+    put_block,
+    insert_blocks,
+    delete_block,
+    search,
+    events,
+    crate::sync::handler
+))]
+pub(crate) struct Doc;
 
 /// 给这个人看的语言：设过的 > 浏览器的 Accept-Language > 中文。
 pub(crate) async fn req_lang(
@@ -127,18 +155,38 @@ async fn blocking<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> 
         .map_err(|e| ApiError::from(oad_core::Error::Internal(e.to_string())))
 }
 
-// ---- 登录 ----
-
-async fn auth_config(State(s): State<AppState>) -> Json<Value> {
-    Json(json!({
-        "mode": s.core.auth.mode(),
-        "timezone": oad_core::tz::name(&s.core.timezone),
-        "signup": s.core.signup_mode(),
-    }))
+/// 这份接口的 OpenAPI 3.1（不用登录）。
+async fn openapi_json() -> Response {
+    let mut r = Json(crate::openapi::spec()).into_response();
+    r.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    r
 }
 
-#[derive(Deserialize)]
-struct LoginBody {
+// ---- 登录 ----
+
+/// 登录方式和站点设置。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct AuthConfigBody {
+    /// local / header / none / jwt
+    #[schema(value_type = String)]
+    mode: oad_core::AuthMode,
+    /// 服务器的时区（IANA 名字）
+    timezone: String,
+    signup: oad_core::members::SignupMode,
+}
+
+#[utoipa::path(get, path = "/auth/config", tag = "auth", security(()), responses((status = 200, body = AuthConfigBody)))]
+pub(crate) async fn auth_config(State(s): State<AppState>) -> Json<AuthConfigBody> {
+    Json(AuthConfigBody {
+        mode: s.core.auth.mode(),
+        timezone: oad_core::tz::name(&s.core.timezone),
+        signup: s.core.signup_mode(),
+    })
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct LoginBody {
     email: String,
     password: String,
 }
@@ -155,7 +203,9 @@ pub(crate) fn session_cookie(s: &AppState, token: &str, max_age: i64) -> HeaderV
     .unwrap()
 }
 
-async fn login(
+#[utoipa::path(post, path = "/auth/login", tag = "auth", security(()), request_body = LoginBody,
+    responses((status = 200, body = Me, description = "登录了，Set-Cookie 带会话"), (status = 401, body = ErrorBody), (status = 429, body = ErrorBody)))]
+pub(crate) async fn login(
     State(s): State<AppState>,
     parts: Parts,
     Body(b): Body<LoginBody>,
@@ -199,7 +249,8 @@ async fn login(
     Ok(res)
 }
 
-async fn logout(State(s): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
+#[utoipa::path(post, path = "/auth/logout", tag = "auth", responses((status = 204)))]
+pub(crate) async fn logout(State(s): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
     let req = AuthRequest {
         headers: &headers,
         query_token: None,
@@ -211,55 +262,103 @@ async fn logout(State(s): State<AppState>, headers: HeaderMap) -> ApiResult<Resp
     Ok(res)
 }
 
-pub(crate) async fn me_json(s: &AppState, p: &Principal) -> ApiResult<Value> {
+/// 我是谁、在哪些工作区。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Me {
+    user: MeUser,
+    workspaces: Vec<MeWorkspace>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct MeUser {
+    id: String,
+    name: String,
+    email: Option<String>,
+    kind: oad_core::PrincipalKind,
+    avatar: Option<String>,
+    /// zh / en / null（跟浏览器）
+    locale: Option<String>,
+    timezone: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct MeWorkspace {
+    id: String,
+    name: String,
+    icon: Option<String>,
+    role: oad_core::Role,
+}
+
+pub(crate) async fn me_json(s: &AppState, p: &Principal) -> ApiResult<Me> {
     let user = s
         .core
         .storage
         .user(&p.user_id)
         .await?
         .ok_or_else(ApiError::unauthorized)?;
-    let ws: Vec<Value> = s
+    let workspaces = s
         .core
         .storage
         .user_workspaces(&user.id)
         .await?
         .into_iter()
-        .map(|(w, role)| json!({ "id": w.id, "name": w.name, "icon": w.icon, "role": role }))
+        .map(|(w, role)| MeWorkspace {
+            id: w.id,
+            name: w.name,
+            icon: w.icon,
+            role,
+        })
         .collect();
     let prefs = s.core.storage.user_prefs(&user.id).await?;
-    Ok(json!({
-        "user": {
-            "id": user.id, "name": user.name, "email": user.email, "kind": user.kind,
-            "avatar": prefs.avatar, "locale": prefs.locale, "timezone": prefs.timezone,
+    Ok(Me {
+        user: MeUser {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            kind: user.kind,
+            avatar: prefs.avatar,
+            locale: prefs.locale,
+            timezone: prefs.timezone,
         },
-        "workspaces": ws,
-    }))
+        workspaces,
+    })
 }
 
-async fn me(State(s): State<AppState>, Auth(p): Auth) -> ApiResult<Json<Value>> {
+#[utoipa::path(get, path = "/me", tag = "me", responses((status = 200, body = Me), (status = 401, body = ErrorBody)))]
+pub(crate) async fn me(State(s): State<AppState>, Auth(p): Auth) -> ApiResult<Json<Me>> {
     Ok(Json(me_json(&s, &p).await?))
 }
 
 // ---- 页面 ----
 
-async fn list_pages(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct PageList {
+    /// 不含回收站里的、库里的行；按 (parent_id, position) 排
+    pages: Vec<Page>,
+}
+
+#[utoipa::path(get, path = "/workspaces/{ws}/pages", tag = "pages", params(("ws" = String, Path, description = "工作区")),
+    responses((status = 200, body = PageList), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn list_pages(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<PageList>> {
     let pages = s.core.list_pages(&ws, &p).await?;
-    Ok(Json(json!({ "pages": pages })))
+    Ok(Json(PageList { pages }))
 }
 
-#[derive(Deserialize)]
-struct CreatePage {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct CreatePage {
     parent_id: Option<String>,
     after: Option<String>,
     title: Option<String>,
     icon: Option<String>,
 }
 
-async fn create_page(
+#[utoipa::path(post, path = "/workspaces/{ws}/pages", tag = "pages", params(("ws" = String, Path)), request_body = CreatePage,
+    responses((status = 201, body = Page), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn create_page(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
@@ -272,7 +371,8 @@ async fn create_page(
     Ok((StatusCode::CREATED, Json(page)).into_response())
 }
 
-async fn get_page(
+#[utoipa::path(get, path = "/pages/{id}", tag = "pages", params(("id" = String, Path)), responses((status = 200, body = Page), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_page(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -281,8 +381,8 @@ async fn get_page(
     Ok(Json(page).into_response())
 }
 
-#[derive(Deserialize)]
-struct PatchPage {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct PatchPage {
     title: Option<String>,
     #[serde(default, deserialize_with = "double")]
     icon: Option<Option<String>>,
@@ -292,7 +392,9 @@ struct PatchPage {
     after: Option<Option<String>>,
 }
 
-async fn patch_page(
+#[utoipa::path(patch, path = "/pages/{id}", tag = "pages", params(("id" = String, Path)), request_body = PatchPage,
+    responses((status = 200, body = Page), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn patch_page(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -308,40 +410,72 @@ async fn patch_page(
     Ok(Json(page).into_response())
 }
 
-async fn delete_page(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Deleted {
+    /// 进了回收站的页面（连子页面）
+    deleted: Vec<String>,
+}
+
+#[utoipa::path(delete, path = "/pages/{id}", tag = "pages", params(("id" = String, Path)), responses((status = 200, body = Deleted), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn delete_page(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Deleted>> {
     let gone = s.core.delete_page(&id, &p).await?;
-    let ids: Vec<&str> = gone.iter().map(|p| p.id.as_str()).collect();
-    Ok(Json(json!({ "deleted": ids })))
+    Ok(Json(Deleted {
+        deleted: gone.into_iter().map(|p| p.id).collect(),
+    }))
 }
 
 // ---- 正文 ----
 
-async fn get_content(
+/// 正文：`markdown`（默认）或 `doc`（`?format=json`），带当前版本（改的时候作为 base 带回来）。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Content {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    markdown: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<DocNode>)]
+    doc: Option<Node>,
+    version: String,
+}
+
+#[utoipa::path(get, path = "/pages/{id}/content", tag = "content",
+    params(("id" = String, Path), ("format" = Option<String>, Query, description = "markdown（默认）/ json")),
+    responses((status = 200, body = Content), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_content(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     Query(q): Query<HashMap<String, String>>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Content>> {
     let (doc, version) = s.core.content(&id, &p).await?;
     let version = b64(&version);
     match q.get("format").map(String::as_str) {
         None | Some("markdown") => {
             let md = blocking(move || oad_markdown::serialize(&doc)).await?;
-            Ok(Json(json!({ "markdown": md, "version": version })))
+            Ok(Json(Content {
+                markdown: Some(md),
+                doc: None,
+                version,
+            }))
         }
-        Some("json") => Ok(Json(json!({ "doc": doc, "version": version }))),
+        Some("json") => Ok(Json(Content {
+            markdown: None,
+            doc: Some(doc),
+            version,
+        })),
         Some(f) => Err(ApiError::bad_request(format!("不支持的 format={f}"))),
     }
 }
 
-#[derive(Deserialize)]
-struct PutContent {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct PutContent {
     markdown: Option<String>,
+    #[schema(value_type = Option<DocNode>)]
     doc: Option<Node>,
+    /// 读的时候拿到的版本：在那个版本上改，这期间别人写的不会被覆盖
     base: Option<String>,
 }
 
@@ -358,7 +492,9 @@ fn unb64(v: Option<String>) -> ApiResult<Option<Vec<u8>>> {
     .transpose()
 }
 
-async fn put_content(
+#[utoipa::path(put, path = "/pages/{id}/content", tag = "content", params(("id" = String, Path)), request_body = PutContent,
+    responses((status = 204), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn put_content(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -374,20 +510,32 @@ async fn put_content(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn get_block(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct BlockContent {
+    #[schema(value_type = DocNode)]
+    block: Node,
+    markdown: String,
+    version: String,
+}
+
+#[utoipa::path(get, path = "/pages/{id}/blocks/{block_id}", tag = "content", params(("id" = String, Path), ("block_id" = String, Path)),
+    responses((status = 200, body = BlockContent), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_block(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, block_id)): Path<(String, String)>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<BlockContent>> {
     let (block, version) = s.core.block(&id, &block_id, &p).await?;
-    let md = oad_markdown::serialize_block(&block);
-    Ok(Json(
-        json!({ "block": block, "markdown": md, "version": b64(&version) }),
-    ))
+    let markdown = oad_markdown::serialize_block(&block);
+    Ok(Json(BlockContent {
+        block,
+        markdown,
+        version: b64(&version),
+    }))
 }
 
-#[derive(Deserialize)]
-struct BlockBody {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct BlockBody {
     markdown: String,
     after: Option<String>,
     base: Option<String>,
@@ -397,32 +545,43 @@ fn parse_blocks(md: &str) -> Vec<Node> {
     oad_markdown::parse(md).content
 }
 
-async fn put_block(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct BlockIds {
+    ids: Vec<String>,
+}
+
+#[utoipa::path(put, path = "/pages/{id}/blocks/{block_id}", tag = "content", params(("id" = String, Path), ("block_id" = String, Path)),
+    request_body = BlockBody, responses((status = 200, body = BlockIds), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn put_block(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, block_id)): Path<(String, String)>,
     Body(b): Body<BlockBody>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<BlockIds>> {
     let nodes = parse_blocks(&b.markdown);
     let ids = s
         .core
         .replace_block(&id, &block_id, &p, nodes, unb64(b.base)?)
         .await?;
-    Ok(Json(json!({ "ids": ids })))
+    Ok(Json(BlockIds { ids }))
 }
 
-async fn insert_blocks(
+#[utoipa::path(post, path = "/pages/{id}/blocks", tag = "content", params(("id" = String, Path)),
+    request_body = BlockBody, responses((status = 200, body = BlockIds), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn insert_blocks(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     Body(b): Body<BlockBody>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<BlockIds>> {
     let nodes = parse_blocks(&b.markdown);
     let ids = s.core.insert_blocks(&id, b.after, &p, nodes).await?;
-    Ok(Json(json!({ "ids": ids })))
+    Ok(Json(BlockIds { ids }))
 }
 
-async fn delete_block(
+#[utoipa::path(delete, path = "/pages/{id}/blocks/{block_id}", tag = "content", params(("id" = String, Path), ("block_id" = String, Path)),
+    responses((status = 204), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn delete_block(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, block_id)): Path<(String, String)>,
@@ -433,21 +592,32 @@ async fn delete_block(
 
 // ---- 实时事件 ----
 
-#[derive(Deserialize)]
-struct SearchParams {
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(crate) struct SearchParams {
+    /// 搜索词
     q: String,
+    /// 最多几条，默认 20，最多 100
     limit: Option<usize>,
+    /// page / row / all（默认）
     kind: Option<String>,
     /// `block`：每块一条（同一页最多两条）；默认每页一条
     per: Option<String>,
 }
 
-async fn search(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct SearchResults {
+    results: Vec<oad_core::search::SearchResult>,
+}
+
+#[utoipa::path(get, path = "/workspaces/{ws}/search", tag = "search", params(("ws" = String, Path), SearchParams),
+    responses((status = 200, body = SearchResults), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn search(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
     Query(q): Query<SearchParams>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<SearchResults>> {
     let results = s
         .core
         .search_index(
@@ -459,10 +629,13 @@ async fn search(
             q.per.as_deref() != Some("block"),
         )
         .await?;
-    Ok(Json(json!({ "results": results })))
+    Ok(Json(SearchResults { results }))
 }
 
-async fn events(
+#[utoipa::path(get, path = "/workspaces/{ws}/events", tag = "events", params(("ws" = String, Path)),
+    description = "SSE：工作区的实时事件，事件名和数据见 webhooks（page.created、db.changed……）。慢了会收到 resync。",
+    responses((status = 200, content_type = "text/event-stream", description = "事件流"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn events(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,

@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// 评论挂在哪：一段文字（start / end 是网页给的 Yjs RelativePosition，服务器原样存）、整段（只有 block_id）或整页（None）。
-#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq, utoipa::ToSchema)]
 pub struct Anchor {
     pub block_id: Option<String>,
     pub start: Option<String>,
@@ -55,14 +55,14 @@ impl NotifySpec {
     }
 }
 
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct AuthorRef {
     pub kind: PrincipalKind,
     pub id: String,
     pub name: String,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct CommentView {
     pub id: String,
     pub thread_id: String,
@@ -74,7 +74,7 @@ pub struct CommentView {
     pub deleted_at: Option<i64>,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct ThreadView {
     pub id: String,
     pub page_id: String,

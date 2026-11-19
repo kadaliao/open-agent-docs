@@ -170,12 +170,22 @@ pub fn translate(tables: &[Table], lang: Lang, msg: &str) -> String {
     if lang == Lang::Zh || msg.is_empty() {
         return msg.to_string();
     }
-    translate_depth(tables, msg, 0)
+    // 中文的列表分隔号（“现在有：甲、乙”）换成英文的
+    translate_depth(tables, msg, 0).replace('、', ", ")
 }
 
 fn translate_depth(tables: &[Table], msg: &str, depth: u8) -> String {
     if let Some(e) = find(tables, msg) {
         return e.to_string();
+    }
+    // 套在里面的属性类型名、汇总方式名（数字、单选、求和……）：换成英文的写法
+    if depth > 0 {
+        if let Some(t) = oad_db::PropType::ALL.iter().find(|t| t.zh() == msg) {
+            return t.key().replace('_', " ");
+        }
+        if let Some(a) = oad_db::Agg::all().find(|a| a.zh() == msg) {
+            return a.key().replace('_', " ");
+        }
     }
     // 变量多的模板先试（更具体）
     // (模板里字面量的长度, 英文模板, 变量)
@@ -238,6 +248,31 @@ impl crate::Core {
 
 /// oad-core 自己的话（错误信息、通知），也包括 oad-doc 的错误。
 pub static CORE: Table = &[
+    // 第 6 阶段：JWT、S3、翻页
+    (
+        "OAD_AUTH=jwt 要给 OAD_JWT_SECRET 或 OAD_JWT_JWKS_URL",
+        "OAD_AUTH=jwt needs OAD_JWT_SECRET or OAD_JWT_JWKS_URL",
+    ),
+    (
+        "cursor 不对：用上一页给的 next_cursor",
+        "Invalid cursor: use the next_cursor from the previous page",
+    ),
+    ("OAD_BLOB_URL 不对：{e}", "Invalid OAD_BLOB_URL: {e}"),
+    (
+        "OAD_BLOB_URL 要是 s3://bucket/前缀",
+        "OAD_BLOB_URL must be s3://bucket/prefix",
+    ),
+    ("OAD_BLOB_URL 里没有 bucket", "OAD_BLOB_URL has no bucket"),
+    ("S3 要设 AWS_ACCESS_KEY_ID", "S3 needs AWS_ACCESS_KEY_ID"),
+    (
+        "S3 要设 AWS_SECRET_ACCESS_KEY",
+        "S3 needs AWS_SECRET_ACCESS_KEY",
+    ),
+    ("取 JWKS 失败：{e}", "Fetching JWKS failed: {e}"),
+    ("JWKS 格式不对：{e}", "Invalid JWKS: {e}"),
+    ("S3 请求失败：{e}", "S3 request failed: {e}"),
+    ("S3 返回 {status}", "S3 returned {status}"),
+    ("S3 bucket 不存在", "S3 bucket does not exist"),
     // 页面、块
     ("页面 {id} 不存在", "Page {id} not found"),
     // 表结构给 Agent 看（dbengine::schema_text）
@@ -294,6 +329,8 @@ pub static CORE: Table = &[
     ("存储出错：{e}", "Storage error: {e}"),
     ("内部错误：{e}", "Internal error: {e}"),
     ("写线程已退出", "Writer thread has exited"),
+    ("数据库地址不对：{e}", "Invalid database URL: {e}"),
+    ("schema 名不合法：{s}", "Invalid schema name: {s}"),
     ("建 {path}：{e}", "Create {path}: {e}"),
     // 登录、成员、邀请
     (

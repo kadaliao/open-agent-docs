@@ -1,7 +1,9 @@
 //! 领域对象。时间都是毫秒时间戳（UTC）。
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, utoipa::ToSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Viewer,
@@ -38,7 +40,7 @@ impl Role {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum PrincipalKind {
     User,
@@ -61,7 +63,7 @@ impl PrincipalKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct User {
     pub id: String,
     pub name: String,
@@ -88,7 +90,7 @@ impl From<&User> for Principal {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Workspace {
     pub id: String,
     pub name: String,
@@ -97,7 +99,7 @@ pub struct Workspace {
     pub icon: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Page {
     pub id: String,
     pub workspace_id: String,
@@ -155,7 +157,7 @@ pub struct DocLog {
     pub updates: Vec<Vec<u8>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
     Read,
@@ -191,7 +193,7 @@ impl Scope {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Agent {
     pub id: String,
     pub workspace_id: String,
@@ -214,7 +216,7 @@ impl Agent {
 }
 
 /// 一串评论。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Thread {
     pub id: String,
     pub page_id: String,
@@ -228,7 +230,7 @@ pub struct Thread {
     pub resolved_by: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Comment {
     pub id: String,
     pub thread_id: String,
@@ -310,7 +312,7 @@ pub struct UnfurlRow {
 }
 
 /// 存下来的一份内容的信息。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct BlobInfo {
     pub hash: String,
     pub size: i64,
@@ -333,7 +335,7 @@ pub struct FileRow {
 }
 
 /// 一个数据库的表结构、视图和版本号。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct DbMeta {
     pub db_id: String,
     pub schema: serde_json::Value,
@@ -342,7 +344,7 @@ pub struct DbMeta {
 }
 
 /// 库里的一行。`props` 是存的样子（键是属性的 key），标题也在里面（和行页面的标题同步）。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct DbRow {
     pub id: String,
     pub db_id: String,
@@ -369,7 +371,7 @@ pub struct NewRow {
 }
 
 /// 改一行的几格：值为 null 的清掉。给了 `after` 是挪位置（排在那一行后面，null 是最前面）。
-#[derive(Deserialize, Clone, Debug, Default)]
+#[derive(Deserialize, Clone, Debug, Default, utoipa::ToSchema)]
 pub struct CellOp {
     pub row_id: String,
     #[serde(default)]
@@ -386,7 +388,7 @@ fn some_or_null<'de, D: serde::Deserializer<'de>>(
 }
 
 /// 一格的改动。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct CellChange {
     pub row_id: String,
     pub prop: String,
@@ -395,7 +397,7 @@ pub struct CellChange {
 }
 
 /// 一次表结构改动的记录。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct SchemaOpRow {
     pub seq: i64,
     pub op: String,
@@ -425,7 +427,7 @@ pub struct SchemaWrite {
 }
 
 /// 一版里改过的人。
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, utoipa::ToSchema)]
 pub struct VersionAuthor {
     pub kind: PrincipalKind,
     pub id: String,
@@ -433,7 +435,7 @@ pub struct VersionAuthor {
 }
 
 /// 历史版本（不含快照）。kind：auto（停下来 / 改得多了自动存）、agent（Agent 的一次写入）、restore（恢复）、manual（手动存，带名字）。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct VersionMeta {
     pub id: i64,
     pub page_id: String,
@@ -456,7 +458,7 @@ pub struct NewVersion {
 }
 
 /// 库的一格改动（历史）。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct DbOpRow {
     pub seq: i64,
     pub row_id: String,
@@ -468,7 +470,7 @@ pub struct DbOpRow {
 }
 
 /// 公开分享。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Share {
     pub id: String,
     pub page_id: String,
@@ -482,7 +484,7 @@ pub struct Share {
 }
 
 /// 个人偏好（头像、语言、时区）。
-#[derive(Serialize, Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Clone, Debug, Default, PartialEq, utoipa::ToSchema)]
 pub struct UserPrefs {
     pub avatar: Option<String>,
     pub locale: Option<String>,
@@ -499,7 +501,7 @@ pub struct PrefsPatch {
 }
 
 /// 邀请链接。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct Invite {
     pub token: String,
     pub workspace_id: String,

@@ -1,5 +1,6 @@
 //! 文件、转存的图片和链接解析：`POST /workspaces/{ws}/files`、`GET /files/{id}/{name}`、`GET /media/{hash}`、`GET /unfurl`。
 use crate::api::{ApiResult, Auth};
+use crate::openapi::ErrorBody;
 use crate::{ApiError, AppState};
 use axum::Json;
 use axum::Router;
@@ -9,8 +10,11 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use oad_core::BlobInfo;
+use oad_core::media::Uploaded;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use utoipa::{OpenApi, ToSchema};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -32,8 +36,24 @@ fn too_large(max: usize) -> ApiError {
     )
 }
 
+/// multipart 上传的表单。
+#[derive(Serialize, ToSchema)]
+#[allow(dead_code)] // 只用来写 OpenAPI
+pub(crate) struct UploadForm {
+    /// 文件（文件名取这个字段的 filename）
+    #[schema(value_type = String, content_media_type = "application/octet-stream")]
+    file: Vec<u8>,
+}
+
 /// 上传：`multipart/form-data` 的 `file` 字段，或者原始正文 + `X-Filename` 头。边读边数，超过上限就停。
-async fn upload(
+#[utoipa::path(post, path = "/workspaces/{ws}/files", tag = "files",
+    description = "上传文件：`multipart/form-data` 的 `file` 字段，或者原始正文 + `X-Filename` 头（文件名按网址规则编码）。\
+大小上限见 OAD_MAX_UPLOAD。图片会算宽高和 blurhash，音视频算时长。",
+    params(("ws" = String, Path, description = "工作区"), ("X-Filename" = Option<String>, Header, description = "原始正文上传时的文件名（百分号编码），默认 file")),
+    request_body(content((UploadForm = "multipart/form-data"), ("application/octet-stream"))),
+    responses((status = 201, body = Uploaded), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody), (status = 413, body = ErrorBody)))]
+pub(crate) async fn upload(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
@@ -122,7 +142,15 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8(out).unwrap_or_else(|_| s.to_string())
 }
 
-async fn get_file_bare(
+#[utoipa::path(get, path = "/files/{id}", tag = "files",
+    description = "同 `/files/{id}/{name}`，不带文件名。",
+    params(("id" = String, Path, description = "文件"), ("w" = Option<u32>, Query, description = "缩略图宽度（图片才有，给 WebP）"),
+        ("Range" = Option<String>, Header, description = "`bytes=a-b`，只认一段")),
+    responses((status = 200, content_type = "application/octet-stream", description = "文件内容"),
+        (status = 206, content_type = "application/octet-stream", description = "Range 的那一段"),
+        (status = 304, description = "If-None-Match 对上了"), (status = 416, description = "Range 不对"),
+        (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_file_bare(
     s: State<AppState>,
     a: Auth,
     Path(id): Path<String>,
@@ -132,7 +160,17 @@ async fn get_file_bare(
     get_file(s, a, Path((id, String::new())), q, h).await
 }
 
-async fn get_file(
+#[utoipa::path(get, path = "/files/{id}/{name}", tag = "files",
+    description = "下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。\
+SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。",
+    params(("id" = String, Path, description = "文件"), ("name" = String, Path, description = "文件名（只为好看，不校验）"),
+        ("w" = Option<u32>, Query, description = "缩略图宽度（图片才有，给 WebP）"),
+        ("Range" = Option<String>, Header, description = "`bytes=a-b`，只认一段")),
+    responses((status = 200, content_type = "application/octet-stream", description = "文件内容"),
+        (status = 206, content_type = "application/octet-stream", description = "Range 的那一段"),
+        (status = 304, description = "If-None-Match 对上了"), (status = 416, description = "Range 不对"),
+        (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_file(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, _name)): Path<(String, String)>,
@@ -152,7 +190,15 @@ async fn get_file(
     serve(&s, &f.blob, Some(&f.name), &q, &headers).await
 }
 
-async fn get_media(
+#[utoipa::path(get, path = "/media/{hash}", tag = "files",
+    description = "转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。",
+    params(("hash" = String, Path, description = "内容的 hash"), ("w" = Option<u32>, Query, description = "缩略图宽度"),
+        ("Range" = Option<String>, Header, description = "`bytes=a-b`，只认一段")),
+    responses((status = 200, content_type = "application/octet-stream", description = "图片"),
+        (status = 206, content_type = "application/octet-stream", description = "Range 的那一段"),
+        (status = 304, description = "If-None-Match 对上了"), (status = 416, description = "Range 不对"),
+        (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn get_media(
     State(s): State<AppState>,
     Auth(_): Auth,
     Path(hash): Path<String>,
@@ -171,7 +217,30 @@ async fn get_media(
     serve(&s, &b, None, &q, &headers).await
 }
 
-async fn unfurl(
+/// 链接卡片。除了 kind / provider / source / url 都可能缺；按 kind 还有别的字段
+/// （canonical_url、description、site_name、favicon、author、thumbnail、media、published_at、embed；
+/// 上传的文件有 name、mime、size、width、height、blurhash、duration_ms；本站的库有 db_id、view_id、icon、views）。
+#[derive(Serialize, ToSchema)]
+#[allow(dead_code)] // 只用来写 OpenAPI，返回的是 core 拼好的 JSON
+pub(crate) struct UnfurlCard {
+    /// video / post / repo / issue / pull_request / article / image / file / bookmark / database
+    kind: String,
+    /// youtube / x / github / bilibili / wechat / generic；上传的文件是 upload，本站的库是 oad
+    provider: String,
+    /// api / syndication / oembed / html / url_only
+    source: String,
+    url: String,
+    title: Option<String>,
+    /// 过期了先给旧的，后台在刷新
+    stale: Option<bool>,
+}
+
+#[utoipa::path(get, path = "/unfurl", tag = "files",
+    description = "解析一个网址成卡片：上传的文件直接从库里给，本站的库给视图列表，别的网址去抓（有缓存，图片转存到 /media）。",
+    params(("url" = String, Query, description = "要解析的网址")),
+    responses((status = 200, body = UnfurlCard), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+        (status = 404, body = ErrorBody), (status = 502, body = ErrorBody)))]
+pub(crate) async fn unfurl(
     State(s): State<AppState>,
     Auth(p): Auth,
     Query(q): Query<HashMap<String, String>>,
@@ -336,3 +405,8 @@ mod tests {
         assert_eq!(parse_range("items=0-1", 100), None);
     }
 }
+
+/// 这个模块的接口（合进 [`crate::openapi`]）。
+#[derive(OpenApi)]
+#[openapi(paths(upload, get_file, get_file_bare, get_media, unfurl))]
+pub(crate) struct Doc;

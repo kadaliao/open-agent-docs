@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
 /// 对比里的一块。
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, utoipa::ToSchema)]
 pub struct BlockDiff {
     /// added / removed / changed / same
     pub op: &'static str,
@@ -86,15 +86,24 @@ pub fn diff_blocks(a: &Node, b: &Node) -> Vec<BlockDiff> {
 }
 
 impl Core {
+    /// 版本列表（新的在前），翻页：cursor 是上一页给的 next_cursor。返回 (这一页, 下一页的 cursor)。
     pub async fn list_versions(
         &self,
         page_id: &str,
         who: &Principal,
         limit: usize,
-    ) -> Result<Vec<VersionMeta>> {
+        cursor: Option<&str>,
+    ) -> Result<(Vec<VersionMeta>, Option<String>)> {
         self.page_for(page_id, who, false).await?;
         self.hub.settle_if_loaded(page_id).await;
-        self.storage.versions(page_id, limit.clamp(1, 1000)).await
+        let before = crate::parse_cursor(cursor)?;
+        let limit = limit.clamp(1, 1000);
+        let mut v = self.storage.versions(page_id, limit + 1, before).await?;
+        let next = (v.len() > limit).then(|| {
+            v.truncate(limit);
+            v.last().map(|x| x.id.to_string()).unwrap_or_default()
+        });
+        Ok((v, next))
     }
 
     async fn version_row(&self, page_id: &str, v: i64) -> Result<(VersionMeta, Vec<u8>)> {

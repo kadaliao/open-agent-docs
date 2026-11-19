@@ -14,6 +14,9 @@ use yrs::updates::encoder::Encode;
 /// 一条消息最大 16MB（一万段的整页状态约 3.5MB）。
 const MAX_MESSAGE: usize = 16 << 20;
 
+#[utoipa::path(get, path = "/sync/{page_id}", tag = "content", params(("page_id" = String, Path)),
+    description = "WebSocket（y-websocket 协议）：协同编辑。没权限时升级后发 permission-denied 再关。",
+    responses((status = 101, description = "升级成 WebSocket")))]
 pub async fn handler(
     State(s): State<AppState>,
     Path(page_id): Path<String>,

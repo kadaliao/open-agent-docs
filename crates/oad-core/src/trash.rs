@@ -11,7 +11,7 @@ use std::time::Duration;
 /// 回收站里放多久（天）。
 pub const TRASH_DAYS: i64 = 30;
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct TrashItem {
     pub id: String,
     pub title: String,
@@ -19,6 +19,7 @@ pub struct TrashItem {
     pub kind: String,
     pub deleted_at: i64,
     /// 谁删的：`{ kind, id, name }`
+    #[schema(value_type = Option<Object>)]
     pub deleted_by: Option<serde_json::Value>,
     /// 原来在哪个页面下（行是所在的库）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -41,10 +42,21 @@ impl Core {
         Some(serde_json::json!({ "kind": kind, "id": id, "name": name }))
     }
 
-    pub async fn list_trash(&self, workspace_id: &str, who: &Principal) -> Result<Vec<TrashItem>> {
+    /// 回收站（新删的在前），翻页：cursor 是上一页给的 next_cursor。返回 (这一页, 下一页的 cursor)。
+    pub async fn list_trash(
+        &self,
+        workspace_id: &str,
+        who: &Principal,
+        limit: usize,
+        cursor: Option<&str>,
+    ) -> Result<(Vec<TrashItem>, Option<String>)> {
         self.require(workspace_id, who, false).await?;
+        let skip = crate::parse_cursor(cursor)?.unwrap_or(0).max(0) as usize;
+        let limit = limit.clamp(1, 1000);
+        let all = self.storage.trash(workspace_id).await?;
+        let next = (all.len() > skip + limit).then(|| (skip + limit).to_string());
         let mut out = Vec::new();
-        for p in self.storage.trash(workspace_id).await? {
+        for p in all.into_iter().skip(skip).take(limit) {
             let parent_title = match &p.parent_id {
                 Some(pid) => self.storage.page(pid).await?.map(|x| x.title),
                 None => None,
@@ -64,7 +76,7 @@ impl Core {
                 parent_id: p.parent_id,
             });
         }
-        Ok(out)
+        Ok((out, next))
     }
 
     /// 回收站里的页面和权限（要能写那个工作区）。

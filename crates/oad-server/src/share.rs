@@ -3,6 +3,7 @@
 //! 视频门面（点了才换成播放器）、数据库表格往下翻。不加载编辑器。管理分享的接口在 `/api/v1/pages/{id}/share`。
 use crate::api::{ApiResult, Auth};
 use crate::i18n::{SERVER, t};
+use crate::openapi::ErrorBody;
 use crate::{ApiError, AppState};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -11,10 +12,11 @@ use axum::routing::get;
 use axum::{Json, Router};
 use oad_core::i18n::{CORE, DB_ENGINE, Lang, translate};
 use oad_core::{Node, Page, Share};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
+use utoipa::{OpenApi, ToSchema};
 
 /// 数据库表格先出几行（往下翻再取）。
 const TABLE_ROWS: usize = 200;
@@ -37,39 +39,61 @@ pub fn api_routes() -> Router<AppState> {
     )
 }
 
-fn share_json(s: &AppState, sh: &Share) -> Value {
-    json!({
-        "url": s.core.share_url(&sh.token),
-        "token": sh.token,
-        "include_children": sh.include_children,
-        "indexable": sh.indexable,
-        "created_at": sh.created_at,
-    })
+/// 页面的公开分享链接。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct ShareView {
+    /// 公开的网址（`/s/<token>`）
+    url: String,
+    token: String,
+    /// 子页面也公开
+    include_children: bool,
+    /// 允许搜索引擎收录
+    indexable: bool,
+    created_at: i64,
 }
 
-async fn get_share(
+fn share_json(s: &AppState, sh: &Share) -> ShareView {
+    ShareView {
+        url: s.core.share_url(&sh.token),
+        token: sh.token.clone(),
+        include_children: sh.include_children,
+        indexable: sh.indexable,
+        created_at: sh.created_at,
+    }
+}
+
+#[utoipa::path(get, path = "/pages/{id}/share", tag = "share", params(("id" = String, Path, description = "页面")),
+    responses((status = 200, body = ShareView), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody, description = "页面不存在或没分享")))]
+pub(crate) async fn get_share(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<ShareView>> {
     let sh = s.core.get_share(&id, &p).await?;
     Ok(Json(share_json(&s, &sh)))
 }
 
-#[derive(Deserialize, Default)]
-struct PutShare {
+/// 分享设置；不给正文就都是 false。
+#[derive(Deserialize, Default, ToSchema)]
+pub(crate) struct PutShare {
+    /// 子页面也公开
     #[serde(default)]
     include_children: bool,
+    /// 允许搜索引擎收录
     #[serde(default)]
     indexable: bool,
 }
 
-async fn put_share(
+#[utoipa::path(post, path = "/pages/{id}/share", tag = "share", params(("id" = String, Path, description = "页面")),
+    request_body(content = Option<PutShare>, description = "可以不给"),
+    description = "打开分享或改设置（已经分享了的，链接不变）。",
+    responses((status = 200, body = ShareView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn put_share(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     body: Option<Json<PutShare>>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<ShareView>> {
     let b = body.map(|Json(b)| b).unwrap_or_default();
     let sh = s
         .core
@@ -78,7 +102,10 @@ async fn put_share(
     Ok(Json(share_json(&s, &sh)))
 }
 
-async fn del_share(
+#[utoipa::path(delete, path = "/pages/{id}/share", tag = "share", params(("id" = String, Path, description = "页面")),
+    description = "关掉分享，链接马上失效。",
+    responses((status = 204), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn del_share(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -330,7 +357,7 @@ async fn build(
     );
     // 行：先列属性
     if target.kind == "row" {
-        let props = core.row_props_public(&target).await?;
+        let props = core.row_props_public(&target, lang).await?;
         if !props.is_empty() {
             body.push_str("<dl class=\"props\">");
             for (k, v) in props {
@@ -431,7 +458,10 @@ async fn table_html(
     view: Option<&str>,
     offset: usize,
 ) -> oad_core::Result<String> {
-    let (cols, rows, total) = s.core.db_public_table(db, view, offset, TABLE_ROWS).await?;
+    let (cols, rows, total) = s
+        .core
+        .db_public_table(db, view, offset, TABLE_ROWS, cx.lang)
+        .await?;
     let mut h = String::new();
     let more = if offset + rows.len() < total {
         let v = view
@@ -498,7 +528,9 @@ async fn more_rows(
     State(s): State<AppState>,
     Path((token, db)): Path<(String, String)>,
     Query(q): Query<MoreQ>,
+    headers: HeaderMap,
 ) -> ApiResult<Json<Value>> {
+    let lang = lang_of(&headers);
     let (share, root, _) = s.core.open_share(&token, None).await?;
     let ok = db == root.id || s.core.in_scope(&share, &root, &db).await?;
     if !ok {
@@ -507,7 +539,7 @@ async fn more_rows(
     let offset = q.offset.unwrap_or(0);
     let (_, rows, total) = s
         .core
-        .db_public_table(&db, q.view.as_deref(), offset, TABLE_ROWS)
+        .db_public_table(&db, q.view.as_deref(), offset, TABLE_ROWS, lang)
         .await?;
     let cx = Ctx {
         token: token.clone(),
@@ -1212,3 +1244,8 @@ if(has('table'))document.querySelectorAll('table.db[data-more]').forEach(functio
 var io=new IntersectionObserver(function(es){if(!es[0].isIntersecting||busy||!next)return;busy=true;fetch(next).then(function(r){return r.json()}).then(function(d){t.tBodies[0].insertAdjacentHTML('beforeend',d.html);next=d.next;busy=false;if(!next)io.disconnect()}).catch(function(){busy=false})},{rootMargin:'600px'});io.observe(s)});
 })();
 "#;
+
+/// 这个模块的接口（合进 [`crate::openapi`]）。公开页面（`/s/...`）不在 /api/v1 里，不写。
+#[derive(OpenApi)]
+#[openapi(paths(get_share, put_share, del_share))]
+pub(crate) struct Doc;

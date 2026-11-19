@@ -28,27 +28,34 @@ pub fn default_views() -> Value {
 }
 
 /// 建库（POST /workspaces/{ws}/databases 的正文）。
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, utoipa::ToSchema)]
 pub struct NewDb {
     pub title: Option<String>,
     pub parent_id: Option<String>,
     /// 放在同级里这个页面后面
     pub after: Option<String>,
+    /// 表结构 `{ props, next_id }`（不给只有标题）
+    #[schema(value_type = Option<Object>)]
     pub schema: Option<Value>,
+    /// 视图（不给是一个表格视图）
+    #[schema(value_type = Option<Vec<Object>>)]
     pub views: Option<Value>,
 }
 
 /// 库的信息（GET /databases/{id}）。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct DbInfo {
     pub page: Page,
+    /// 表结构 `{ props, next_id }`
+    #[schema(value_type = Object)]
     pub schema: Value,
+    #[schema(value_type = Vec<Object>)]
     pub views: Value,
     pub seq: i64,
 }
 
 /// 增量（GET /databases/{id}/rows）。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct RowsDelta {
     pub seq: i64,
     pub rows: Vec<DbRow>,
@@ -371,6 +378,7 @@ impl Core {
         q: QueryReq,
     ) -> Result<(Page, Shown)> {
         let (page, meta) = self.db_for(db_id, who, false).await?;
+        let lang = self.lang_of(&who.user_id).await;
         let offset = q.offset.unwrap_or(0);
         let view = build_view(&meta.views, &q)?;
         let c = self.engine(&page, &meta).await?;
@@ -402,7 +410,12 @@ impl Core {
                 id: id.clone(),
                 cells: cols
                     .iter()
-                    .map(|p| c.eng.display(&p.key, &c.eng.value(id, &p.key)))
+                    .map(|p| {
+                        eng::localize_display(
+                            &c.eng.display(&p.key, &c.eng.value(id, &p.key)),
+                            lang,
+                        )
+                    })
                     .collect(),
             })
             .collect();
@@ -425,6 +438,7 @@ impl Core {
         if page.kind != "row" {
             return Ok(None);
         }
+        let lang = self.lang_of(&who.user_id).await;
         let Some(db) = page.parent_id.clone() else {
             return Ok(None);
         };
@@ -435,7 +449,8 @@ impl Core {
             if matches!(p.kind, PropType::Title | PropType::Button) {
                 continue;
             }
-            let t = c.eng.display(&p.key, &c.eng.value(row_id, &p.key));
+            let t =
+                eng::localize_display(&c.eng.display(&p.key, &c.eng.value(row_id, &p.key)), lang);
             if !t.is_empty() {
                 out.push((p.name.clone(), t));
             }
@@ -540,11 +555,16 @@ impl Core {
         &self,
         db_id: &str,
         who: &Principal,
-        row: Option<&str>,
-        prop: Option<&str>,
-        limit: usize,
+        h: HistoryQuery<'_>,
         lang: crate::i18n::Lang,
     ) -> Result<Value> {
+        let HistoryQuery {
+            row,
+            prop,
+            limit,
+            cursor,
+        } = h;
+        let before = crate::parse_cursor(cursor)?;
         let (_, meta) = self.db_for(db_id, who, false).await?;
         let schema = eng::parse_schema(&meta.schema)?;
         let prop = prop.map(|p| {
@@ -556,10 +576,10 @@ impl Core {
         let limit = limit.clamp(1, 1000);
         let ops = self
             .storage
-            .db_ops(db_id, row, prop.as_deref(), limit)
+            .db_ops(db_id, row, prop.as_deref(), limit + 1, before)
             .await?;
         let schema_ops = if row.is_none() && prop.is_none() {
-            self.storage.db_schema_ops(db_id, limit).await?
+            self.storage.db_schema_ops(db_id, limit + 1, before).await?
         } else {
             vec![]
         };
@@ -653,8 +673,23 @@ impl Core {
             ));
         }
         items.sort_by_key(|x| std::cmp::Reverse((x.0, x.1)));
-        items.truncate(limit);
-        Ok(json!({ "items": items.into_iter().map(|x| x.2).collect::<Vec<_>>(), "seq": meta.seq }))
+        // 多了一条说明还有：按 seq 整组切（同一次改动的格子不分到两页），下一页从最后一组之前开始
+        let mut next = None;
+        if items.len() > limit {
+            items.truncate(limit);
+            let last = items.last().map(|x| x.0).unwrap_or(0);
+            if items.iter().any(|x| x.0 != last) {
+                items.retain(|x| x.0 != last);
+                next = Some(last + 1);
+            } else {
+                next = Some(last);
+            }
+        }
+        Ok(json!({
+            "items": items.into_iter().map(|x| x.2).collect::<Vec<_>>(),
+            "seq": meta.seq,
+            "next_cursor": next.map(|n| n.to_string()),
+        }))
     }
 
     /// 撤销第 seq 次改动：表结构改动走表结构的撤销；格子改动把值换回去（加的行删掉、删的行放回），之后又被改过的格子不动。
@@ -691,6 +726,7 @@ impl Core {
         view_id: Option<&str>,
         offset: usize,
         limit: usize,
+        lang: crate::i18n::Lang,
     ) -> Result<(Vec<String>, Vec<(String, Vec<String>)>, usize)> {
         let page = self
             .storage
@@ -741,7 +777,12 @@ impl Core {
                 (
                     id.clone(),
                     cols.iter()
-                        .map(|p| c.eng.display(&p.key, &c.eng.value(id, &p.key)))
+                        .map(|p| {
+                            eng::localize_display(
+                                &c.eng.display(&p.key, &c.eng.value(id, &p.key)),
+                                lang,
+                            )
+                        })
                         .collect(),
                 )
             })
@@ -750,7 +791,11 @@ impl Core {
     }
 
     /// 行的属性（名字, 文字），空的不列；不查权限。
-    pub async fn row_props_public(&self, row: &Page) -> Result<Vec<(String, String)>> {
+    pub async fn row_props_public(
+        &self,
+        row: &Page,
+        lang: crate::i18n::Lang,
+    ) -> Result<Vec<(String, String)>> {
         let Some(db) = row.parent_id.clone().filter(|_| row.kind == "row") else {
             return Ok(vec![]);
         };
@@ -767,7 +812,10 @@ impl Core {
             .iter()
             .filter(|p| !matches!(p.kind, PropType::Title | PropType::Button))
             .filter_map(|p| {
-                let t = c.eng.display(&p.key, &c.eng.value(&row.id, &p.key));
+                let t = eng::localize_display(
+                    &c.eng.display(&p.key, &c.eng.value(&row.id, &p.key)),
+                    lang,
+                );
                 (!t.is_empty()).then(|| (p.name.clone(), t))
             })
             .collect())
@@ -855,14 +903,29 @@ impl Core {
     }
 }
 
+/// 看库的历史：只看一行、一个属性（key 或名字），翻页。
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HistoryQuery<'a> {
+    pub row: Option<&'a str>,
+    pub prop: Option<&'a str>,
+    pub limit: usize,
+    pub cursor: Option<&'a str>,
+}
+
 /// 服务器算的查询（给 Agent、给不想加载全部数据的客户端）。给了 view_id 就从那个视图出发，别的字段覆盖它。
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, utoipa::ToSchema)]
 pub struct QueryReq {
     pub view_id: Option<String>,
+    /// 筛选 `{ op: "and" | "or", items: [...] }`
+    #[schema(value_type = Option<Object>)]
     pub filter: Option<Value>,
+    /// 排序 `[{ key, dir }]`
+    #[schema(value_type = Option<Vec<Object>>)]
     pub sorts: Option<Value>,
     pub group_by: Option<String>,
     pub search: Option<String>,
+    /// 每列底部的汇总：`{ 属性 key: 汇总方式 }`
+    #[schema(value_type = Option<Object>)]
     pub totals: Option<Map<String, Value>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
@@ -872,7 +935,7 @@ pub struct QueryReq {
 pub const MAX_QUERY_ROWS: usize = 10_000;
 
 /// 一行给 Agent 看：每格的文字（名字，不是 id）。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct ShownRow {
     pub id: String,
     pub cells: Vec<String>,

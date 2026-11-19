@@ -1,8 +1,9 @@
 //! 测试用：在随机端口起服务器；用 yrs 写的 y-websocket 客户端（和浏览器里的 WebsocketProvider 行为一样）。
 #![allow(dead_code)]
 use futures_util::{SinkExt, StreamExt};
+use oad_core::storage::pg::Postgres;
 use oad_core::storage::sqlite::Sqlite;
-use oad_core::{AuthConfig, Core, HubConfig, Node, NotifyConfig, PageDoc};
+use oad_core::{AuthConfig, Core, HubConfig, Node, NotifyConfig, PageDoc, Storage};
 use oad_server::{AppState, ServerConfig};
 use serde_json::Value;
 use std::net::SocketAddr;
@@ -19,6 +20,77 @@ use yrs::sync::{Message, MessageReader, SyncMessage};
 use yrs::updates::decoder::DecoderV1;
 use yrs::updates::encoder::Encode;
 use yrs::{Any, Out, ReadTxn, Text, Transact, Xml, XmlFragment, XmlFragmentRef, XmlOut};
+
+/// 存储：默认是 dir/oad.db（SQLite）。设了 OAD_TEST_POSTGRES_URL 就用 Postgres：每个 dir 一个 schema，
+/// 名字记在 dir/pg_schema 里，同一个 dir 重启服务器接着用同一个 schema。
+pub async fn open_storage(dir: &Path) -> Arc<dyn Storage> {
+    let Some(url) = std::env::var("OAD_TEST_POSTGRES_URL")
+        .ok()
+        .filter(|v| !v.is_empty())
+    else {
+        return Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
+    };
+    let file = dir.join("pg_schema");
+    let name = match std::fs::read_to_string(&file) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => {
+            let name = format!("oad_t_{:016x}", rand_u64());
+            // schema 的注释记下 dir：dir 删掉以后（测试结束）下次跑测试时把 schema 也删掉
+            let sql = format!(
+                "CREATE SCHEMA {name}; COMMENT ON SCHEMA {name} IS '{}'",
+                dir.display().to_string().replace('\'', "''")
+            );
+            pg_blocking(&url, move |c| c.batch_execute(&sql).unwrap());
+            std::fs::write(&file, &name).unwrap();
+            name
+        }
+    };
+    static GC: std::sync::Once = std::sync::Once::new();
+    GC.call_once(|| pg_blocking(&url, drop_stale_schemas));
+    Arc::new(Postgres::connect_with(&url, Some(&name), 4).await.unwrap())
+}
+
+/// 删掉以前的测试留下的 schema（记的 dir 已经不在了）。
+fn drop_stale_schemas(c: &mut postgres::Client) {
+    let rows = c
+        .query(
+            "SELECT nspname::text, coalesce(obj_description(oid, 'pg_namespace'), '') FROM pg_namespace
+             WHERE nspname LIKE 'oad\\_t\\_%'",
+            &[],
+        )
+        .unwrap_or_default();
+    for r in rows {
+        let (name, dir): (String, String) = (r.get(0), r.get(1));
+        if !dir.is_empty() && !Path::new(&dir).exists() {
+            let _ = c.batch_execute(&format!("DROP SCHEMA IF EXISTS {name} CASCADE"));
+        }
+    }
+}
+
+/// 同步的 postgres 驱动不能在 tokio 线程上用：另开一个线程。
+fn pg_blocking(url: &str, f: impl FnOnce(&mut postgres::Client) + Send + 'static) {
+    let url = url.to_string();
+    std::thread::spawn(move || {
+        let mut c = postgres::Client::connect(&url, postgres::NoTls).unwrap();
+        f(&mut c);
+    })
+    .join()
+    .unwrap();
+}
+
+fn rand_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u64(N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    h.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos(),
+    );
+    h.finish()
+}
 
 pub struct Server {
     pub addr: SocketAddr,
@@ -75,7 +147,7 @@ impl Server {
         mut media: oad_core::MediaConfig,
     ) -> Server {
         media.search_dir.get_or_insert_with(|| dir.join("search"));
-        let storage = Arc::new(Sqlite::open(dir.join("oad.db")).unwrap());
+        let storage = open_storage(dir).await;
         let core = Core::open_full(storage, auth, hub, notify, media)
             .await
             .unwrap();

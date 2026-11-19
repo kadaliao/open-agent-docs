@@ -1,7 +1,12 @@
 //! open-agent-docs：一个二进制，网页打在里面。
 use clap::{Parser, Subcommand, ValueEnum};
+use oad_core::s3::{S3Blobs, S3Config};
+use oad_core::storage::pg::Postgres;
 use oad_core::storage::sqlite::Sqlite;
-use oad_core::{AuthConfig, Core, FsBlobs, HubConfig, MediaConfig, NotifyConfig, Role};
+use oad_core::{
+    AuthConfig, BlobStore, Core, FsBlobs, HubConfig, MediaConfig, NotifyConfig, Role, Storage,
+};
+use oad_server::tenant::{ByHeader, ByHost, TenantResolver};
 use oad_server::{AppState, ServerConfig};
 use std::io::BufRead;
 use std::net::SocketAddr;
@@ -34,6 +39,7 @@ enum AuthArg {
     Local,
     Header,
     None,
+    Jwt,
 }
 
 #[derive(Parser)]
@@ -43,9 +49,12 @@ struct ServeArgs {
     /// 监听地址；对外提供服务时设成 0.0.0.0
     #[arg(long, env = "OAD_HOST", default_value = "127.0.0.1")]
     host: String,
+    /// 数据目录：数据库 oad.db（SQLite）、上传的文件、搜索索引。
+    /// 设了 OAD_DATABASE_URL=postgres://… 时数据库改用 Postgres，文件和索引仍放这里
     #[arg(long, env = "OAD_DATA_DIR", default_value = "./data")]
     data_dir: PathBuf,
-    /// 登录方式；header 模式的密钥从环境变量 OAD_HEADER_SECRET 读
+    /// 登录方式；header 模式的密钥从环境变量 OAD_HEADER_SECRET 读；jwt 模式读 OAD_JWT_SECRET（HS256）或 OAD_JWT_JWKS_URL，
+    /// 可选 OAD_JWT_ISSUER、OAD_JWT_AUDIENCE、OAD_JWT_LEEWAY（秒，默认 60）
     #[arg(long, env = "OAD_AUTH", value_enum, default_value = "local")]
     auth: AuthArg,
     /// 从这个目录读网页（开发用），不给就用打进二进制的
@@ -98,10 +107,23 @@ impl From<RoleArg> for Role {
     }
 }
 
-fn open_storage(data_dir: &Path) -> Result<Arc<Sqlite>, String> {
+/// 存储：`OAD_DATABASE_URL` 是 postgres:// 就用 Postgres，否则用数据目录里的 oad.db（SQLite）。
+/// 数据目录照样放上传的文件和搜索索引。
+/// 多租户时每个租户一个 schema（`t_<租户>`）。
+async fn open_storage(data_dir: &Path, tenant: Option<&str>) -> Result<Arc<dyn Storage>, String> {
     std::fs::create_dir_all(data_dir).map_err(|e| format!("建数据目录失败：{e}"))?;
+    if let Some(url) = env_nonempty("OAD_DATABASE_URL")
+        && (url.starts_with("postgres://") || url.starts_with("postgresql://"))
+    {
+        let schema = tenant.map(|t| format!("t_{}", t.replace('-', "_")));
+        let s = Postgres::connect_with(&url, schema.as_deref(), 16)
+            .await
+            .map_err(|e| format!("连 Postgres 失败：{e}"))?;
+        info!(tenant = tenant.unwrap_or("-"), "存储：Postgres");
+        return Ok(Arc::new(s));
+    }
     Sqlite::open(data_dir.join("oad.db"))
-        .map(Arc::new)
+        .map(|s| Arc::new(s) as Arc<dyn Storage>)
         .map_err(|e| e.to_string())
 }
 
@@ -114,42 +136,58 @@ fn env_nonempty(k: &str) -> Option<String> {
     std::env::var(k).ok().filter(|v| !v.is_empty())
 }
 
-async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
-    let storage = open_storage(&a.data_dir)?;
-    let auth = match a.auth {
-        AuthArg::Local => AuthConfig::Local,
-        AuthArg::Header => AuthConfig::Header {
-            secret: env_nonempty("OAD_HEADER_SECRET").ok_or("header 模式要设 OAD_HEADER_SECRET")?,
-        },
-        AuthArg::None => AuthConfig::None,
-    };
-    let notify = NotifyConfig {
-        public_url: a.public_url.clone(),
-        allow_private: std::env::var("OAD_WEBHOOK_ALLOW_PRIVATE")
-            .is_ok_and(|v| v == "1" || v == "true"),
-        ..NotifyConfig::default()
-    };
-    if notify.allow_private {
-        warn!("OAD_WEBHOOK_ALLOW_PRIVATE：webhook 可以投到内网地址（只在本机开发时用）");
+/// 文件存储：`OAD_BLOB_URL=s3://…` 用 S3（多租户时前缀后面加租户名），否则数据目录里的 blobs/。
+fn open_blobs(data_dir: &Path, tenant: Option<&str>) -> Result<Arc<dyn BlobStore>, String> {
+    if let Some(u) = env_nonempty("OAD_BLOB_URL") {
+        let mut cfg = S3Config::from_url(&u).map_err(|e| e.to_string())?;
+        if let Some(t) = tenant {
+            cfg.prefix = if cfg.prefix.is_empty() {
+                t.to_string()
+            } else {
+                format!("{}/{t}", cfg.prefix)
+            };
+        }
+        info!(bucket = %cfg.bucket, prefix = %cfg.prefix, "文件存储：S3");
+        return Ok(Arc::new(S3Blobs::new(cfg).map_err(|e| e.to_string())?));
     }
-    let max_upload_mb: usize = env_nonempty("OAD_MAX_UPLOAD_MB")
-        .map(|v| {
-            v.parse()
-                .map_err(|_| "OAD_MAX_UPLOAD_MB 要是整数".to_string())
-        })
-        .transpose()?
-        .unwrap_or(100);
+    Ok(Arc::new(
+        FsBlobs::new(data_dir.join("blobs")).map_err(|e| e.to_string())?,
+    ))
+}
+
+/// 一个租户（单租户时就是唯一的那个）用到的配置。
+#[derive(Clone)]
+struct Setup {
+    auth: AuthConfig,
+    notify: NotifyConfig,
+    max_upload: usize,
+    server: ServerConfig,
+}
+
+/// 建一套服务：存储、文件、Core；本地登录时按 OAD_ADMIN_* 建管理员。
+async fn build_core(
+    setup: &Setup,
+    data_dir: &Path,
+    tenant: Option<&str>,
+) -> Result<Arc<Core>, String> {
+    let storage = open_storage(data_dir, tenant).await?;
     let media = MediaConfig {
-        blobs: Arc::new(FsBlobs::new(a.data_dir.join("blobs")).map_err(|e| e.to_string())?),
+        blobs: open_blobs(data_dir, tenant)?,
         fetch: oad_unfurl_config(),
-        max_upload: max_upload_mb << 20,
+        max_upload: setup.max_upload,
         unfurl: true,
-        search_dir: Some(a.data_dir.join("search")),
+        search_dir: Some(data_dir.join("search")),
     };
-    let core = Core::open_full(storage, auth.clone(), HubConfig::default(), notify, media)
-        .await
-        .map_err(|e| e.to_string())?;
-    if matches!(auth, AuthConfig::Local) {
+    let core = Core::open_full(
+        storage,
+        setup.auth.clone(),
+        HubConfig::default(),
+        setup.notify.clone(),
+        media,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    if matches!(setup.auth, AuthConfig::Local) {
         match (
             env_nonempty("OAD_ADMIN_EMAIL"),
             env_nonempty("OAD_ADMIN_PASSWORD"),
@@ -160,7 +198,7 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
                     .await
                     .map_err(|e| e.to_string())?
                 {
-                    info!(%email, "已建管理员");
+                    info!(%email, tenant = tenant.unwrap_or("-"), "已建管理员");
                 }
             }
             _ => {
@@ -178,22 +216,115 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
             }
         }
     }
+    Ok(core)
+}
+
+/// `OAD_TENANTS`：`host:<base 域名>`（`<租户>.<base>`，base 本身是 `main` 租户）或 `header:<请求头名>`
+/// （配 `OAD_TENANT_SECRET` 时还要 `X-OAD-Tenant-Secret`）。不设就是单租户。
+fn tenant_resolver() -> Result<Option<Box<dyn TenantResolver>>, String> {
+    let Some(v) = env_nonempty("OAD_TENANTS") else {
+        return Ok(None);
+    };
+    match v.split_once(':') {
+        Some(("host", base)) if !base.is_empty() => Ok(Some(Box::new(ByHost {
+            base: base.to_string(),
+            default: Some("main".into()),
+        }))),
+        Some(("header", h)) if !h.is_empty() => Ok(Some(Box::new(ByHeader {
+            header: h.to_ascii_lowercase(),
+            secret: env_nonempty("OAD_TENANT_SECRET"),
+            default: None,
+        }))),
+        _ => Err("OAD_TENANTS 要是 host:<域名> 或 header:<请求头名>".into()),
+    }
+}
+
+async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
+    let auth = match a.auth {
+        AuthArg::Local => AuthConfig::Local,
+        AuthArg::Header => AuthConfig::Header {
+            secret: env_nonempty("OAD_HEADER_SECRET").ok_or("header 模式要设 OAD_HEADER_SECRET")?,
+        },
+        AuthArg::None => AuthConfig::None,
+        AuthArg::Jwt => AuthConfig::Jwt(oad_core::jwt::JwtConfig {
+            secret: env_nonempty("OAD_JWT_SECRET"),
+            jwks_url: env_nonempty("OAD_JWT_JWKS_URL"),
+            issuer: env_nonempty("OAD_JWT_ISSUER"),
+            audience: env_nonempty("OAD_JWT_AUDIENCE"),
+            leeway: env_nonempty("OAD_JWT_LEEWAY")
+                .map(|v| v.parse().map_err(|_| "OAD_JWT_LEEWAY 要是秒数".to_string()))
+                .transpose()?
+                .unwrap_or(60),
+        }),
+    };
+    let notify = NotifyConfig {
+        public_url: a.public_url.clone(),
+        allow_private: std::env::var("OAD_WEBHOOK_ALLOW_PRIVATE")
+            .is_ok_and(|v| v == "1" || v == "true"),
+        ..NotifyConfig::default()
+    };
+    if notify.allow_private {
+        warn!("OAD_WEBHOOK_ALLOW_PRIVATE：webhook 可以投到内网地址（只在本机开发时用）");
+    }
+    let max_upload_mb: usize = env_nonempty("OAD_MAX_UPLOAD_MB")
+        .map(|v| {
+            v.parse()
+                .map_err(|_| "OAD_MAX_UPLOAD_MB 要是整数".to_string())
+        })
+        .transpose()?
+        .unwrap_or(100);
     if matches!(auth, AuthConfig::None) && a.host != "127.0.0.1" && a.host != "localhost" {
         warn!(host = %a.host, "不登录模式监听在非本机地址上，任何能连上的人都能读写");
     }
     let mode = a.auth_name();
-    let state = AppState::new(
-        core.clone(),
-        ServerConfig {
+    let mut setup = Setup {
+        auth: auth.clone(),
+        notify,
+        max_upload: max_upload_mb << 20,
+        server: ServerConfig {
             web_dir: a.web_dir,
             cookie_secure: a.cookie_secure,
             public_url: a.public_url,
             allowed_hosts: clean(a.allowed_hosts),
             allowed_origins: clean(a.allowed_origins),
+            rate_limit: env_nonempty("OAD_RATE_LIMIT")
+                .map(|v| {
+                    v.parse()
+                        .map_err(|_| "OAD_RATE_LIMIT 要是整数（每分钟多少次，0 不限）".to_string())
+                })
+                .transpose()?
+                .unwrap_or(1200),
             ..ServerConfig::default()
         },
-    );
-    let app = oad_server::router(state);
+    };
+    // 单租户：一套；多租户：用到哪个租户建哪个，数据在 <数据目录>/tenants/<租户>/
+    let cores: Arc<std::sync::Mutex<Vec<Arc<Core>>>> = Arc::default();
+    let app = match tenant_resolver()? {
+        None => {
+            let core = build_core(&setup, &a.data_dir, None).await?;
+            cores.lock().unwrap().push(core.clone());
+            oad_server::router(AppState::new(core, setup.server.clone()))
+        }
+        Some(resolver) => {
+            // 租户的 Host 各不一样：Host 检查交给租户解析（认不出的 404）
+            setup.server.allowed_hosts = vec!["*".into()];
+            let (root, cores2) = (a.data_dir.join("tenants"), cores.clone());
+            let factory: oad_server::tenant::TenantFactory = Arc::new(move |t: String| {
+                let (setup, root, cores) = (setup.clone(), root.clone(), cores2.clone());
+                Box::pin(async move {
+                    let core = build_core(&setup, &root.join(&t), Some(&t)).await?;
+                    cores.lock().unwrap().push(core.clone());
+                    info!(tenant = %t, "租户已启动");
+                    Ok(oad_server::router(AppState::new(
+                        core,
+                        setup.server.clone(),
+                    )))
+                })
+            });
+            info!("多租户模式");
+            oad_server::tenant::multi_tenant_boxed(resolver, factory)
+        }
+    };
     let addr = format!("{}:{}", a.host, a.port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
@@ -217,14 +348,23 @@ async fn serve(a: ServeArgs, started: Instant) -> Result<(), String> {
     tokio::select! {
         r = &mut server => {
             // 没收到信号服务就停了：出错
-            core.shutdown().await;
+            let all: Vec<Arc<Core>> = cores.lock().unwrap().clone();
+            for c in all {
+                c.shutdown().await;
+            }
             return r.map_err(|e| e.to_string())?.map_err(|e| e.to_string());
         }
         _ = shutdown_signal() => {}
     }
     info!("正在关闭，保存打开的页面");
     // 先让 SSE / WebSocket 结束、页面存好，再停 HTTP；都有时限，卡住也能退出
-    if tokio::time::timeout(Duration::from_secs(30), core.shutdown())
+    let all: Vec<Arc<Core>> = cores.lock().unwrap().clone();
+    let down = async move {
+        for c in all {
+            c.shutdown().await;
+        }
+    };
+    if tokio::time::timeout(Duration::from_secs(30), down)
         .await
         .is_err()
     {
@@ -252,6 +392,7 @@ impl ServeArgs {
             AuthArg::Local => "local",
             AuthArg::Header => "header",
             AuthArg::None => "none",
+            AuthArg::Jwt => "jwt",
         }
     }
 }
@@ -289,7 +430,7 @@ async fn user_add(
             line.trim_end_matches(['\r', '\n']).to_string()
         }
     };
-    let storage = open_storage(&data_dir)?;
+    let storage = open_storage(&data_dir, None).await?;
     let core = Core::open(storage, AuthConfig::Local, HubConfig::default())
         .await
         .map_err(|e| e.to_string())?;

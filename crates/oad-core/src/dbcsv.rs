@@ -202,19 +202,19 @@ fn cell_value(p: &Prop, s: &str, look: &dyn Lookup) -> (Option<Value>, Vec<oad_d
     }
 }
 
-/// 导出时一格的文字（多值用逗号分开，日期 ISO，勾选“是 / 否”）。
-pub fn export_cell(p: &Prop, v: &Value, look: &dyn Lookup) -> String {
+/// 导出时一格的文字（多值用逗号分开，日期 ISO，勾选“是 / 否”或 Yes / No）。
+pub fn export_cell(p: &Prop, v: &Value, look: &dyn Lookup, lang: crate::i18n::Lang) -> String {
+    let en = lang == crate::i18n::Lang::En;
     if v.is_null() {
         return String::new();
     }
     match p.kind {
-        PropType::Checkbox => {
-            if v.as_bool().unwrap_or(false) {
-                "是".into()
-            } else {
-                "否".into()
-            }
-        }
+        PropType::Checkbox => match (v.as_bool().unwrap_or(false), en) {
+            (true, false) => "是".into(),
+            (false, false) => "否".into(),
+            (true, true) => "Yes".into(),
+            (false, true) => "No".into(),
+        },
         PropType::Date => {
             let s = v["start"].as_str().unwrap_or("").to_string();
             match v["end"].as_str() {
@@ -223,7 +223,7 @@ pub fn export_cell(p: &Prop, v: &Value, look: &dyn Lookup) -> String {
             }
         }
         PropType::Number => v.as_f64().map(oad_db::num::text).unwrap_or_default(),
-        _ => oad_db::display::display(p, v, look),
+        _ => crate::dbengine::localize_display(&oad_db::display::display(p, v, look), lang),
     }
 }
 
@@ -324,7 +324,12 @@ impl Core {
     }
 
     /// 导出 CSV：表头是属性名，按库里的顺序，算出来的值（公式、汇总）也导出；按钮不导出。返回 (库标题, CSV)。
-    pub async fn export_csv(&self, db_id: &str, who: &Principal) -> Result<(String, String)> {
+    pub async fn export_csv(
+        &self,
+        db_id: &str,
+        who: &Principal,
+        lang: crate::i18n::Lang,
+    ) -> Result<(String, String)> {
         let (page, meta) = self.db_for(db_id, who, false).await?;
         let c = self.engine(&page, &meta).await?;
         let cols: Vec<Prop> = c
@@ -341,7 +346,7 @@ impl Core {
         for id in &ids {
             out.push(
                 cols.iter()
-                    .map(|p| export_cell(p, &c.eng.value(id, &p.key), &c.eng))
+                    .map(|p| export_cell(p, &c.eng.value(id, &p.key), &c.eng, lang))
                     .collect(),
             );
         }

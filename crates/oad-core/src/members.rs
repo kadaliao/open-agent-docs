@@ -6,7 +6,7 @@ use crate::{Core, Error, Result, ids};
 use serde::Serialize;
 
 /// 注册方式。
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[repr(u8)]
 pub enum SignupMode {
@@ -27,10 +27,14 @@ impl SignupMode {
 }
 
 /// 邀请链接打开时看到的（不用登录）。
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, utoipa::ToSchema)]
 pub struct InviteInfo {
+    /// `{ id, name, icon }`
+    #[schema(value_type = Object)]
     pub workspace: serde_json::Value,
     pub role: Role,
+    /// `{ name }`
+    #[schema(value_type = Option<Object>)]
     pub invited_by: Option<serde_json::Value>,
     pub expires_at: Option<i64>,
     /// 能不能凭它注册

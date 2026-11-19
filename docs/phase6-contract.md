@@ -90,3 +90,9 @@
   默认单租户。
 - **双语补齐**：引擎给人看的值（勾选的“是”、相对日期“今天 / 明天…”、关联里的“无标题”）、CSV 导出、公开表格、Agent 看到的表格和行属性、
   表结构说明按语言；报错里套着的类型名、汇总方式名换成英文写法，“、”换成 “, ”。
+- **Postgres**（`OAD_DATABASE_URL=postgres://…`）：和 SQLite 是同一份存储代码（`storage/sql.rs`），下面一层换驱动（`storage/db.rs`：rusqlite / postgres）；
+  SQL 在准备语句时换写法（`?N`→`$N`、`INSERT OR IGNORE`→`ON CONFLICT DO NOTHING`……），表结构在 `migrations_pg/`。读是一个 REPEATABLE READ 只读事务，
+  写先拿这个 schema 的 advisory lock（和 SQLite 一样一次一个写，多个进程也不会撞）。`sslmode=require` 时走 TLS（rustls + 公共 CA），否则不加密。
+  测试：设 `OAD_TEST_POSTGRES_URL` 时整套服务器测试（`cargo test -p oad-core -p oad-server`）跑在 Postgres 上，每个测试自己的 schema。
+- **命令行的多租户**：`OAD_TENANTS=host:<域名>`（`<租户>.<域名>`，域名本身是 `main`）或 `header:<请求头名>`（可加 `OAD_TENANT_SECRET`，代理带 `X-OAD-Tenant-Secret`）；
+  每个租户的数据在 `<OAD_DATA_DIR>/tenants/<租户>/`，用 Postgres 时是 schema `t_<租户>`，用 S3 时键前缀后面加 `/<租户>`。

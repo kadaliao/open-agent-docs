@@ -128,3 +128,72 @@ async fn db_engine_errors() {
     );
     s.stop().await;
 }
+
+/// 引擎给人看的值（勾选的“是”、相对日期）、报错里的类型名和分隔号也按语言。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn display_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Server::start(dir.path(), AuthConfig::None, fast_hub()).await;
+    let c = http();
+    let (_, db) = json(c.post(s.api(&format!("/workspaces/{}/databases", s.ws_id()))).json(&json!({
+        "schema": { "props": [{ "name": "名称", "type": "title" }, { "name": "完成", "type": "checkbox" }, { "name": "价格", "type": "number" }] }
+    })))
+    .await;
+    let db = db["page"]["id"].as_str().unwrap().to_string();
+    json(c.post(s.api(&format!("/databases/{db}/rows"))).json(&json!({ "rows": [{ "props": { "名称": "甲", "完成": true } }, { "props": { "名称": "乙", "完成": false } }] }))).await;
+    let csv = c
+        .get(s.api(&format!("/databases/{db}/export.csv")))
+        .header("accept-language", "en")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(csv.contains("甲,Yes"), "{csv}");
+    let csv = c
+        .get(s.api(&format!("/databases/{db}/export.csv")))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(csv.contains("甲,是"), "{csv}");
+    // 公开表格
+    let (_, sh) = json(
+        c.post(s.api(&format!("/pages/{db}/share")))
+            .json(&json!({})),
+    )
+    .await;
+    let html = c
+        .get(format!(
+            "http://{}/s/{}",
+            s.addr,
+            sh["token"].as_str().unwrap()
+        ))
+        .header("accept-language", "en")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        html.contains("<td>Yes</td>") && html.contains("2 rows"),
+        "表格里的值和行数"
+    );
+    // 报错里的类型名
+    let (st, v) = json(
+        c.post(s.api(&format!("/databases/{db}/query")))
+            .header("accept-language", "en")
+            .json(&json!({
+                "filter": { "op": "and", "items": [{ "prop": "价格", "cond": "checked" }] }
+            })),
+    )
+    .await;
+    assert_eq!(st, 400);
+    let m = v["error"]["message"].as_str().unwrap();
+    assert!(!m.contains("数字") && !m.contains('、'), "{m}");
+    s.stop().await;
+}

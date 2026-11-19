@@ -1,16 +1,18 @@
 //! 第 4 阶段：数据库的接口。见 docs/phase4-contract.md。
 use crate::api::{ApiResult, Auth, Body};
+use crate::openapi::ErrorBody;
 use crate::{ApiError, AppState};
 use axum::extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
-use oad_core::CellOp;
-use oad_core::db::{NewDb, QueryReq, RowInput};
-use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use oad_core::db::{DbInfo, NewDb, QueryReq, RowInput, RowsDelta};
+use oad_core::{CellChange, CellOp, DbRow};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::io::Write;
+use utoipa::{IntoParams, ToSchema};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -40,7 +42,9 @@ pub fn routes() -> Router<AppState> {
         .route("/databases/{id}/rows/{row}", delete(delete_one))
 }
 
-async fn create(
+#[utoipa::path(post, path = "/workspaces/{ws}/databases", tag = "databases", params(("ws" = String, Path, description = "工作区")), request_body = NewDb,
+    responses((status = 201, body = DbInfo), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn create(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
@@ -50,7 +54,10 @@ async fn create(
     Ok((StatusCode::CREATED, Json(db)).into_response())
 }
 
-async fn info(
+/// 库的页面、表结构、视图、现在的 seq。
+#[utoipa::path(get, path = "/databases/{id}", tag = "databases", params(("id" = String, Path)),
+    responses((status = 200, body = DbInfo), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn info(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -58,13 +65,20 @@ async fn info(
     Ok(Json(s.core.database_info(&id, &p).await?).into_response())
 }
 
-#[derive(Deserialize)]
-struct Since {
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(crate) struct Since {
+    /// 只要这个 seq 之后改了的行（和删了的行 id）；不给是全量
     since: Option<i64>,
 }
 
 /// 行（全量或增量）。按 Accept-Encoding 压缩：br 优先，其次 gzip（1 万行的全量压缩后 < 1MB）。
-async fn rows(
+#[utoipa::path(get, path = "/databases/{id}/rows", tag = "databases", params(("id" = String, Path), Since),
+    responses((status = 200, body = RowsDelta,
+        description = "行（全量或 since 之后的增量）。按 Accept-Encoding 压缩：br 优先，其次 gzip；不到 1KB 的不压",
+        headers(("Content-Encoding" = String, description = "br / gzip（压了才有）"), ("Vary" = String, description = "accept-encoding"))),
+        (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn rows(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -130,20 +144,33 @@ pub(crate) fn compress(accept: &str, raw: Vec<u8>) -> (Option<&'static str>, Vec
     (None, raw)
 }
 
-#[derive(Deserialize)]
-struct AddRow {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AddRow {
+    /// 属性：键是属性的 key 或名字，值是存的样子（选项也可以写名字）
     #[serde(default)]
+    #[schema(value_type = Object)]
     props: Map<String, Value>,
+    /// 排在这一行后面（不给放最后）
     after: Option<String>,
+    /// 行页面的正文（Markdown）
     body: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct AddRows {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct AddRows {
     rows: Vec<AddRow>,
 }
 
-async fn add_rows(
+#[derive(Serialize, ToSchema)]
+pub(crate) struct AddedRows {
+    /// 新行的 id（和给的顺序一样）
+    ids: Vec<String>,
+    seq: i64,
+}
+
+#[utoipa::path(post, path = "/databases/{id}/rows", tag = "databases", params(("id" = String, Path)), request_body = AddRows,
+    responses((status = 201, body = AddedRows), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn add_rows(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -159,54 +186,97 @@ async fn add_rows(
         })
         .collect();
     let (ids, seq) = s.core.add_db_rows(&id, &p, rows).await?;
-    Ok((StatusCode::CREATED, Json(json!({ "ids": ids, "seq": seq }))).into_response())
+    Ok((StatusCode::CREATED, Json(AddedRows { ids, seq })).into_response())
 }
 
-#[derive(Deserialize)]
-struct PatchRows {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct PatchRows {
     ops: Vec<CellOp>,
 }
 
-async fn patch_rows(
+/// 改了的格子和改完的 seq。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Patched {
+    seq: i64,
+    /// 真的变了的格子（值没变的不在里面）
+    changes: Vec<CellChange>,
+}
+
+#[utoipa::path(patch, path = "/databases/{id}/rows", tag = "databases", params(("id" = String, Path)), request_body = PatchRows,
+    responses((status = 200, body = Patched), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn patch_rows(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     Body(b): Body<PatchRows>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Patched>> {
     let (seq, changes) = s.core.patch_db_rows(&id, &p, b.ops).await?;
-    Ok(Json(json!({ "seq": seq, "changes": changes })))
+    Ok(Json(Patched { seq, changes }))
 }
 
-#[derive(Deserialize)]
-struct Ids {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct Ids {
+    /// 要删的行（进回收站）
     ids: Vec<String>,
 }
 
-async fn delete_rows(
+/// 改完后库的 seq。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Seq {
+    seq: i64,
+}
+
+#[utoipa::path(delete, path = "/databases/{id}/rows", tag = "databases", params(("id" = String, Path)), request_body = Ids,
+    responses((status = 200, body = Seq), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn delete_rows(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     Body(b): Body<Ids>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Seq>> {
     let seq = s.core.delete_db_rows(&id, &p, b.ids).await?;
-    Ok(Json(json!({ "seq": seq })))
+    Ok(Json(Seq { seq }))
 }
 
-async fn delete_one(
+#[utoipa::path(delete, path = "/databases/{id}/rows/{row}", tag = "databases", params(("id" = String, Path), ("row" = String, Path, description = "行的 id")),
+    responses((status = 200, body = Seq), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn delete_one(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, row)): Path<(String, String)>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Seq>> {
     let seq = s.core.delete_db_rows(&id, &p, vec![row]).await?;
-    Ok(Json(json!({ "seq": seq })))
+    Ok(Json(Seq { seq }))
 }
 
-#[derive(Deserialize)]
-struct SchemaOps {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct SchemaOps {
+    /// 依次做的改动：`{ op: "add" | "update" | "delete" | "move" | …, … }`，见 docs/phase4-contract.md
+    #[schema(value_type = Vec<Object>)]
     ops: Vec<Value>,
 }
 
-async fn change_schema(
+// 只用来写文档：正文是核心给的 JSON，形状和这里一样
+/// 改完的表结构。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct SchemaChanged {
+    /// 新的表结构 `{ props, next_id }`
+    #[schema(value_type = Object)]
+    schema: Value,
+    /// 这次改动的 seq（历史里撤销用；什么也没变时是现在的 seq）
+    seq: i64,
+    /// 动了哪些属性（`{ op, key, name, … }`）
+    #[schema(value_type = Vec<Object>)]
+    changes: Vec<Value>,
+    /// 改了但有问题的地方（比如公式有错）；没有就不给
+    #[schema(required = false)]
+    warnings: Vec<String>,
+}
+
+#[utoipa::path(patch, path = "/databases/{id}/schema", tag = "databases", params(("id" = String, Path)), request_body = SchemaOps,
+    responses((status = 200, body = SchemaChanged), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn change_schema(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -215,12 +285,27 @@ async fn change_schema(
     Ok(Json(s.core.change_schema(&id, &p, b.ops).await?))
 }
 
-#[derive(Deserialize)]
-struct Undo {
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct Undo {
+    /// 要撤销的那次表结构改动
     seq: i64,
 }
 
-async fn undo_schema(
+// 只用来写文档：正文是核心给的 JSON，形状和这里一样
+/// 撤销后的表结构和视图。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct SchemaUndone {
+    #[schema(value_type = Object)]
+    schema: Value,
+    #[schema(value_type = Vec<Object>)]
+    views: Value,
+    seq: i64,
+}
+
+#[utoipa::path(post, path = "/databases/{id}/schema/undo", tag = "databases", params(("id" = String, Path)), request_body = Undo,
+    responses((status = 200, body = SchemaUndone), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn undo_schema(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -229,22 +314,50 @@ async fn undo_schema(
     Ok(Json(s.core.undo_schema(&id, &p, b.seq).await?))
 }
 
+// 只用来写文档：收的时候还是按 JSON 收（`{}` 里没有 views 时报错）
+/// 换掉全部视图的正文：视图的数组，或 `{ views: [...] }`。
+#[derive(ToSchema)]
+#[serde(untagged)]
+#[allow(dead_code)]
+pub(crate) enum PutViews {
+    List(Vec<ViewObj>),
+    Wrapped { views: Vec<ViewObj> },
+}
+
+/// 一个视图：`{ id, name, type, filter, sorts, hidden, order, widths, … }`。
+#[derive(ToSchema)]
+#[schema(value_type = Object)]
+#[allow(dead_code)]
+pub(crate) struct ViewObj(Value);
+
+/// 库的全部视图（`{ id, name, type, filter, sorts, hidden, order, widths, … }`）。
+#[derive(Serialize, ToSchema)]
+pub(crate) struct Views {
+    #[schema(value_type = Vec<Object>)]
+    views: Value,
+}
+
 /// 整个换掉：`[...]` 或 `{ views: [...] }`。
-async fn put_views(
+#[utoipa::path(put, path = "/databases/{id}/views", tag = "databases", params(("id" = String, Path)), request_body = PutViews,
+    responses((status = 200, body = Views), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn put_views(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
     Body(b): Body<Value>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<Views>> {
     let views = match b {
         Value::Object(mut o) => o.remove("views").unwrap_or(Value::Null),
         v => v,
     };
     let views = s.core.put_views(&id, &p, views).await?;
-    Ok(Json(json!({ "views": views })))
+    Ok(Json(Views { views }))
 }
 
-async fn add_view(
+/// 加一个视图（不给 type 是表格），返回它（带上新的 id）。
+#[utoipa::path(post, path = "/databases/{id}/views", tag = "databases", params(("id" = String, Path)), request_body = Object,
+    responses((status = 201, body = Object, description = "加好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn add_view(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -254,7 +367,10 @@ async fn add_view(
     Ok((StatusCode::CREATED, Json(v)).into_response())
 }
 
-async fn patch_view(
+/// 改一个视图的几项：给了的字段覆盖，null 去掉。返回改好的视图。
+#[utoipa::path(patch, path = "/databases/{id}/views/{view}", tag = "databases", params(("id" = String, Path), ("view" = String, Path, description = "视图的 id")), request_body = Object,
+    responses((status = 200, body = Object, description = "改好的视图"), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn patch_view(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, view)): Path<(String, String)>,
@@ -263,7 +379,10 @@ async fn patch_view(
     Ok(Json(s.core.patch_view(&id, &p, &view, b).await?))
 }
 
-async fn delete_view(
+/// 删一个视图（最后一个不能删）。
+#[utoipa::path(delete, path = "/databases/{id}/views/{view}", tag = "databases", params(("id" = String, Path), ("view" = String, Path, description = "视图的 id")),
+    responses((status = 204), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn delete_view(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, view)): Path<(String, String)>,
@@ -272,7 +391,58 @@ async fn delete_view(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn query(
+// 只用来写文档：正文是核心给的 JSON，形状和这里一样
+/// 查询结果。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct QueryResult {
+    /// 符合条件的总行数
+    total: usize,
+    /// 按排序的行 id（给了 limit / offset 是那一段）
+    ids: Vec<String>,
+    /// 这一段的行，带算出来的值
+    rows: Vec<QueryRow>,
+    /// 按 group_by 分的组；没分组不给
+    #[schema(required = false)]
+    groups: Vec<QueryGroup>,
+    /// 每列底部的汇总（键是属性的 key）；没要不给
+    #[schema(required = false, value_type = Object)]
+    totals: Value,
+    /// 库现在的 seq
+    seq: i64,
+}
+
+/// 查出来的一行：存的样子，加上 `computed`（公式、汇总、关联之类算出来的值，键是属性的 key）。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct QueryRow {
+    #[serde(flatten)]
+    row: DbRow,
+    #[schema(value_type = Object)]
+    computed: Value,
+}
+
+/// 一个分组。空值的分组 `key` 是 ""，排在最后。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct QueryGroup {
+    key: String,
+    name: String,
+    #[schema(required = false)]
+    color: String,
+    ids: Vec<String>,
+    count: usize,
+    /// 子分组（视图有 sub_group_by 时）
+    #[schema(no_recursion, required = false)]
+    groups: Vec<QueryGroup>,
+    #[schema(required = false, value_type = Object)]
+    totals: Value,
+}
+
+/// 服务器算的查询：给了 view_id 就从那个视图出发，别的字段覆盖它。
+#[utoipa::path(post, path = "/databases/{id}/query", tag = "databases", params(("id" = String, Path)), request_body = QueryReq,
+    responses((status = 200, body = QueryResult), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn query(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
@@ -281,7 +451,24 @@ async fn query(
     Ok(Json(s.core.query_db(&id, &p, b).await?))
 }
 
-async fn press(
+// 只用来写文档：正文是核心给的 JSON，形状和这里一样
+/// 按按钮的结果。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct Pressed {
+    seq: i64,
+    /// 按钮设的属性里真的变了的格子
+    changes: Vec<CellChange>,
+    /// 按钮带评论时，发在这一行上的评论串
+    #[schema(required = false)]
+    thread_id: String,
+}
+
+/// 按一行上的按钮：按设置改属性，有 `comment` 的在这一行上发一条评论（可以叫 Agent）。
+#[utoipa::path(post, path = "/databases/{id}/button/{row}/{key}", tag = "databases",
+    params(("id" = String, Path), ("row" = String, Path, description = "行的 id"), ("key" = String, Path, description = "按钮属性的 key 或名字")),
+    responses((status = 200, body = Pressed), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn press(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path((id, row, key)): Path<(String, String, String)>,
@@ -289,12 +476,19 @@ async fn press(
     Ok(Json(s.core.press_button(&id, &p, &row, &key).await?))
 }
 
-async fn export(
+/// 导出 CSV（UTF-8，按第一个视图的列）。
+#[utoipa::path(get, path = "/databases/{id}/export.csv", tag = "databases", params(("id" = String, Path)),
+    responses((status = 200, body = String, content_type = "text/csv",
+        headers(("Content-Disposition" = String, description = "attachment; filename*=UTF-8''<库名>.csv"))),
+        (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
+pub(crate) async fn export(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> ApiResult<Response> {
-    let (title, csv) = s.core.export_csv(&id, &p).await?;
+    let lang = crate::api::req_lang(&s, Some(&p), &headers).await;
+    let (title, csv) = s.core.export_csv(&id, &p, lang).await?;
     let name = format!(
         "{}.csv",
         if title.is_empty() {
@@ -331,8 +525,35 @@ fn pct(s: &str) -> String {
     out
 }
 
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+pub(crate) struct ImportQ {
+    /// 库名（multipart 里的 title 优先；都没有用文件名）
+    title: Option<String>,
+    /// 放在哪个页面下（不给放在根上）
+    parent_id: Option<String>,
+}
+
+/// multipart 导入的字段。
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub(crate) struct ImportForm {
+    /// CSV 文件（第一行是列名）
+    #[schema(value_type = String, content_media_type = "text/csv")]
+    file: Vec<u8>,
+    /// 库名
+    title: Option<String>,
+    /// 放在哪个页面下
+    parent_id: Option<String>,
+}
+
 /// 导入 CSV：multipart 的 `file`（和可选的 `title`、`parent_id`），或者原始正文（`?title=`）。
-async fn import(
+#[utoipa::path(post, path = "/workspaces/{ws}/databases/import", tag = "databases", params(("ws" = String, Path, description = "工作区"), ImportQ),
+    request_body(description = "multipart 的 file 字段，或者原始的 CSV 正文；最大 64MB",
+        content((ImportForm = "multipart/form-data"), (String = "text/csv"))),
+    responses((status = 201, body = DbInfo), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 413, body = ErrorBody)))]
+pub(crate) async fn import(
     State(s): State<AppState>,
     Auth(p): Auth,
     Path(ws): Path<String>,
@@ -402,3 +623,26 @@ mod tests {
         assert_eq!(compress("br", vec![b'a'; 100]).0, None, "小的不压");
     }
 }
+
+/// 这个模块的接口（合进 [`crate::openapi`]）。
+#[derive(utoipa::OpenApi)]
+#[openapi(paths(
+    create,
+    import,
+    info,
+    rows,
+    add_rows,
+    patch_rows,
+    delete_rows,
+    delete_one,
+    change_schema,
+    undo_schema,
+    put_views,
+    add_view,
+    patch_view,
+    delete_view,
+    query,
+    press,
+    export
+))]
+pub(crate) struct Doc;
