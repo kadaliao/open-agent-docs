@@ -21,7 +21,7 @@ export function useDbPeople(client: OadClient, ws: string, me: Me) {
   useEffect(() => {
     client.members(ws).then(
       (ms) => {
-        const list = ms.map((m) => ({ kind: 'user', id: m.user.id, name: m.user.name }))
+        const list = ms.map((m): Person => ({ kind: 'user', id: m.user.id, name: m.user.name }))
         memberCache.set(ws, list)
         setMembers(list)
       },

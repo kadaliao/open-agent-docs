@@ -45,7 +45,7 @@ export function usePeople(client: OadClient, ws: string, me: Me, authors: Record
   useEffect(() => {
     client.members(ws).then(
       (ms) => {
-        const list = ms.map((m) => ({ kind: 'user', id: m.user.id, name: m.user.name }))
+        const list = ms.map((m): Person => ({ kind: 'user', id: m.user.id, name: m.user.name }))
         memberCache.set(ws, list)
         setMembers(list)
       },
@@ -63,7 +63,7 @@ export function usePeople(client: OadClient, ws: string, me: Me, authors: Record
     extra.forEach((p, k) => users.set(k, p))
     const agentMap = new Map(agents.map((a) => [a.id, a]))
     const candidates: Candidate[] = [
-      ...agents.filter((a) => !a.revoked_at).map((a) => ({ kind: 'agent', id: a.id, name: a.name, about: a.about })),
+      ...agents.filter((a) => !a.revoked_at).map((a) => ({ kind: 'agent' as const, id: a.id, name: a.name, about: a.about })),
       ...[...users.values()].filter((u) => u.id !== me.user.id),
     ]
     const nameOf = (kind: string, id: string) => {

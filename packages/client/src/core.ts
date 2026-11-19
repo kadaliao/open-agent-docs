@@ -1,6 +1,25 @@
 // 薄封装：每个 HTTP 接口一个方法，返回解析好的 JSON。浏览器（cookie 或 token）和 Node 18+（token）都能用。
+// 路径、请求体、响应的类型都从 docs/openapi.json 生成的 openapi.ts 来（call() 按 paths 检查），文档和这里对不上时编译就报错。
+import type { paths } from './openapi.ts'
 import type * as T from './types.ts'
-import type { AnchorIn, Agent, AuthMode, Comment, DbHistoryItem, DbMeta, InboxItem, Invite, InviteInfo, Me, Page, Person, Row, Schema, Scope, SearchHit, Share, Thread, TrashItem, Version, VersionDiff, View } from './types.ts'
+import type {
+  AgentNotification,
+  AuthConfig,
+  Cond,
+  DbHistory,
+  DbHistoryItem,
+  DbMeta,
+  Filter,
+  InboxItem,
+  InboxNotification,
+  InviteInfo,
+  Schema,
+  Thread,
+  TrashItem,
+  TrashList,
+  Version,
+  View,
+} from './types.ts'
 import type { DbStore } from './db/store.ts'
 import { openEvents, type EventsHandle } from './events.ts'
 import type { OpenPageOptions, PageConn } from './page.ts'
@@ -34,7 +53,7 @@ export class ApiError extends Error {
 export interface ClientOptions {
   /** 服务器地址，比如 https://docs.example.com；空字符串是同源（网页里） */
   baseUrl?: string
-  /** Agent / 服务端用的 token（Authorization: Bearer）。不给就靠 cookie（浏览器里登录过） */
+  /** Agent / 服务端用的 token（Authorization: Bearer），也可以是 JWT。不给就靠 cookie（浏览器里登录过） */
   token?: string | (() => string | null | undefined)
   /** 'include' | 'same-origin' | 'omit'：浏览器里带不带 cookie。默认 baseUrl 为空时 same-origin，否则 include */
   credentials?: RequestCredentials
@@ -48,7 +67,46 @@ export interface ClientOptions {
   WebSocket?: unknown
 }
 
-export type Uploaded = { id?: string; url: string; name: string; mime: string; size: number; width?: number; height?: number; blurhash?: string }
+// ---------- 从 paths 推出每个操作的类型 ----------
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
+/** 这个路径有哪些方法 */
+export type MethodOf<P extends keyof paths> = { [K in Method]: [NonNullable<paths[P][K]>] extends [never] ? never : K }[Method]
+type Op<P extends keyof paths, M extends Method> = NonNullable<paths[P][M]>
+type Json<X> = X extends { content: { 'application/json': infer J } } ? J : undefined
+/** 成功时的响应体（200 / 201；204 是 undefined） */
+export type ResponseOf<P extends keyof paths, M extends MethodOf<P>> =
+  Op<P, M> extends { responses: infer R }
+    ? R extends { 200: infer A }
+      ? Json<A>
+      : R extends { 201: infer B }
+        ? Json<B>
+        : undefined
+    : never
+/** 请求体（JSON） */
+export type BodyOf<P extends keyof paths, M extends MethodOf<P>> = Op<P, M> extends { requestBody?: infer B } ? ([NonNullable<B>] extends [never] ? never : Json<NonNullable<B>>) : never
+/** 查询参数 */
+export type QueryOf<P extends keyof paths, M extends MethodOf<P>> = Op<P, M> extends { parameters: { query?: infer Q } } ? NonNullable<Q> : never
+type PathParams<P extends string> = P extends `${string}{${infer K}}${infer Rest}` ? Record<K | keyof PathParams<Rest>, string | number> : Record<never, never>
+
+/** 一页的结果：带 next_cursor 的那几个列表（版本、库的历史、回收站、Agent 通知、收件箱） */
+export interface PageOf<I> {
+  items: I[]
+  next_cursor?: string | null
+}
+/** 按 next_cursor 一页一页往下取，逐条给出来。break 出循环就不再取了。 */
+export async function* paginate<I>(fetchPage: (cursor: string | undefined) => Promise<PageOf<I>>): AsyncGenerator<I, void, undefined> {
+  let cursor: string | undefined
+  for (;;) {
+    const p = await fetchPage(cursor)
+    for (const x of p.items) yield x
+    // 没有下一页、这页是空的、或者游标没往前走（服务器的毛病）：停
+    if (!p.next_cursor || !p.items.length || p.next_cursor === cursor) return
+    cursor = p.next_cursor
+  }
+}
+
+/** 文档里只写了 object 的（表结构、视图）：按手写的类型看 */
+const loose = <X>(p: Promise<unknown>) => p as Promise<X>
 
 const val = <V>(v: V | (() => V)) => (typeof v === 'function' ? (v as () => V)() : v)
 
@@ -68,23 +126,40 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     return h
   }
 
+  async function fail(r: Response): Promise<never> {
+    let code = 'http_' + r.status
+    let message = r.statusText
+    try {
+      const j = await r.json()
+      code = j?.error?.code ?? code
+      message = j?.error?.message ?? message
+    } catch {
+      /* 不是 JSON */
+    }
+    throw new ApiError(r.status, code, message)
+  }
+
+  /** 发一个任意的请求（路径不在文档里、或者想自己拼时用） */
   async function req<R>(method: string, path: string, body?: unknown): Promise<R> {
     const r = await f(API + path, { method, credentials, headers: headers(body !== undefined), body: body === undefined ? undefined : JSON.stringify(body) })
-    if (!r.ok) {
-      let code = 'http_' + r.status
-      let message = r.statusText
-      try {
-        const j = await r.json()
-        code = j?.error?.code ?? code
-        message = j?.error?.message ?? message
-      } catch {
-        /* 不是 JSON */
-      }
-      throw new ApiError(r.status, code, message)
-    }
+    if (!r.ok) await fail(r)
     if (r.status === 204) return undefined as R
     const text = await r.text()
     return (text ? JSON.parse(text) : undefined) as R
+  }
+
+  /** 按文档调一个接口：路径模板、方法、参数、请求体、响应都有类型 */
+  function call<P extends keyof paths & string, M extends MethodOf<P>>(
+    method: M,
+    path: P,
+    o: { path?: PathParams<P>; query?: QueryOf<P, M> | Record<string, string | number | boolean | undefined>; body?: BodyOf<P, M> } = {},
+  ): Promise<ResponseOf<P, M>> {
+    let url: string = path.replace(/\{(\w+)\}/g, (_, k) => encodeURIComponent(String((o.path as Record<string, unknown>)?.[k] ?? '')))
+    if (o.query) {
+      const q = Object.entries(o.query as Record<string, unknown>).filter(([, v]) => v !== undefined && v !== null)
+      if (q.length) url += '?' + new URLSearchParams(q.map(([k, v]) => [k, String(v)]))
+    }
+    return req<ResponseOf<P, M>>(method.toUpperCase(), url, o.body)
   }
 
   const dbs = new Map<string, DbStore>()
@@ -92,103 +167,142 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
   const client = {
     baseUrl: base,
     apiUrl: API,
-    /** 发一个任意的请求（还没包成方法的接口） */
     request: req,
+    call,
 
-  authConfig: () => req<{ mode: AuthMode }>('GET', '/auth/config'),
-  login: (email: string, password: string) => req<Me>('POST', '/auth/login', { email, password }),
-  logout: () => req<void>('POST', '/auth/logout'),
-  me: () => req<Me>('GET', '/me'),
-  pages: (ws: string) => req<{ pages: Page[] }>('GET', `/workspaces/${ws}/pages`).then((r) => r.pages),
-  createPage: (ws: string, b: { parent_id?: string | null; after?: string; title?: string; icon?: string }) =>
-    req<Page>('POST', `/workspaces/${ws}/pages`, b),
-  page: (id: string) => req<Page>('GET', `/pages/${id}`),
-  // 移动：after 不给 = 放最后，after: null = 放最前
-  patchPage: (id: string, b: { title?: string; icon?: string | null; parent_id?: string | null; after?: string | null }) =>
-    req<Page>('PATCH', `/pages/${id}`, b),
-  deletePage: (id: string) => req<unknown>('DELETE', `/pages/${id}`),
+    // ---------- 登录、自己 ----------
+    authConfig: () => call('get', '/auth/config') as Promise<AuthConfig>,
+    login: (email: string, password: string) => call('post', '/auth/login', { body: { email, password } }),
+    logout: () => call('post', '/auth/logout'),
+    signup: (b: BodyOf<'/auth/signup', 'post'>) => call('post', '/auth/signup', { body: b }),
+    me: () => call('get', '/me'),
+    patchMe: (b: BodyOf<'/me', 'patch'>) => call('patch', '/me', { body: b }),
+    changePassword: (current: string, next: string) => call('post', '/me/password', { body: { current, new: next } }),
 
-  // 第 2 阶段：作者、评论、Agent、通知（docs/phase2-contract.md）
-  authors: (id: string) => req<{ clients: Record<string, Person> }>('GET', `/pages/${id}/authors`),
-  threads: (page: string, resolved: 'all' | 'true' | 'false' = 'all') =>
-    req<{ threads: Thread[] }>('GET', `/pages/${page}/comments?resolved=${resolved}`).then((r) => r.threads),
-  createThread: (page: string, b: { anchor?: AnchorIn | null; body: string; notify?: false | string[] }) =>
-    req<Thread>('POST', `/pages/${page}/comments`, b),
-  reply: (thread: string, b: { body: string; notify?: false | string[] }) => req<Comment>('POST', `/threads/${thread}/comments`, b),
-  editComment: (id: string, body: string) => req<Comment>('PATCH', `/comments/${id}`, { body }),
-  deleteComment: (id: string) => req<unknown>('DELETE', `/comments/${id}`),
-  resolveThread: (id: string, resolved: boolean) => req<Thread>('PATCH', `/threads/${id}`, { resolved }),
+    // ---------- 页面 ----------
+    pages: (ws: string) => call('get', '/workspaces/{ws}/pages', { path: { ws } }).then((r) => r.pages),
+    createPage: (ws: string, b: BodyOf<'/workspaces/{ws}/pages', 'post'>) => call('post', '/workspaces/{ws}/pages', { path: { ws }, body: b }),
+    page: (id: string) => call('get', '/pages/{id}', { path: { id } }),
+    // 移动：after 不给 = 放最后，after: null = 放最前
+    patchPage: (id: string, b: BodyOf<'/pages/{id}', 'patch'>) => call('patch', '/pages/{id}', { path: { id }, body: b }),
+    deletePage: (id: string) => call('delete', '/pages/{id}', { path: { id } }),
+    /** 正文：Markdown（默认）或文档 JSON，带 version（改的时候当 base） */
+    content: (id: string, format: 'markdown' | 'json' = 'markdown') => call('get', '/pages/{id}/content', { path: { id }, query: { format } }),
+    putContent: (id: string, b: BodyOf<'/pages/{id}/content', 'put'>) => call('put', '/pages/{id}/content', { path: { id }, body: b }),
+    block: (id: string, block: string) => call('get', '/pages/{id}/blocks/{block_id}', { path: { id, block_id: block } }),
+    putBlock: (id: string, block: string, b: BodyOf<'/pages/{id}/blocks/{block_id}', 'put'>) =>
+      call('put', '/pages/{id}/blocks/{block_id}', { path: { id, block_id: block }, body: b }),
+    insertBlocks: (id: string, b: BodyOf<'/pages/{id}/blocks', 'post'>) => call('post', '/pages/{id}/blocks', { path: { id }, body: b }),
+    deleteBlock: (id: string, block: string) => call('delete', '/pages/{id}/blocks/{block_id}', { path: { id, block_id: block } }),
+    authors: (id: string) => call('get', '/pages/{id}/authors', { path: { id } }),
 
-  agents: (ws: string) => req<{ agents: Agent[] }>('GET', `/workspaces/${ws}/agents`).then((r) => r.agents),
-  createAgent: (ws: string, b: { name: string; about?: string; scope: Scope; webhook?: string | null }) =>
-    req<{ agent: Agent; token: string; webhook_secret: string }>('POST', `/workspaces/${ws}/agents`, b),
-  patchAgent: (id: string, b: { name?: string; about?: string; scope?: Scope; webhook?: string | null }) => req<Agent>('PATCH', `/agents/${id}`, b),
-  revokeAgent: (id: string) => req<unknown>('DELETE', `/agents/${id}`),
-  reissueToken: (id: string) => req<{ token: string }>('POST', `/agents/${id}/token`),
-  reissueWebhookSecret: (id: string) => req<{ webhook_secret: string }>('POST', `/agents/${id}/webhook-secret`),
+    // ---------- 评论 ----------
+    threads: (page: string, resolved: 'all' | 'true' | 'false' = 'all') =>
+      call('get', '/pages/{id}/comments', { path: { id: page }, query: { resolved } }).then((r) => r.threads),
+    createThread: (page: string, b: BodyOf<'/pages/{id}/comments', 'post'>) => call('post', '/pages/{id}/comments', { path: { id: page }, body: b }),
+    reply: (thread: string, b: BodyOf<'/threads/{id}/comments', 'post'>) => call('post', '/threads/{id}/comments', { path: { id: thread }, body: b }),
+    editComment: (id: string, body: string) => call('patch', '/comments/{id}', { path: { id }, body: { body } }),
+    deleteComment: (id: string) => call('delete', '/comments/{id}', { path: { id } }),
+    resolveThread: (id: string, resolved: boolean) => call('patch', '/threads/{id}', { path: { id }, body: { resolved } }),
 
-  members: (ws: string) =>
-    req<{ members: { role: string; user: { id: string; name: string; email?: string | null } }[] }>('GET', `/workspaces/${ws}/members`).then((r) => r.members ?? []),
-  inbox: (after?: number | string, limit = 50) =>
-    req<{ notifications: InboxItem[] } | InboxItem[]>('GET', `/me/notifications?limit=${limit}${after !== undefined ? `&after=${after}` : ''}`).then((r) =>
-      (Array.isArray(r) ? r : r.notifications).map(flatInbox),
-    ),
-  // 第 4 阶段：数据库（docs/phase4-contract.md）
-  createDatabase: (ws: string, b: { title: string; parent_id?: string | null; after?: string; schema?: unknown; views?: unknown }) =>
-    req<{ page?: Page; id?: string } & Record<string, unknown>>('POST', `/workspaces/${ws}/databases`, b),
-  getDatabase: (id: string) => req<DbMeta>('GET', `/databases/${id}`),
-  dbRows: (id: string, since?: number) =>
-    req<{ seq: number; rows: Row[]; deleted?: string[] }>('GET', `/databases/${id}/rows${since !== undefined ? `?since=${since}` : ''}`),
-  addRows: (id: string, rows: { props: Record<string, unknown>; after?: string | null }[]) =>
-    req<{ ids: string[]; seq: number; rows?: Row[] }>('POST', `/databases/${id}/rows`, { rows }),
-  patchRows: (id: string, ops: { row_id: string; set?: Record<string, unknown>; after?: string | null }[]) => req<{ seq: number }>('PATCH', `/databases/${id}/rows`, { ops }),
-  deleteRows: (id: string, ids: string[]) => req<{ seq?: number }>('DELETE', `/databases/${id}/rows`, { ids }),
-  patchSchema: (id: string, ops: Record<string, unknown>[]) => req<{ schema: Schema; seq: number }>('PATCH', `/databases/${id}/schema`, { ops }),
-  undoSchema: (id: string, seq: number) => req<{ schema: Schema; seq: number }>('POST', `/databases/${id}/schema/undo`, { seq }),
-  putViews: (id: string, views: View[]) => req<unknown>('PUT', `/databases/${id}/views`, { views }),
-  addView: (id: string, view: Partial<View>) => req<View>('POST', `/databases/${id}/views`, view),
-  patchView: (id: string, view: string, b: Partial<View>) => req<View>('PATCH', `/databases/${id}/views/${view}`, b),
-  deleteView: (id: string, view: string) => req<unknown>('DELETE', `/databases/${id}/views/${view}`),
-  pressButton: (id: string, row: string, key: string) => req<unknown>('POST', `/databases/${id}/button/${row}/${key}`),
-  markRead: (b: { ids: (number | string)[] } | { all: true }) => req<unknown>('POST', '/me/notifications/read', b),
+    // ---------- Agent ----------
+    agents: (ws: string) => call('get', '/workspaces/{ws}/agents', { path: { ws } }).then((r) => r.agents),
+    createAgent: (ws: string, b: BodyOf<'/workspaces/{ws}/agents', 'post'>) => call('post', '/workspaces/{ws}/agents', { path: { ws }, body: b }),
+    patchAgent: (id: string, b: BodyOf<'/agents/{id}', 'patch'>) => call('patch', '/agents/{id}', { path: { id }, body: b }),
+    revokeAgent: (id: string) => call('delete', '/agents/{id}', { path: { id } }),
+    reissueToken: (id: string) => call('post', '/agents/{id}/token', { path: { id } }),
+    reissueWebhookSecret: (id: string) => call('post', '/agents/{id}/webhook-secret', { path: { id } }),
+    /** Agent 自己取通知（要 Agent 的 token）。wait：没有就等几秒（长轮询，最多 60） */
+    agentNotifications: (q: QueryOf<'/agent/notifications', 'get'> = {}) => call('get', '/agent/notifications', { query: q }),
+    ackAgentNotifications: (b: BodyOf<'/agent/notifications/ack', 'post'>) => call('post', '/agent/notifications/ack', { body: b }),
+    /** 从 after 往后逐条取完（不等新的） */
+    eachAgentNotification: (q: { after?: number; limit?: number } = {}): AsyncGenerator<AgentNotification> =>
+      paginate((cursor) => call('get', '/agent/notifications', { query: { ...q, cursor } }).then((r) => ({ items: r.notifications, next_cursor: r.next_cursor }))),
 
-  // 第 5 阶段（docs/phase5-contract.md）
-  search: (ws: string, q: string, limit = 20, kind: 'page' | 'row' | 'all' = 'all') =>
-    req<{ results: SearchHit[] }>('GET', `/workspaces/${ws}/search?q=${encodeURIComponent(q)}&limit=${limit}&kind=${kind}`).then((r) => r.results ?? []),
-  versions: (page: string) => req<{ versions: Version[] } | Version[]>('GET', `/pages/${page}/versions`).then((r) => (Array.isArray(r) ? r : r.versions ?? [])),
-  version: (page: string, v: string) => req<{ doc: unknown; markdown: string }>('GET', `/pages/${page}/versions/${v}`),
-  versionDiff: (page: string, v: string, to = 'current') => req<VersionDiff>('GET', `/pages/${page}/versions/${v}/diff?to=${to}`),
-  restoreVersion: (page: string, v: string) => req<unknown>('POST', `/pages/${page}/versions/${v}/restore`),
-  saveVersion: (page: string, label: string) => req<Version>('POST', `/pages/${page}/versions`, { label }),
-  dbHistory: (db: string, q: { row?: string; prop?: string } = {}) =>
-    req<{ items: DbHistoryItem[] } | DbHistoryItem[]>('GET', `/databases/${db}/history${q.row || q.prop ? '?' + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]) : ''}`).then((r) =>
-      Array.isArray(r) ? r : r.items ?? [],
-    ),
-  dbUndo: (db: string, seq: number) => req<unknown>('POST', `/databases/${db}/history/undo`, { seq }),
-  trash: (ws: string) => req<{ items: TrashItem[] } | TrashItem[]>('GET', `/workspaces/${ws}/trash`).then((r) => (Array.isArray(r) ? r : r.items ?? [])),
-  restoreTrash: (id: string) => req<{ page?: Page } | Page>('POST', `/trash/${id}/restore`),
-  purgeTrash: (id: string) => req<unknown>('DELETE', `/trash/${id}`),
-  getShare: (page: string) =>
-    req<Share>('GET', `/pages/${page}/share`).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return null
-      throw e
-    }),
-  createShare: (page: string, b: { include_children?: boolean; indexable?: boolean }) => req<Share>('POST', `/pages/${page}/share`, b),
-  revokeShare: (page: string) => req<unknown>('DELETE', `/pages/${page}/share`),
-  invites: (ws: string) => req<{ invites: Invite[] } | Invite[]>('GET', `/workspaces/${ws}/invites`).then((r) => (Array.isArray(r) ? r : r.invites ?? [])),
-  createInvite: (ws: string, b: { role: string; expires_in?: number | null }) => req<Invite>('POST', `/workspaces/${ws}/invites`, b),
-  deleteInvite: (ws: string, token: string) => req<unknown>('DELETE', `/workspaces/${ws}/invites/${token}`),
-  inviteInfo: (token: string) => req<InviteInfo>('GET', `/invites/${token}`),
-  acceptInvite: (token: string) => req<Me>('POST', `/invites/${token}/accept`),
-  signup: (b: { email: string; password: string; name: string; invite?: string }) => req<Me>('POST', '/auth/signup', b),
-  patchMember: (ws: string, user: string, role: string) => req<unknown>('PATCH', `/workspaces/${ws}/members/${user}`, { role }),
-  removeMember: (ws: string, user: string) => req<unknown>('DELETE', `/workspaces/${ws}/members/${user}`),
-  patchWorkspace: (ws: string, b: { name?: string; icon?: string | null }) => req<{ id: string; name: string; icon?: string | null }>('PATCH', `/workspaces/${ws}`, b),
-  patchMe: (b: { name?: string; avatar?: string | null; locale?: string | null }) => req<Me | Me['user']>('PATCH', '/me', b),
-  changePassword: (current: string, next: string) => req<unknown>('POST', '/me/password', { current, new: next }),
+    // ---------- 成员、邀请、工作区 ----------
+    members: (ws: string) => call('get', '/workspaces/{ws}/members', { path: { ws } }).then((r) => r.members),
+    patchMember: (ws: string, user: string, role: T.Role) => call('patch', '/workspaces/{ws}/members/{user}', { path: { ws, user }, body: { role } }),
+    removeMember: (ws: string, user: string) => call('delete', '/workspaces/{ws}/members/{user}', { path: { ws, user } }),
+    patchWorkspace: (ws: string, b: BodyOf<'/workspaces/{ws}', 'patch'>) => call('patch', '/workspaces/{ws}', { path: { ws }, body: b }),
+    invites: (ws: string) => call('get', '/workspaces/{ws}/invites', { path: { ws } }).then((r) => r.invites),
+    createInvite: (ws: string, b: BodyOf<'/workspaces/{ws}/invites', 'post'>) => call('post', '/workspaces/{ws}/invites', { path: { ws }, body: b }),
+    deleteInvite: (ws: string, token: string) => call('delete', '/workspaces/{ws}/invites/{token}', { path: { ws, token } }),
+    inviteInfo: (token: string) => call('get', '/invites/{token}', { path: { token } }) as Promise<InviteInfo>,
+    acceptInvite: (token: string) => call('post', '/invites/{token}/accept', { path: { token } }),
+
+    // ---------- 收件箱 ----------
+    /** 一页（新的在前）；items 是拍平以后的 */
+    inbox: (q: QueryOf<'/me/notifications', 'get'> = {}) =>
+      call('get', '/me/notifications', { query: { limit: 50, ...q } }).then((r) => ({ ...r, items: r.notifications.map(flatInbox) })),
+    eachInbox: (q: { limit?: number } = {}): AsyncGenerator<InboxItem> =>
+      paginate((cursor) => call('get', '/me/notifications', { query: { ...q, cursor } }).then((r) => ({ items: r.notifications.map(flatInbox), next_cursor: r.next_cursor }))),
+    markRead: (b: BodyOf<'/me/notifications/read', 'post'>) => call('post', '/me/notifications/read', { body: b }),
+
+    // ---------- 数据库 ----------
+    createDatabase: (ws: string, b: BodyOf<'/workspaces/{ws}/databases', 'post'>) =>
+      loose<DbMeta>(call('post', '/workspaces/{ws}/databases', { path: { ws }, body: b })),
+    getDatabase: (id: string) => loose<DbMeta>(call('get', '/databases/{id}', { path: { id } })),
+    dbRows: (id: string, since?: number) => call('get', '/databases/{id}/rows', { path: { id }, query: { since } }),
+    addRows: (id: string, rows: BodyOf<'/databases/{id}/rows', 'post'>['rows']) => call('post', '/databases/{id}/rows', { path: { id }, body: { rows } }),
+    patchRows: (id: string, ops: BodyOf<'/databases/{id}/rows', 'patch'>['ops']) => call('patch', '/databases/{id}/rows', { path: { id }, body: { ops } }),
+    deleteRows: (id: string, ids: string[]) => call('delete', '/databases/{id}/rows', { path: { id }, body: { ids } }),
+    /** 服务器算的查询（筛选、排序、分组、汇总，带 computed） */
+    queryDatabase: (id: string, q: BodyOf<'/databases/{id}/query', 'post'>) => call('post', '/databases/{id}/query', { path: { id }, body: q }),
+    patchSchema: (id: string, ops: Record<string, unknown>[]) =>
+      loose<{ schema: Schema; seq: number; changes: Record<string, unknown>[]; warnings?: string[] }>(
+        call('patch', '/databases/{id}/schema', { path: { id }, body: { ops } as BodyOf<'/databases/{id}/schema', 'patch'> }),
+      ),
+    undoSchema: (id: string, seq: number) =>
+      loose<{ schema: Schema; seq: number; views: View[] }>(call('post', '/databases/{id}/schema/undo', { path: { id }, body: { seq } })),
+    putViews: (id: string, views: View[]) =>
+      loose<{ views: View[] }>(call('put', '/databases/{id}/views', { path: { id }, body: { views } as unknown as BodyOf<'/databases/{id}/views', 'put'> })),
+    addView: (id: string, view: Partial<View>) =>
+      loose<View>(call('post', '/databases/{id}/views', { path: { id }, body: view as BodyOf<'/databases/{id}/views', 'post'> })),
+    patchView: (id: string, view: string, b: Partial<View>) =>
+      loose<View>(call('patch', '/databases/{id}/views/{view}', { path: { id, view }, body: b as BodyOf<'/databases/{id}/views/{view}', 'patch'> })),
+    deleteView: (id: string, view: string) => call('delete', '/databases/{id}/views/{view}', { path: { id, view } }),
+    pressButton: (id: string, row: string, key: string) => call('post', '/databases/{id}/button/{row}/{key}', { path: { id, row, key } }),
+    /** 库的历史，一页（新的在前） */
+    dbHistory: (db: string, q: QueryOf<'/databases/{id}/history', 'get'> = {}) =>
+      call('get', '/databases/{id}/history', { path: { id: db }, query: q }) as Promise<DbHistory>,
+    eachDbHistory: (db: string, q: { row?: string; prop?: string; limit?: number } = {}): AsyncGenerator<DbHistoryItem> =>
+      paginate((cursor) => (call('get', '/databases/{id}/history', { path: { id: db }, query: { ...q, cursor } }) as Promise<DbHistory>)),
+    dbUndo: (db: string, seq: number) => call('post', '/databases/{id}/history/undo', { path: { id: db }, body: { seq } }),
+
+    // ---------- 搜索、历史版本 ----------
+    search: (ws: string, q: string, limit = 20, kind: 'page' | 'row' | 'all' = 'all') =>
+      call('get', '/workspaces/{ws}/search', { path: { ws }, query: { q, limit, kind } }).then((r) => r.results),
+    /** 版本，一页（新的在前） */
+    versions: (page: string, q: QueryOf<'/pages/{id}/versions', 'get'> = {}) => call('get', '/pages/{id}/versions', { path: { id: page }, query: q }),
+    eachVersion: (page: string, q: { limit?: number } = {}): AsyncGenerator<Version> =>
+      paginate((cursor) => call('get', '/pages/{id}/versions', { path: { id: page }, query: { ...q, cursor } }).then((r) => ({ items: r.versions, next_cursor: r.next_cursor }))),
+    version: (page: string, v: number | string) => call('get', '/pages/{id}/versions/{v}', { path: { id: page, v } }),
+    versionDiff: (page: string, v: number | string, to: number | 'current' = 'current') =>
+      call('get', '/pages/{id}/versions/{v}/diff', { path: { id: page, v }, query: { to } }),
+    restoreVersion: (page: string, v: number | string) => call('post', '/pages/{id}/versions/{v}/restore', { path: { id: page, v } }),
+    saveVersion: (page: string, label: string) => call('post', '/pages/{id}/versions', { path: { id: page }, body: { label } }),
+
+    // ---------- 回收站 ----------
+    /** 一页（新删的在前） */
+    trash: (ws: string, q: QueryOf<'/workspaces/{ws}/trash', 'get'> = {}) => call('get', '/workspaces/{ws}/trash', { path: { ws }, query: q }) as Promise<TrashList>,
+    eachTrash: (ws: string, q: { limit?: number } = {}): AsyncGenerator<TrashItem> =>
+      paginate((cursor) => call('get', '/workspaces/{ws}/trash', { path: { ws }, query: { ...q, cursor } }) as Promise<TrashList>),
+    restoreTrash: (id: string) => call('post', '/trash/{id}/restore', { path: { id } }),
+    purgeTrash: (id: string) => call('delete', '/trash/{id}', { path: { id } }),
+
+    // ---------- 分享 ----------
+    getShare: (page: string) =>
+      call('get', '/pages/{id}/share', { path: { id: page } }).catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }),
+    createShare: (page: string, b: BodyOf<'/pages/{id}/share', 'post'>) => call('post', '/pages/{id}/share', { path: { id: page }, body: b }),
+    revokeShare: (page: string) => call('delete', '/pages/{id}/share', { path: { id: page } }),
+
+    // ---------- 文件、链接卡片 ----------
     /** 上传文件（浏览器里有进度） */
-    upload(ws: string, file: Blob & { name?: string }, onProgress?: (f: number) => void): Promise<Uploaded> {
-      const url = `${API}/workspaces/${ws}/files`
+    upload(ws: string, file: Blob & { name?: string }, onProgress?: (f: number) => void): Promise<T.Uploaded> {
+      const url = `${API}/workspaces/${encodeURIComponent(ws)}/files`
       if (typeof XMLHttpRequest !== 'undefined' && onProgress) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest()
@@ -214,12 +328,13 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
       const fd = new FormData()
       fd.append('file', file, file.name || 'file')
       return f(url, { method: 'POST', credentials, headers: headers(false), body: fd }).then(async (r) => {
-        if (!r.ok) throw new ApiError(r.status, 'http_' + r.status, r.statusText)
+        if (!r.ok) await fail(r)
         return r.json()
       })
     },
     /** 链接解析（卡片用）；失败返回 null */
-    unfurl: (url: string) => req<unknown>('GET', `/unfurl?url=${encodeURIComponent(url)}`).catch(() => null),
+    unfurl: (url: string) => call('get', '/unfurl', { query: { url } }).catch(() => null),
+
     /** 工作区的实时事件（SSE，断了自动重连，带 Last-Event-ID） */
     events: (ws: string): EventsHandle => openEvents(`${API}/workspaces/${ws}/events`, { credentials, headers: () => headers(false), fetch: f }),
     /** 一页的协作文档：Y.Doc + WebSocket 同步 + 浏览器里的 IndexedDB 缓存 */
@@ -257,25 +372,20 @@ export * from './types.ts'
 export { openEvents, type EventsHandle } from './events.ts'
 export type { OpenPageOptions, PageConn, PageStatus } from './page.ts'
 export type { DbStore, EventSource_ as EventsLike, Status as DbStatus } from './db/store.ts'
-import type { Cond, Filter } from './types.ts'
-/** 筛选条件是不是一组（嵌套的 and / or） */
-export const isGroup = (x: Cond | Filter): x is Filter => (x as Filter).items !== undefined
 export type { T as Types }
 
+/** 筛选条件是不是一组（嵌套的 and / or） */
+export const isGroup = (x: Cond | Filter): x is Filter => (x as Filter).items !== undefined
+
 /** 收件箱一条：data 里的字段摊平到外面 */
-export const flatInbox = (n: InboxItem): InboxItem => (n.data ? { ...n.data, ...n, data: undefined } : n)
+export const flatInbox = (n: InboxNotification): InboxItem => ({ ...(n.data as Partial<InboxItem>), ...n, data: undefined })
 
-
-/** 评论串的锚点，两种字段写法都认 */
+/** 评论串的锚点（没挂在文字上时各项为空） */
 export function threadAnchor(t: Thread) {
-  const start = t.anchor?.start ?? t.anchor_start ?? null
-  const end = t.anchor?.end ?? t.anchor_end ?? null
   return {
-    block_id: t.anchor?.block_id ?? t.block_id ?? null,
-    start,
-    end,
-    quote: t.anchor?.quote ?? t.quote ?? '',
+    block_id: t.anchor?.block_id ?? null,
+    start: t.anchor?.start ?? null,
+    end: t.anchor?.end ?? null,
+    quote: t.anchor?.quote ?? '',
   }
 }
-
-

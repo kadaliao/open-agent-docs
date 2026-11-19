@@ -48,7 +48,7 @@
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "gen:types": "npx openapi-typescript ../../docs/openapi.json -o src/openapi.ts"
+    "gen:types": "node scripts/gen-types.mjs"
   },
   "dependencies": {
     "@oad/db": "workspace:*",
@@ -63,7 +63,9 @@
     "@types/node": "^26.6.6",
     "@types/ws": "^8.5.12",
     "lib0": "^0.2.99",
+    "openapi-typescript": "^7",
     "typescript": "^7.0.2",
+    "typescript5": "npm:typescript@5.9.3",
     "vitest": "^5.1.1",
     "ws": "^8.18.0",
     "y-protocols": "^1.0.7",

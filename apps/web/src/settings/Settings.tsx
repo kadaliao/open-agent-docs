@@ -1,6 +1,6 @@
 // 设置：个人（名字、头像、语言、主题、密码）、工作区（名字、图标、成员和角色、邀请链接）、Agent。
 import { useEffect, useRef, useState } from 'react'
-import { api, ApiError, type Invite, type Me } from '../api'
+import { api, ApiError, type Invite, type Me, type Member, type Role } from '../api'
 import AgentsPage from '../AgentsPage'
 import { getLocalePref, setLocale, useLocale, type LocalePref } from '../i18n'
 import { applyTheme, colorFor, copyText, initials, navigate, usePath, useTheme, type Theme } from '../lib'
@@ -221,10 +221,6 @@ const EXPIRES: [number | null, keyof AppStrings][] = [
   [null, 'expiresNever'],
 ]
 
-interface Member {
-  role: string
-  user: { id: string; name: string; email?: string | null; avatar?: string | null }
-}
 
 function WorkspaceSettings({ store, me, onMe, isAdmin }: { store: PageStore; me: Me; onMe: (me: Me) => void; isAdmin: boolean }) {
   const ws = me.workspaces[0]
@@ -238,7 +234,7 @@ function WorkspaceSettings({ store, me, onMe, isAdmin }: { store: PageStore; me:
   const [newExp, setNewExp] = useState<number | null>(7 * 86400)
   const [fresh, setFresh] = useState<string | null>(null)
 
-  const loadMembers = () => api.members(store.ws).then((m) => setMembers(m as Member[]), () => setMembers([]))
+  const loadMembers = () => api.members(store.ws).then(setMembers, () => setMembers([]))
   const loadInvites = () => (isAdmin ? api.invites(store.ws).then(setInvites, () => setInvites([])) : Promise.resolve())
   useEffect(() => {
     loadMembers()
@@ -256,7 +252,7 @@ function WorkspaceSettings({ store, me, onMe, isAdmin }: { store: PageStore; me:
       flash(false, errText(e))
     }
   }
-  const setRole = async (m: Member, role: string) => {
+  const setRole = async (m: Member, role: Role) => {
     setMembers((l) => l?.map((x) => (x.user.id === m.user.id ? { ...x, role } : x)) ?? l)
     try {
       await api.patchMember(store.ws, m.user.id, role)
@@ -335,7 +331,7 @@ function WorkspaceSettings({ store, me, onMe, isAdmin }: { store: PageStore; me:
                 {m.user.email && <span className="muted">{m.user.email}</span>}
               </div>
               {isAdmin && m.user.id !== me.user.id ? (
-                <select className="set-select" value={m.role} aria-label={t('role')} onChange={(e) => setRole(m, e.target.value)}>
+                <select className="set-select" value={m.role} aria-label={t('role')} onChange={(e) => setRole(m, e.target.value as Role)}>
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
                       {roleLabel(r)}

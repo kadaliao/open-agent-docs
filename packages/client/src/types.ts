@@ -1,190 +1,82 @@
-// 接口里的数据结构。现在是照着 docs/phase*-contract.md 手写的；服务器出 OpenAPI 以后（utoipa），
-// 用 openapi-typescript 生成到 openapi.ts，这里改成从那里取（名字不变，用的地方不用改）。
+// 接口里的数据结构：从 docs/openapi.json 生成的 openapi.ts 里取（pnpm --filter @oad/client gen:types）。
+// 只有两种还是手写的：文档里只写了 `object`、没写里面是什么的（表结构、视图、几个 `{ name }` 之类，下面标着“文档没写”），
+// 和只在客户端里有的（WASM 引擎的接口、收件箱拍平以后的样子）。
+import type { components } from './openapi.ts'
 
-export interface Page {
-  id: string
-  // 第 4 阶段：database = 数据库，row = 库里的一行（侧栏不列）
-  kind?: 'page' | 'database' | 'row' | string
-  workspace_id?: string
-  parent_id: string | null
-  position: string
-  title: string
-  icon: string | null
-  updated_at: number
+type S = components['schemas']
+
+export type { components, paths, operations, webhooks } from './openapi.ts'
+
+export type Page = S['Page']
+export type Me = S['Me']
+export type Role = S['Role']
+export type Scope = S['Scope']
+export type SignupMode = S['SignupMode']
+export type PrincipalKind = S['PrincipalKind']
+/** 文档里 mode 只写了 string */
+export type AuthMode = 'local' | 'header' | 'none' | 'jwt'
+export type AuthConfig = Omit<S['AuthConfigBody'], 'mode'> & { mode: AuthMode }
+
+/** Agent 列表里的一项多 pending / webhook_error；建出来、改完返回的没有 */
+export type Agent = S['Agent'] & { pending?: number; webhook_error?: string | null }
+export type CreatedAgent = S['CreatedAgent']
+export type AgentNotification = S['AgentNotification']
+export type AgentNotes = S['AgentNotes']
+
+export type Person = S['AuthorRef']
+export type Comment = S['CommentView']
+export type AnchorIn = S['Anchor']
+export type Thread = S['ThreadView']
+
+export type SearchResult = S['SearchResult']
+/** 搜索结果，客户端按页合并以后多一个 hits（这一页一共命中几处） */
+export type SearchHit = SearchResult & { hits?: number }
+
+export type Version = S['VersionMeta']
+export type VersionList = S['VersionList']
+export type DiffBlock = S['BlockDiff']
+export type VersionDiff = S['VersionDiff']
+
+/** by：文档写的 object，实际也可能是认不出的人的原样引用（字符串）；old / new 是任意 JSON（文档写的 object） */
+export type DbHistoryItem = Omit<S['DbHistoryItem'], 'by' | 'old' | 'new'> & { by?: Person | string | null; old?: unknown; new?: unknown }
+export type DbHistory = Omit<S['DbHistory'], 'items'> & { items: DbHistoryItem[] }
+
+/** deleted_by：文档没写里面是什么 */
+export type TrashItem = Omit<S['TrashItem'], 'deleted_by'> & { deleted_by?: Person | string | null }
+export type TrashList = Omit<S['TrashList'], 'items'> & { items: TrashItem[] }
+
+export type Share = S['ShareView']
+export type Invite = S['InviteView']
+/** workspace / invited_by：文档没写里面是什么 */
+export type InviteInfo = Omit<S['InviteInfo'], 'workspace' | 'invited_by'> & {
+  workspace: { id: string; name: string; icon?: string | null }
+  invited_by?: { name: string } | null
 }
+export type Member = S['Member']
+export type Workspace = S['Workspace']
+export type Uploaded = S['Uploaded']
+export type UnfurlCard = S['UnfurlCard']
 
-export interface Me {
-  user: { id: string; name: string; email?: string | null; kind?: string; avatar?: string | null; locale?: string | null }
-  workspaces: { id: string; name: string; icon?: string | null; role: 'viewer' | 'editor' | 'admin' | 'owner' }[]
-}
-
-export type AuthMode = 'local' | 'header' | 'none'
-
-export type Scope = 'read' | 'write' | 'admin'
-
-export interface Agent {
-  id: string
-  name: string
-  about?: string | null
-  scope: Scope
-  webhook?: string | null
-  created_by?: string | null
-  created_at: number
-  last_used_at?: number | null
-  revoked_at?: number | null
-  // 下面两项约定里没写，服务器给了就显示
-  pending?: number
-  pending_notifications?: number
-  webhook_error?: string | null
-}
-
-export interface Person {
-  kind: 'user' | 'agent' | string
-  id: string
-  name: string
-}
-
-export interface Comment {
-  id: string
-  thread_id: string
-  author_kind: string
-  author_id: string
-  author?: Person
-  body: string
-  created_at: number
-  edited_at?: number | null
-  deleted_at?: number | null
-}
-
-export interface AnchorIn {
-  block_id: string | null
-  start: string
-  end: string
-  quote: string
-}
-
-export interface Thread {
-  id: string
-  page_id: string
-  block_id?: string | null
-  // 约定的表字段是 anchor_start / anchor_end，也接受 anchor 对象
-  anchor?: { block_id?: string | null; start?: string | null; end?: string | null; quote?: string | null } | null
-  anchor_start?: string | null
-  anchor_end?: string | null
-  quote?: string | null
-  created_by?: string | null
-  created_at: number
-  resolved_at?: number | null
-  resolved_by?: string | null
-  comments: Comment[]
-}
-
+export type InboxNotification = S['InboxNotification']
+export type Inbox = S['Inbox']
+/** 收件箱的一条，客户端把 data 里的东西拍平到外面（data 文档没写里面是什么） */
 export interface InboxItem {
-  id: number | string
-  kind?: string
-  type?: string
+  id: number
+  type: string
+  workspace_id?: string
   page?: { id: string; title?: string } | null
-  page_id?: string
   thread_id?: string | null
   comment?: { id?: string; author?: Person; body?: string } | null
-  actor?: Person | null
   by?: Person | null
   quote?: string | null
   created_at: number
   read_at?: number | null
-  // 服务器把内容放在 data 里（{ id, type, data: { page, thread_id, comment, quote, by }, created_at, read_at }）
-  data?: Partial<InboxItem>
+  data?: Record<string, unknown>
 }
 
+// ---------- 数据库 ----------
+// 表结构、视图在文档里只写了 object，这里照 docs/phase4-contract.md 手写。
 
-export interface SearchHit {
-  page_id: string
-  block_id?: string | null
-  title: string
-  /** 命中的片段，命中的词用 <mark> 包着（别的都转义过） */
-  snippet?: string
-  kind: 'page' | 'row' | 'database' | string
-  score?: number
-  updated_at?: number
-  icon?: string | null
-  /** 这一页一共命中几处（服务器按页合并以后给） */
-  hits?: number
-}
-
-export interface Version {
-  id: string
-  created_at: number
-  kind: 'auto' | 'agent' | 'restore' | 'manual' | string
-  label?: string | null
-  authors?: Person[]
-}
-
-export interface DiffBlock {
-  op: 'same' | 'added' | 'removed' | 'changed'
-  id?: string | null
-  type?: string
-  /** 那一版 / 现在的 Markdown */
-  before?: string | null
-  after?: string | null
-  by?: Person[]
-}
-export interface VersionDiff {
-  blocks: DiffBlock[]
-}
-
-export interface DbHistoryItem {
-  seq: number
-  kind: 'cell' | 'schema' | 'row' | string
-  row_id?: string | null
-  row_title?: string | null
-  prop?: string | null
-  prop_name?: string | null
-  old?: unknown
-  new?: unknown
-  /** 给人看的说明（表结构改动） */
-  summary?: string | null
-  by?: Person | string | null
-  at: number
-  undone?: boolean
-}
-
-export interface TrashItem {
-  id: string
-  title: string
-  icon?: string | null
-  kind?: 'page' | 'database' | 'row' | string
-  deleted_at: number
-  deleted_by?: Person | string | null
-  parent_title?: string | null
-}
-
-export interface Share {
-  url: string
-  token?: string
-  include_children?: boolean
-  indexable?: boolean
-  created_at?: number
-}
-
-export interface Invite {
-  token: string
-  url: string
-  role: string
-  expires_at?: number | null
-  created_at?: number
-  uses?: number
-}
-
-export interface InviteInfo {
-  workspace: { id: string; name: string; icon?: string | null }
-  role: string
-  invited_by?: { name: string } | null
-  expires_at?: number | null
-  signup?: boolean
-}
-
-
-// ---------- 数据库（docs/phase4-contract.md） ----------
 export type PropType =
   | 'title'
   | 'text'
@@ -273,23 +165,17 @@ export interface View {
   cover?: string | null
   card_size?: 'small' | 'medium' | 'large'
   wrap?: boolean
-  // 下面几项约定里没列，网页存进视图：每列底部的汇总函数、折叠了的分组
+  // 每列底部的汇总函数、折叠了的分组
   totals?: Record<string, string>
   collapsed?: string[]
 }
 
-export interface Row {
-  id: string
-  seq?: number
-  // 手动排序的位置（服务器给的分数索引，按字符串比大小）
-  position?: string
-  props: Record<string, unknown>
-  created_at?: number
-  created_by?: string
-  updated_at?: number
-  updated_by?: string
-  unique_id?: number
-}
+/** 服务器存的一行（DbRow）。客户端乐观加的行还没有服务器给的那些字段，所以除了 id、props 都可以没有 */
+export type DbRow = S['DbRow']
+export type Row = Pick<DbRow, 'id'> & Partial<Omit<DbRow, 'id' | 'props'>> & { props: Record<string, unknown> }
+export type RowsDelta = S['RowsDelta']
+/** 服务器查询（POST /databases/{id}/query）的结果；和下面 WASM 引擎的 QueryResult 不是一个东西 */
+export type ServerQueryResult = S['QueryResult']
 
 export interface DateValue {
   start: string
@@ -325,9 +211,5 @@ export interface DbEngine {
   normalize(key: string, input: unknown): unknown
 }
 
-export interface DbMeta {
-  page: { id: string; title: string; icon?: string | null; parent_id?: string | null; workspace_id?: string }
-  schema: Schema
-  views: View[]
-  seq: number
-}
+/** GET /databases/{id}：schema / views 文档里只写了 object */
+export type DbMeta = Omit<S['DbInfo'], 'schema' | 'views'> & { schema: Schema; views: View[] }

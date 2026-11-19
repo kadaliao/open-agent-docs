@@ -10,7 +10,7 @@ function personOf(by: DbHistoryItem['by'], people: Map<string, Person>): Person 
   if (!by) return null
   if (typeof by !== 'string') return by
   const [kind, id] = by.includes(':') ? by.split(':') : ['user', by]
-  return people.get(id) ?? { kind, id, name: id }
+  return people.get(id) ?? { kind: kind === 'agent' ? 'agent' : 'user', id, name: id }
 }
 
 export function DbHistory({ rowId, onClose }: { rowId?: string; onClose?: () => void }) {
@@ -23,7 +23,7 @@ export function DbHistory({ rowId, onClose }: { rowId?: string; onClose?: () => 
   const load = () =>
     store.client.dbHistory(store.id, rowId ? { row: rowId } : {}).then(
       (r) => {
-        setItems([...r].sort((a, b) => b.seq - a.seq))
+        setItems([...r.items].sort((a, b) => b.seq - a.seq))
         setError(null)
       },
       (e) => {

@@ -70,7 +70,7 @@ export default function AgentsPage({ store, canManage }: { store: PageStore; can
           ) : (
             <div className="agent-list">
               {list.map((a) => {
-                const pending = a.pending ?? a.pending_notifications
+                const pending = a.pending
                 return (
                   <div key={a.id} className={'agent-row' + (a.revoked_at ? ' is-revoked' : '')} data-agent={a.name}>
                     <span className="avatar is-agent" style={{ background: colorFor(a.id) }}>

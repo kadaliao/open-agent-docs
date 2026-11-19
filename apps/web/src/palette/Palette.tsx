@@ -55,7 +55,7 @@ function localHits(pages: { id: string; title: string; icon?: string | null; kin
     .map((p) => {
       let title = esc(p.title || '')
       for (const w of words) title = title.replace(new RegExp(esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), (m) => `<mark>${m}</mark>`)
-      return { page_id: p.id, title: p.title, snippet: title, kind: p.kind ?? 'page', icon: p.icon }
+      return { page_id: p.id, title: p.title, snippet: title, kind: p.kind ?? 'page', icon: p.icon, blocks: 0, score: 0, updated_at: 0 }
     })
 }
 

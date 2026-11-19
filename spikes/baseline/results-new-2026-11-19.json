@@ -1,0 +1,4405 @@
+{
+ "server": {
+  "footprint": {
+   "binary_mb": 39.2,
+   "embedded_web_mb": null,
+   "docker_image_mb": null
+  },
+  "coldstart": {
+   "empty_ms": {
+    "n": 21,
+    "p50": 38.91,
+    "p95": 66.03,
+    "min": 34.09,
+    "max": 83.93
+   },
+   "existing_ms": {
+    "n": 21,
+    "p50": 20.37,
+    "p95": 27.19,
+    "min": 12.93,
+    "max": 29.26
+   },
+   "rss_empty_mb": {
+    "n": 21,
+    "p50": 17.33,
+    "p95": 17.42,
+    "min": 17.17,
+    "max": 17.42
+   },
+   "rss_existing_mb": {
+    "n": 21,
+    "p50": 17.28,
+    "p95": 17.45,
+    "min": 17.16,
+    "max": 75.53
+   },
+   "raw": {
+    "empty": [
+     66.028083,
+     40.593875,
+     37.824334,
+     43.89475,
+     35.496333,
+     37.269084,
+     41.158875,
+     37.153792,
+     36.020291,
+     34.582625,
+     34.930125,
+     43.59425,
+     35.207542,
+     39.116375,
+     38.912958,
+     39.409584,
+     34.094,
+     83.932375,
+     37.34325,
+     47.33225,
+     49.021
+    ],
+    "existing": [
+     25.649292,
+     27.189084,
+     24.606291,
+     13.436084,
+     18.582708,
+     19.634417,
+     24.2245,
+     20.370875,
+     21.152083,
+     22.891333,
+     12.930958,
+     20.096333,
+     25.45425,
+     17.276459,
+     17.76675,
+     17.99675,
+     29.25675,
+     20.080542,
+     17.526208,
+     23.834042,
+     26.646084
+    ],
+    "rss_empty": [
+     17.28125,
+     17.328125,
+     17.421875,
+     17.328125,
+     17.28125,
+     17.34375,
+     17.328125,
+     17.390625,
+     17.328125,
+     17.171875,
+     17.34375,
+     17.296875,
+     17.421875,
+     17.3125,
+     17.296875,
+     17.265625,
+     17.296875,
+     17.3125,
+     17.34375,
+     17.3125,
+     17.328125
+    ],
+    "rss_existing": [
+     75.53125,
+     17.25,
+     17.328125,
+     17.25,
+     17.3125,
+     17.296875,
+     17.28125,
+     17.25,
+     17.28125,
+     17.203125,
+     17.234375,
+     17.21875,
+     17.28125,
+     17.265625,
+     17.25,
+     17.34375,
+     17.3125,
+     17.234375,
+     17.328125,
+     17.15625,
+     17.453125
+    ]
+   },
+   "loadavg_before": [
+    197.7,
+    227.4,
+    170.7
+   ],
+   "loadavg_after": [
+    161.6,
+    213.3,
+    168.4
+   ]
+  },
+  "search": {
+   "rounds": [
+    {
+     "pages": 500,
+     "load_s": 1.7,
+     "indexed_after_load_ms": 2674,
+     "ui_search_ms": {
+      "n": 150,
+      "p50": 3.68,
+      "p95": 6.9,
+      "min": 0.98,
+      "max": 21.1
+     },
+     "ui_search_zh_ms": {
+      "n": 75,
+      "p50": 3.39,
+      "p95": 7.07,
+      "min": 1.41,
+      "max": 21.1
+     },
+     "ui_search_en_ms": {
+      "n": 75,
+      "p50": 3.93,
+      "p95": 6.75,
+      "min": 0.98,
+      "max": 11.77
+     },
+     "ui_hits_avg": 19.7,
+     "slowest": [
+      {
+       "q": "进度",
+       "ms": 7.54
+      },
+      {
+       "q": "项目",
+       "ms": 7.15
+      },
+      {
+       "q": "project",
+       "ms": 6.29
+      },
+      {
+       "q": "notes",
+       "ms": 6.06
+      },
+      {
+       "q": "roadmap",
+       "ms": 5.93
+      }
+     ],
+     "mcp_search_ms": {
+      "n": 150,
+      "p50": 3.48,
+      "p95": 5.66,
+      "min": 1.1,
+      "max": 8.57
+     },
+     "no_hit_ms": {
+      "n": 20,
+      "p50": 0.32,
+      "p95": 1.31,
+      "min": 0.27,
+      "max": 1.41
+     },
+     "search_after_edit_ms": {
+      "n": 8,
+      "p50": 7.34,
+      "p95": 10.68,
+      "min": 4.52,
+      "max": 11.36
+     },
+     "edit_searchable_after_ms": {
+      "n": 8,
+      "p50": 1131.98,
+      "p95": 1151.09,
+      "min": 1125.57,
+      "max": 1154.39
+     },
+     "rss_after_mb": 80.2,
+     "rss_peak_mb": 378.5,
+     "data_dir_mb": 43.9,
+     "coldstart_with_corpus_ms": {
+      "n": 3,
+      "p50": 23.33,
+      "p95": 25.82,
+      "min": 14.37,
+      "max": 26.1
+     },
+     "rss_idle_with_corpus_mb": {
+      "n": 3,
+      "p50": 17.78,
+      "p95": 17.85,
+      "min": 13.27,
+      "max": 17.86
+     },
+     "loadavg_before": [
+      182.1,
+      212.4,
+      169.9
+     ],
+     "loadavg_after": [
+      189.8,
+      212.2,
+      170.8
+     ]
+    },
+    {
+     "pages": 500,
+     "load_s": 2,
+     "indexed_after_load_ms": 2918,
+     "ui_search_ms": {
+      "n": 150,
+      "p50": 3.77,
+      "p95": 9.3,
+      "min": 1.31,
+      "max": 21.89
+     },
+     "ui_search_zh_ms": {
+      "n": 75,
+      "p50": 3.62,
+      "p95": 7.88,
+      "min": 1.35,
+      "max": 21.89
+     },
+     "ui_search_en_ms": {
+      "n": 75,
+      "p50": 4.09,
+      "p95": 9.69,
+      "min": 1.31,
+      "max": 10.4
+     },
+     "ui_hits_avg": 19.7,
+     "slowest": [
+      {
+       "q": "设计",
+       "ms": 13.51
+      },
+      {
+       "q": "meeting",
+       "ms": 9.91
+      },
+      {
+       "q": "project",
+       "ms": 8.36
+      },
+      {
+       "q": "requirement",
+       "ms": 6.7
+      },
+      {
+       "q": "design",
+       "ms": 6.62
+      }
+     ],
+     "mcp_search_ms": {
+      "n": 150,
+      "p50": 2.62,
+      "p95": 5.96,
+      "min": 0.83,
+      "max": 35.51
+     },
+     "no_hit_ms": {
+      "n": 20,
+      "p50": 0.48,
+      "p95": 1.11,
+      "min": 0.28,
+      "max": 1.23
+     },
+     "search_after_edit_ms": {
+      "n": 8,
+      "p50": 5.75,
+      "p95": 19.03,
+      "min": 3.14,
+      "max": 23.56
+     },
+     "edit_searchable_after_ms": {
+      "n": 8,
+      "p50": 1135.83,
+      "p95": 1162.81,
+      "min": 1123.1,
+      "max": 1167.13
+     },
+     "rss_after_mb": 193.5,
+     "rss_peak_mb": 337.5,
+     "data_dir_mb": 39.8,
+     "coldstart_with_corpus_ms": {
+      "n": 3,
+      "p50": 18.02,
+      "p95": 22.6,
+      "min": 16.64,
+      "max": 23.11
+     },
+     "rss_idle_with_corpus_mb": {
+      "n": 3,
+      "p50": 17.56,
+      "p95": 17.65,
+      "min": 17.42,
+      "max": 17.66
+     },
+     "loadavg_before": [
+      189.8,
+      212.2,
+      170.8
+     ],
+     "loadavg_after": [
+      199,
+      212.8,
+      172
+     ]
+    },
+    {
+     "pages": 500,
+     "load_s": 1.1,
+     "indexed_after_load_ms": 3008,
+     "ui_search_ms": {
+      "n": 150,
+      "p50": 5.37,
+      "p95": 8.62,
+      "min": 0.67,
+      "max": 16.37
+     },
+     "ui_search_zh_ms": {
+      "n": 75,
+      "p50": 4.75,
+      "p95": 9.09,
+      "min": 1.32,
+      "max": 16.37
+     },
+     "ui_search_en_ms": {
+      "n": 75,
+      "p50": 5.59,
+      "p95": 8.53,
+      "min": 0.67,
+      "max": 10.35
+     },
+     "ui_hits_avg": 19.7,
+     "slowest": [
+      {
+       "q": "project",
+       "ms": 12.55
+      },
+      {
+       "q": "token",
+       "ms": 10.83
+      },
+      {
+       "q": "notes",
+       "ms": 9.58
+      },
+      {
+       "q": "meeting",
+       "ms": 9.19
+      },
+      {
+       "q": "logging",
+       "ms": 8.9
+      }
+     ],
+     "mcp_search_ms": {
+      "n": 150,
+      "p50": 3.31,
+      "p95": 8.45,
+      "min": 1.21,
+      "max": 24.95
+     },
+     "no_hit_ms": {
+      "n": 20,
+      "p50": 0.7,
+      "p95": 0.96,
+      "min": 0.6,
+      "max": 1
+     },
+     "search_after_edit_ms": {
+      "n": 8,
+      "p50": 7.55,
+      "p95": 10.5,
+      "min": 5.14,
+      "max": 10.55
+     },
+     "edit_searchable_after_ms": {
+      "n": 8,
+      "p50": 1126.08,
+      "p95": 1138.33,
+      "min": 1117.86,
+      "max": 1138.6
+     },
+     "rss_after_mb": 303.7,
+     "rss_peak_mb": 486.6,
+     "data_dir_mb": 39.8,
+     "coldstart_with_corpus_ms": {
+      "n": 3,
+      "p50": 20.56,
+      "p95": 23.3,
+      "min": 19.54,
+      "max": 23.6
+     },
+     "rss_idle_with_corpus_mb": {
+      "n": 3,
+      "p50": 17.91,
+      "p95": 17.91,
+      "min": 17.78,
+      "max": 17.91
+     },
+     "loadavg_before": [
+      199,
+      212.8,
+      172
+     ],
+     "loadavg_after": [
+      207,
+      213.8,
+      173.3
+     ]
+    }
+   ]
+  },
+  "unfurl": {
+   "urls": {
+    "x": "https://x.com/vercel/status/1683920951807971329",
+    "youtube": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+   },
+   "rounds": [
+    {
+     "loadavg_before": [
+      205.9,
+      213.4,
+      173.4
+     ],
+     "x": {
+      "api_uncached_ms": 1344.8,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 1.18,
+       "p95": 3.35,
+       "min": 0.65,
+       "max": 4.78
+      },
+      "kind": "post",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 51.6,
+       "p95": 91.83,
+       "min": 20.7,
+       "max": 96.3
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 51.7,
+       "p95": 91.84,
+       "min": 48.5,
+       "max": 96.3
+      }
+     },
+     "youtube": {
+      "api_uncached_ms": 1080.4,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 0.31,
+       "p95": 0.74,
+       "min": 0.18,
+       "max": 0.77
+      },
+      "kind": "video",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 36.7,
+       "p95": 42.64,
+       "min": 32.6,
+       "max": 43.3
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 43.4,
+       "p95": 52.94,
+       "min": 36.7,
+       "max": 54
+      }
+     },
+     "loadavg_after": [
+      206.7,
+      213.5,
+      173.6
+     ]
+    },
+    {
+     "loadavg_before": [
+      206.7,
+      213.5,
+      173.6
+     ],
+     "x": {
+      "api_uncached_ms": 1078.4,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 0.53,
+       "p95": 1.77,
+       "min": 0.32,
+       "max": 2.67
+      },
+      "kind": "post",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 43.8,
+       "p95": 61.53,
+       "min": 27.2,
+       "max": 63.5
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 54.4,
+       "p95": 62.59,
+       "min": 43.8,
+       "max": 63.5
+      }
+     },
+     "youtube": {
+      "api_uncached_ms": 1061.7,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 0.78,
+       "p95": 2.5,
+       "min": 0.23,
+       "max": 2.92
+      },
+      "kind": "video",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 30.2,
+       "p95": 37.94,
+       "min": 29.5,
+       "max": 38.8
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 30.2,
+       "p95": 37.94,
+       "min": 29.5,
+       "max": 38.8
+      }
+     },
+     "loadavg_after": [
+      211.9,
+      214.4,
+      174.4
+     ]
+    },
+    {
+     "loadavg_before": [
+      211.9,
+      214.4,
+      174.4
+     ],
+     "x": {
+      "api_uncached_ms": 1745.8,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 0.72,
+       "p95": 3.39,
+       "min": 0.36,
+       "max": 4.29
+      },
+      "kind": "post",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 30.3,
+       "p95": 42.45,
+       "min": 13.5,
+       "max": 43.8
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 30.3,
+       "p95": 42.45,
+       "min": 30.3,
+       "max": 43.8
+      }
+     },
+     "youtube": {
+      "api_uncached_ms": 1343.9,
+      "api_cached_ms": {
+       "n": 10,
+       "p50": 0.59,
+       "p95": 1.2,
+       "min": 0.28,
+       "max": 1.26
+      },
+      "kind": "video",
+      "title": true,
+      "browser_skeleton_ms": {
+       "n": 3,
+       "p50": 16.3,
+       "p95": 32.23,
+       "min": 15.9,
+       "max": 34
+      },
+      "browser_full_cached_ms": {
+       "n": 3,
+       "p50": 30.7,
+       "p95": 33.67,
+       "min": 29.7,
+       "max": 34
+      }
+     },
+     "loadavg_after": [
+      216,
+      215.2,
+      174.9
+     ]
+    }
+   ]
+  },
+  "machine": {
+   "at": "2026-11-19T02:38:08.568Z",
+   "loadavg_end": [
+    216,
+    215.2,
+    174.9
+   ]
+  }
+ },
+ "browser": [
+  {
+   "perf": {
+    "at": "2026-11-19T02:39:37.180Z",
+    "blockCount": 2998,
+    "page": {
+     "topLevel": 522,
+     "blocks": 2998,
+     "markdownKB": 51.6
+    },
+    "openUncached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 277.6,
+      "p95": 339,
+      "min": 214.4,
+      "max": 339
+     },
+     "editorFull": {
+      "n": 7,
+      "p50": 293,
+      "p95": 390.5,
+      "min": 234.7,
+      "max": 390.5
+     }
+    },
+    "openCached": {
+     "reloadFirstContent": {
+      "n": 7,
+      "p50": 46.3,
+      "p95": 70.7,
+      "min": 40.6,
+      "max": 70.7
+     },
+     "firstContentFrom": [
+      "snapshot"
+     ],
+     "reloadEditorFull": {
+      "n": 7,
+      "p50": 222.3,
+      "p95": 282.1,
+      "min": 146.4,
+      "max": 282.1
+     },
+     "inAppSwitchEditorFull": {
+      "n": 7,
+      "p50": 129.3,
+      "p95": 230.3,
+      "min": 83.7,
+      "max": 230.3
+     }
+    },
+    "typing": {
+     "keydownToDom": {
+      "n": 86,
+      "p50": 3.1,
+      "p95": 6.5,
+      "min": 2.4,
+      "max": 22.9
+     },
+     "keydownToNextFrame": {
+      "n": 86,
+      "p50": 4.9,
+      "p95": 16.6,
+      "min": 2.5,
+      "max": 23.6
+     }
+    },
+    "typingConcurrent": {
+     "keydownToDom": {
+      "n": 172,
+      "p50": 2.9,
+      "p95": 5.5,
+      "min": 2.2,
+      "max": 21.8
+     },
+     "keydownToNextFrame": {
+      "n": 172,
+      "p50": 4.4,
+      "p95": 15.8,
+      "min": 2.3,
+      "max": 27.4
+     }
+    },
+    "embedScroll": {
+     "firstPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 150
+      },
+      "fps": 56.8,
+      "droppedOver25ms": 5
+     },
+     "secondPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 133.3
+      },
+      "fps": 57.8,
+      "droppedOver25ms": 3
+     },
+     "cards": 10
+    },
+    "embedOpen": {
+     "with10Videos": {
+      "n": 5,
+      "p50": 96.7,
+      "p95": 178.6,
+      "min": 93.3,
+      "max": 178.6
+     },
+     "withoutVideos": {
+      "n": 5,
+      "p50": 94.3,
+      "p95": 248.1,
+      "min": 91.7,
+      "max": 248.1
+     }
+    },
+    "bundle": {
+     "entry": {
+      "file": "index-3U_4tsFq.js",
+      "kb": 250.7,
+      "gzipKB": 79.9
+     },
+     "pageViewChunk": {
+      "file": "PageView-C3VnMfp0.js",
+      "kb": 24.6,
+      "gzipKB": 9
+     },
+     "openPageTotalGzipKB": 98.2,
+     "allJs": [
+      {
+       "file": "DbPage-CSYDbgRe.js",
+       "kb": 146.9,
+       "gzipKB": 44.9
+      },
+      {
+       "file": "History-MXxLILTN.js",
+       "kb": 12.2,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "Inbox-CeEtKC9N.js",
+       "kb": 3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "Invite-VNd6n_42.js",
+       "kb": 3.3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "PageView-C3VnMfp0.js",
+       "kb": 24.6,
+       "gzipKB": 9
+      },
+      {
+       "file": "Palette-BlSah1WC.js",
+       "kb": 9.6,
+       "gzipKB": 4
+      },
+      {
+       "file": "Settings-CuWf10LP.js",
+       "kb": 18.6,
+       "gzipKB": 5.2
+      },
+      {
+       "file": "Shell-BHaXp3NM.js",
+       "kb": 0.6,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "TableToolbar-DlyPjxPd.js",
+       "kb": 1.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "Trash-CuEay7Nr.js",
+       "kb": 3.2,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "abnfDiagram-S7VZAUFO-CXiM6oPK.js",
+       "kb": 1.8,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "api-ZJML_BEW.js",
+       "kb": 12.1,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "architecture-WOLXFQ4H-DuykQqVM.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "architectureDiagram-YGSQEFNW-BanG-yE8.js",
+       "kb": 145.4,
+       "gzipKB": 39.7
+      },
+      {
+       "file": "base-BOR-OCcJ.js",
+       "kb": 579.3,
+       "gzipKB": 182.4
+      },
+      {
+       "file": "bash-CVTB3cr6.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "blockDiagram-APKKGZFW-BH5Jyxea.js",
+       "kb": 41.4,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "bpmnIcons-APHXDYXF-C0jbCElo.js",
+       "kb": 5.1,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "c-Cz4nF6n_.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "c-SSSlmE39.js",
+       "kb": 70.4,
+       "gzipKB": 10.2
+      },
+      {
+       "file": "c4Diagram-KJ2TOQU5-MQveXHd2.js",
+       "kb": 63.6,
+       "gzipKB": 18
+      },
+      {
+       "file": "cards-CMXnn-bz.js",
+       "kb": 21.1,
+       "gzipKB": 8.4
+      },
+      {
+       "file": "chunk-2Q5K7J3B-C1jixKkw.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-5VM5RSS4-ZNzvKenW.js",
+       "kb": 0.4,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "chunk-6MUBBAK2-BayZtE3O.js",
+       "kb": 15,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "chunk-AXFCVDMN-BHiGSpXu.js",
+       "kb": 119.9,
+       "gzipKB": 30.4
+      },
+      {
+       "file": "chunk-BG4553SI-FkkWBmdc.js",
+       "kb": 235.2,
+       "gzipKB": 36.3
+      },
+      {
+       "file": "chunk-DQASFODM-COKXTxmx.js",
+       "kb": 47.5,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "chunk-DUW6YSOI-Dgx8z5s3.js",
+       "kb": 0.9,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-HFQBQIA3-CeOBDA_J.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-J5ZVWO5B-oDCd-gWO.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-JWPE2WC7-DVXcaiue.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-KQLB2F66-7_HiAsR5.js",
+       "kb": 10.1,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-KS47KZWR-BnV_5m6Y.js",
+       "kb": 5.3,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "chunk-LEVMRMFU-D6pqZGyO.js",
+       "kb": 1.4,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "chunk-M57EVK23-DEgLT8Ex.js",
+       "kb": 14.6,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "chunk-NGNAAXSQ-DI_UYJZ4.js",
+       "kb": 614.3,
+       "gzipKB": 122.9
+      },
+      {
+       "file": "chunk-OY52VR5R-DGyjRAXQ.js",
+       "kb": 15.3,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-QB3YPZ4I-DeZp5uIh.js",
+       "kb": 62.9,
+       "gzipKB": 20
+      },
+      {
+       "file": "chunk-R3KSYZAL-DnE7_Znv.js",
+       "kb": 5.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "chunk-STOXU5M4-X0XJ6Wta.js",
+       "kb": 50,
+       "gzipKB": 16.1
+      },
+      {
+       "file": "chunk-TU62E6Q5-CbeSza8c.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-X4PVCEUW-DeSK6zp4.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-XXDRQBXY-i7MKP1NY.js",
+       "kb": 0.3,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-Y2CYZVJY-DsF7k-Jl.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "classDiagram-v2-L25IHNXF-CdErUIcE.js",
+       "kb": 48.5,
+       "gzipKB": 15.5
+      },
+      {
+       "file": "conn-DeUBbNaX.js",
+       "kb": 12.6,
+       "gzipKB": 4.7
+      },
+      {
+       "file": "core-DdF778CY.js",
+       "kb": 111.1,
+       "gzipKB": 35
+      },
+      {
+       "file": "cose-bilkent-JH36ORCC-C6J2IoHg.js",
+       "kb": 79.3,
+       "gzipKB": 20.8
+      },
+      {
+       "file": "cpp-Cts1PyIS.js",
+       "kb": 778.3,
+       "gzipKB": 52.9
+      },
+      {
+       "file": "cpp-DzjeI0uH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "csharp-dmMxLVLW.js",
+       "kb": 89.3,
+       "gzipKB": 10.4
+      },
+      {
+       "file": "css-BGIxQoYs.js",
+       "kb": 52.1,
+       "gzipKB": 12.1
+      },
+      {
+       "file": "css-DgaLhXQH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefin-EF2NZ3EQ-_NyRGpmQ.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefinDiagram-L36ESFBY-JMDdfA-k.js",
+       "kb": 9.7,
+       "gzipKB": 3.4
+      },
+      {
+       "file": "cytoscape.esm-nTrd5EVq.js",
+       "kb": 431.4,
+       "gzipKB": 135.2
+      },
+      {
+       "file": "d3-scale-CElPUUud.js",
+       "kb": 39.7,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "d3-selection-COWvaQNI.js",
+       "kb": 20.4,
+       "gzipKB": 7.1
+      },
+      {
+       "file": "dagre-SPEB5RXH-DGpVoS-H.js",
+       "kb": 46.7,
+       "gzipKB": 16.5
+      },
+      {
+       "file": "dart-CHZY9Xhz.js",
+       "kb": 8.4,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "db-wasm-JTXsVyIg.js",
+       "kb": 7.8,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "diagram-3B7GL73J-Bk68ruD1.js",
+       "kb": 78.6,
+       "gzipKB": 24.2
+      },
+      {
+       "file": "diagram-DNEMPZML-D5fFXpaG.js",
+       "kb": 4.3,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "diagram-L3MUGCDN-DD1Sa98z.js",
+       "kb": 5.9,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "diagram-LA4NIPWU-CRoGhW-f.js",
+       "kb": 15.8,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "diagram-MHCOC4E2-e62jpo4B.js",
+       "kb": 10.7,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "diagram-XPFHEONP-BV5MX4zg.js",
+       "kb": 7.9,
+       "gzipKB": 3.5
+      },
+      {
+       "file": "diff-woXpYk--.js",
+       "kb": 2.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "dist-DdXDFcej.js",
+       "kb": 25,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "docker-IyjqRm3v.js",
+       "kb": 1.7,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "ebnfDiagram-UZSYDL2S-CciHvU40.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "elixir-raGDl1oO.js",
+       "kb": 15.9,
+       "gzipKB": 2.7
+      },
+      {
+       "file": "elk-XV6XMXQE-C7z3qt-W.js",
+       "kb": 1463.8,
+       "gzipKB": 447.9
+      },
+      {
+       "file": "engine-javascript-C30F4iNc.js",
+       "kb": 56.6,
+       "gzipKB": 19.6
+      },
+      {
+       "file": "erDiagram-EYBAPDEH-Ct5WLnID.js",
+       "kb": 29.9,
+       "gzipKB": 10.3
+      },
+      {
+       "file": "esm-CjrQfb06.js",
+       "kb": 2.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "eventmodeling-K75KTNOO-2FQEK2W8.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "flowDiagram-MALGAFMO-CVz9-a_p.js",
+       "kb": 0.5,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "ganttDiagram-23REXITY-COEiHuNk.js",
+       "kb": 51.8,
+       "gzipKB": 17.1
+      },
+      {
+       "file": "gitGraph-VSP46ZUC-B5FsyDrc.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "gitGraphDiagram-STJD7YCW-d4jvJsAU.js",
+       "kb": 28.3,
+       "gzipKB": 8.3
+      },
+      {
+       "file": "github-dark-C-LZuMrd.js",
+       "kb": 11.1,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "github-light-EUqPIrTm.js",
+       "kb": 10.9,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "go-rLFTqkRN.js",
+       "kb": 45.7,
+       "gzipKB": 4.9
+      },
+      {
+       "file": "graphlib-DS17s2tU.js",
+       "kb": 23.3,
+       "gzipKB": 8.1
+      },
+      {
+       "file": "graphql-BHtseKAV.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "graphql-f69H1Mm0.js",
+       "kb": 17.6,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "haskell-D8IpX4py.js",
+       "kb": 40.5,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "html-BCy9P6D2.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "html-DSw1lh5G.js",
+       "kb": 55.9,
+       "gzipKB": 11.4
+      },
+      {
+       "file": "index-3U_4tsFq.js",
+       "kb": 250.7,
+       "gzipKB": 79.9
+      },
+      {
+       "file": "info-OHQRW6UA-DKqfr6TY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "infoDiagram-KBXO4MBG-D8WV1vWL.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "ini-B5eOa1yu.js",
+       "kb": 1.5,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "ishikawaDiagram-M35NCXHK-3KXs83up.js",
+       "kb": 16.9,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "java-BtIQNnN0.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "java-_ATy9zCa.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "javascript-BzbQS41l.js",
+       "kb": 170.7,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "javascript-CpIGwZ_Y.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "journeyDiagram-OPLOXDXO-DJehl3_Z.js",
+       "kb": 22.6,
+       "gzipKB": 7.9
+      },
+      {
+       "file": "json-B88Oqtu5.js",
+       "kb": 2.7,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "json-C3WlssX3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-C4yDKi0A.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-D3KKoC5L.js",
+       "kb": 173.6,
+       "gzipKB": 15.8
+      },
+      {
+       "file": "kanban-definition-BZKZHSQY-CMh5kYf1.js",
+       "kb": 19.8,
+       "gzipKB": 7
+      },
+      {
+       "file": "katex-BN_UgUnm.js",
+       "kb": 253,
+       "gzipKB": 74.8
+      },
+      {
+       "file": "kotlin-DhhofPvG.js",
+       "kb": 8.6,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "latex-CckfBvVy.js",
+       "kb": 80.9,
+       "gzipKB": 9.2
+      },
+      {
+       "file": "lua-DjuecEsk.js",
+       "kb": 15.2,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "lua-fPRBWD-V.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "make-Dixweg8N.js",
+       "kb": 8.7,
+       "gzipKB": 1.7
+      },
+      {
+       "file": "markdown-BYOwaDjH.js",
+       "kb": 57.9,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "media-CBmALGRc.js",
+       "kb": 3.3,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "mermaid-parser.core-CmnbuAM1.js",
+       "kb": 16.1,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "mermaid.core-DNn2MyQP.js",
+       "kb": 82.9,
+       "gzipKB": 28.3
+      },
+      {
+       "file": "mindmap-definition-I2QAS2VK-CMT8c_ZJ.js",
+       "kb": 22.3,
+       "gzipKB": 7.5
+      },
+      {
+       "file": "nginx-BxRBJ-Af.js",
+       "kb": 34.5,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "oad_markdown-eG68l04I.js",
+       "kb": 3.6,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "objective-c-D1A_Heim.js",
+       "kb": 102.9,
+       "gzipKB": 22.7
+      },
+      {
+       "file": "packet-JDAUHWVQ-BOOsikJA.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pegDiagram-FD4XPPHP-BFhTYpqK.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "people-DgSIOpUE.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "php-WKlfgaoc.js",
+       "kb": 110.5,
+       "gzipKB": 27.9
+      },
+      {
+       "file": "pie-XZMESJXO-CsHkZvQY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pieDiagram-J4AKIIQI-CCPx-Hk5.js",
+       "kb": 4.9,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "powershell-QtSnmXcu.js",
+       "kb": 19.7,
+       "gzipKB": 3.9
+      },
+      {
+       "file": "proto-DB4EqR-F.js",
+       "kb": 6.4,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "python-gzcpVVnB.js",
+       "kb": 68.3,
+       "gzipKB": 8.8
+      },
+      {
+       "file": "quadrantDiagram-XTYBLID2-3YGitIfB.js",
+       "kb": 32.7,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "r-BXEss897.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "r-DWzjseEo.js",
+       "kb": 6.6,
+       "gzipKB": 1.8
+      },
+      {
+       "file": "radar-ABXABTNO-DueDVsTn.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-I3PHUGI6-CH67KiMN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-abnf-LNEFI6M7-BpRhBocN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-ebnf-DWYD2UWJ-XAd5fETu.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-peg-JR7BVNR7-B4cX2BLf.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroadDiagram-MRQ6NCDL-Cj7SM60E.js",
+       "kb": 1.6,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "react-B8SKf8RM.js",
+       "kb": 7.7,
+       "gzipKB": 2.9
+      },
+      {
+       "file": "requirementDiagram-Y7LWUY3S-SBhJ_Gc2.js",
+       "kb": 30.3,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "rolldown-runtime-COiEfhsA.js",
+       "kb": 1.1,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "rough.esm-Dy-Kn_BL.js",
+       "kb": 26.5,
+       "gzipKB": 8.6
+      },
+      {
+       "file": "ruby-BqJ275D2.js",
+       "kb": 53.5,
+       "gzipKB": 6.9
+      },
+      {
+       "file": "rust-DpiIf5JO.js",
+       "kb": 14.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "sankeyDiagram-WGJFYUXA-D22rg0wc.js",
+       "kb": 37.9,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "scala-BiFt_7mu.js",
+       "kb": 28.2,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "scss-8bKmll0B.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "sequenceDiagram-5NDRBG5M-DsiNXoB9.js",
+       "kb": 114.9,
+       "gzipKB": 30.3
+      },
+      {
+       "file": "shellscript-CqHdAlCp.js",
+       "kb": 40.5,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "shiki-DGBgfj04.js",
+       "kb": 5.4,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "sizeCapture-INFHLROL-3uHXrFqA.js",
+       "kb": 0.9,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "sql-CNu3Or2W.js",
+       "kb": 23.1,
+       "gzipKB": 7.3
+      },
+      {
+       "file": "sql-CfM2IJm3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "stateDiagram-v2-FJ4FJNEA-BtIvd2HC.js",
+       "kb": 40.6,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "swift-CyEgAFGc.js",
+       "kb": 85.2,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "swimlanes-UMQ2AFYF-BrTce0OS.js",
+       "kb": 115.1,
+       "gzipKB": 39
+      },
+      {
+       "file": "swimlanesDiagram-OMPLPG4O-BBKyvfEZ.js",
+       "kb": 0.8,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "timeline-definition-SEUHKTQE-g8fqZS5n.js",
+       "kb": 29.8,
+       "gzipKB": 9.7
+      },
+      {
+       "file": "toml-CcmNWLt0.js",
+       "kb": 6.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "treeView-D4JQ5SDB-Dsh2zaLU.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "treemap-SAJKECNS-DXDO2wkq.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "tsx-BOvsFOI6.js",
+       "kb": 171.4,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "tsx-CGosfAUg.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-Bb1J8qyy.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-j_1H8WHN.js",
+       "kb": 176.8,
+       "gzipKB": 15.3
+      },
+      {
+       "file": "usecaseDiagram-AFA6YXN4-gSXscUAi.js",
+       "kb": 183.5,
+       "gzipKB": 47.7
+      },
+      {
+       "file": "vennDiagram-NNMJR3RB-CUjo1Nf5.js",
+       "kb": 40.2,
+       "gzipKB": 14.6
+      },
+      {
+       "file": "vue-jUI-lpPb.js",
+       "kb": 25.1,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "wardley-7MLQ67FV-Bcj7f88B.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "wardleyDiagram-S7YFUSEH-RWmf8orp.js",
+       "kb": 24.6,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "xml-DuKfbPI6.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "xml-WY0zc4PG.js",
+       "kb": 5.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "xychartDiagram-GGNKY7IX-BPzhVTA3.js",
+       "kb": 42.2,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "yaml-DDA_XMNu.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "yaml-DijMHRDA.js",
+       "kb": 10.2,
+       "gzipKB": 2.2
+      },
+      {
+       "file": "yjs-BQdOH2Oc.js",
+       "kb": 84.4,
+       "gzipKB": 25.3
+      },
+      {
+       "file": "zig-CMLA9XwU.js",
+       "kb": 5.2,
+       "gzipKB": 1.5
+      }
+     ],
+     "css": [
+      {
+       "file": "DbPage-DC3DJdpO.css",
+       "kb": 33.7,
+       "gzipKB": 6.8
+      },
+      {
+       "file": "History-DY7zYzgO.css",
+       "kb": 7.4,
+       "gzipKB": 2
+      },
+      {
+       "file": "PageView-BXggyEjT.css",
+       "kb": 4.6,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "Palette-Ci1A-01v.css",
+       "kb": 3.2,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "base-pl2SXF4M.css",
+       "kb": 4.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "cards-BkvP0m8c.css",
+       "kb": 14.4,
+       "gzipKB": 3.6
+      },
+      {
+       "file": "index-ByKvRKvI.css",
+       "kb": 43.3,
+       "gzipKB": 9.3
+      },
+      {
+       "file": "katex-lxMheimU.css",
+       "kb": 29.1,
+       "gzipKB": 7.7
+      },
+      {
+       "file": "settings-CpcdIQ6t.css",
+       "kb": 4.2,
+       "gzipKB": 1.2
+      }
+     ]
+    }
+   },
+   "db": {
+    "setupMs": 1802,
+    "rows": 10000,
+    "openUncached": {
+     "fromNavigation": {
+      "n": 7,
+      "p50": 673.5,
+      "p95": 928.2,
+      "max": 928.2
+     },
+     "storeReady": {
+      "n": 7,
+      "p50": 455.7,
+      "p95": 707.9,
+      "max": 707.9
+     }
+    },
+    "openCached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 46.3,
+      "p95": 163.7,
+      "max": 163.7
+     },
+     "fromNavigation": {
+      "n": 7,
+      "p50": 123.8,
+      "p95": 163.7,
+      "max": 163.7
+     },
+     "idbToRows": {
+      "n": 7,
+      "p50": 69.8,
+      "p95": 96,
+      "max": 96
+     },
+     "inAppSwitch": {
+      "n": 7,
+      "p50": 116.6,
+      "p95": 159.2,
+      "max": 159.2
+     }
+    },
+    "scroll": {
+     "vertical": {
+      "frames": 218,
+      "seconds": 4,
+      "fps": 54.4,
+      "dropped": 5,
+      "worst": 300
+     },
+     "fling": {
+      "frames": 120,
+      "seconds": 2,
+      "fps": 59.9,
+      "dropped": 1,
+      "worst": 33.4
+     },
+     "horizontal": {
+      "frames": 182,
+      "seconds": 3.02,
+      "fps": 60.3,
+      "dropped": 0,
+      "worst": 16.8
+     }
+    },
+    "viewChanges": {
+     "filter": {
+      "total": {
+       "n": 7,
+       "p50": 23.3,
+       "p95": 48.4,
+       "max": 48.4
+      },
+      "query": {
+       "n": 7,
+       "p50": 2.9,
+       "p95": 17,
+       "max": 17
+      }
+     },
+     "filterNested": {
+      "total": {
+       "n": 7,
+       "p50": 17.2,
+       "p95": 23.7,
+       "max": 23.7
+      },
+      "query": {
+       "n": 7,
+       "p50": 1,
+       "p95": 2.7,
+       "max": 2.7
+      }
+     },
+     "sort": {
+      "total": {
+       "n": 7,
+       "p50": 17.7,
+       "p95": 25.1,
+       "max": 25.1
+      },
+      "query": {
+       "n": 7,
+       "p50": 4.8,
+       "p95": 7.2,
+       "max": 7.2
+      }
+     },
+     "sortText": {
+      "total": {
+       "n": 7,
+       "p50": 25.9,
+       "p95": 37.7,
+       "max": 37.7
+      },
+      "query": {
+       "n": 7,
+       "p50": 11.2,
+       "p95": 20.5,
+       "max": 20.5
+      }
+     },
+     "group": {
+      "total": {
+       "n": 7,
+       "p50": 19.3,
+       "p95": 40.3,
+       "max": 40.3
+      },
+      "query": {
+       "n": 7,
+       "p50": 6.3,
+       "p95": 7.6,
+       "max": 7.6
+      }
+     },
+     "groupMulti": {
+      "total": {
+       "n": 7,
+       "p50": 23.6,
+       "p95": 27.2,
+       "max": 27.2
+      },
+      "query": {
+       "n": 7,
+       "p50": 8.3,
+       "p95": 14.2,
+       "max": 14.2
+      }
+     },
+     "search": {
+      "total": {
+       "n": 7,
+       "p50": 14.2,
+       "p95": 16.4,
+       "max": 16.4
+      },
+      "query": {
+       "n": 1,
+       "p50": 0,
+       "p95": 0,
+       "max": 0
+      }
+     }
+    }
+   }
+  },
+  {
+   "perf": {
+    "at": "2026-11-19T02:40:50.096Z",
+    "blockCount": 2998,
+    "page": {
+     "topLevel": 522,
+     "blocks": 2998,
+     "markdownKB": 51.6
+    },
+    "openUncached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 213.4,
+      "p95": 307,
+      "min": 172.2,
+      "max": 307
+     },
+     "editorFull": {
+      "n": 7,
+      "p50": 347.9,
+      "p95": 429.5,
+      "min": 207.1,
+      "max": 429.5
+     }
+    },
+    "openCached": {
+     "reloadFirstContent": {
+      "n": 7,
+      "p50": 44.5,
+      "p95": 52.3,
+      "min": 37.9,
+      "max": 52.3
+     },
+     "firstContentFrom": [
+      "snapshot"
+     ],
+     "reloadEditorFull": {
+      "n": 7,
+      "p50": 221.6,
+      "p95": 243.4,
+      "min": 143.8,
+      "max": 243.4
+     },
+     "inAppSwitchEditorFull": {
+      "n": 7,
+      "p50": 76.9,
+      "p95": 90.7,
+      "min": 72.8,
+      "max": 90.7
+     }
+    },
+    "typing": {
+     "keydownToDom": {
+      "n": 86,
+      "p50": 3.8,
+      "p95": 7.7,
+      "min": 3.1,
+      "max": 11.8
+     },
+     "keydownToNextFrame": {
+      "n": 86,
+      "p50": 6.5,
+      "p95": 15.4,
+      "min": 3.3,
+      "max": 19
+     }
+    },
+    "typingConcurrent": {
+     "keydownToDom": {
+      "n": 172,
+      "p50": 3.3,
+      "p95": 5.4,
+      "min": 2.5,
+      "max": 10.5
+     },
+     "keydownToNextFrame": {
+      "n": 172,
+      "p50": 6.2,
+      "p95": 15.7,
+      "min": 3,
+      "max": 17.6
+     }
+    },
+    "embedScroll": {
+     "firstPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 16.8
+      },
+      "fps": 60,
+      "droppedOver25ms": 0
+     },
+     "secondPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 483.4
+      },
+      "fps": 50.7,
+      "droppedOver25ms": 7
+     },
+     "cards": 10
+    },
+    "embedOpen": {
+     "with10Videos": {
+      "n": 5,
+      "p50": 292.7,
+      "p95": 364.2,
+      "min": 147.1,
+      "max": 364.2
+     },
+     "withoutVideos": {
+      "n": 5,
+      "p50": 226.5,
+      "p95": 280.3,
+      "min": 97.1,
+      "max": 280.3
+     }
+    },
+    "bundle": {
+     "entry": {
+      "file": "index-3U_4tsFq.js",
+      "kb": 250.7,
+      "gzipKB": 79.9
+     },
+     "pageViewChunk": {
+      "file": "PageView-C3VnMfp0.js",
+      "kb": 24.6,
+      "gzipKB": 9
+     },
+     "openPageTotalGzipKB": 98.2,
+     "allJs": [
+      {
+       "file": "DbPage-CSYDbgRe.js",
+       "kb": 146.9,
+       "gzipKB": 44.9
+      },
+      {
+       "file": "History-MXxLILTN.js",
+       "kb": 12.2,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "Inbox-CeEtKC9N.js",
+       "kb": 3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "Invite-VNd6n_42.js",
+       "kb": 3.3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "PageView-C3VnMfp0.js",
+       "kb": 24.6,
+       "gzipKB": 9
+      },
+      {
+       "file": "Palette-BlSah1WC.js",
+       "kb": 9.6,
+       "gzipKB": 4
+      },
+      {
+       "file": "Settings-CuWf10LP.js",
+       "kb": 18.6,
+       "gzipKB": 5.2
+      },
+      {
+       "file": "Shell-BHaXp3NM.js",
+       "kb": 0.6,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "TableToolbar-DlyPjxPd.js",
+       "kb": 1.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "Trash-CuEay7Nr.js",
+       "kb": 3.2,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "abnfDiagram-S7VZAUFO-CXiM6oPK.js",
+       "kb": 1.8,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "api-ZJML_BEW.js",
+       "kb": 12.1,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "architecture-WOLXFQ4H-DuykQqVM.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "architectureDiagram-YGSQEFNW-BanG-yE8.js",
+       "kb": 145.4,
+       "gzipKB": 39.7
+      },
+      {
+       "file": "base-BOR-OCcJ.js",
+       "kb": 579.3,
+       "gzipKB": 182.4
+      },
+      {
+       "file": "bash-CVTB3cr6.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "blockDiagram-APKKGZFW-BH5Jyxea.js",
+       "kb": 41.4,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "bpmnIcons-APHXDYXF-C0jbCElo.js",
+       "kb": 5.1,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "c-Cz4nF6n_.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "c-SSSlmE39.js",
+       "kb": 70.4,
+       "gzipKB": 10.2
+      },
+      {
+       "file": "c4Diagram-KJ2TOQU5-MQveXHd2.js",
+       "kb": 63.6,
+       "gzipKB": 18
+      },
+      {
+       "file": "cards-CMXnn-bz.js",
+       "kb": 21.1,
+       "gzipKB": 8.4
+      },
+      {
+       "file": "chunk-2Q5K7J3B-C1jixKkw.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-5VM5RSS4-ZNzvKenW.js",
+       "kb": 0.4,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "chunk-6MUBBAK2-BayZtE3O.js",
+       "kb": 15,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "chunk-AXFCVDMN-BHiGSpXu.js",
+       "kb": 119.9,
+       "gzipKB": 30.4
+      },
+      {
+       "file": "chunk-BG4553SI-FkkWBmdc.js",
+       "kb": 235.2,
+       "gzipKB": 36.3
+      },
+      {
+       "file": "chunk-DQASFODM-COKXTxmx.js",
+       "kb": 47.5,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "chunk-DUW6YSOI-Dgx8z5s3.js",
+       "kb": 0.9,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-HFQBQIA3-CeOBDA_J.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-J5ZVWO5B-oDCd-gWO.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-JWPE2WC7-DVXcaiue.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-KQLB2F66-7_HiAsR5.js",
+       "kb": 10.1,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-KS47KZWR-BnV_5m6Y.js",
+       "kb": 5.3,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "chunk-LEVMRMFU-D6pqZGyO.js",
+       "kb": 1.4,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "chunk-M57EVK23-DEgLT8Ex.js",
+       "kb": 14.6,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "chunk-NGNAAXSQ-DI_UYJZ4.js",
+       "kb": 614.3,
+       "gzipKB": 122.9
+      },
+      {
+       "file": "chunk-OY52VR5R-DGyjRAXQ.js",
+       "kb": 15.3,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-QB3YPZ4I-DeZp5uIh.js",
+       "kb": 62.9,
+       "gzipKB": 20
+      },
+      {
+       "file": "chunk-R3KSYZAL-DnE7_Znv.js",
+       "kb": 5.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "chunk-STOXU5M4-X0XJ6Wta.js",
+       "kb": 50,
+       "gzipKB": 16.1
+      },
+      {
+       "file": "chunk-TU62E6Q5-CbeSza8c.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-X4PVCEUW-DeSK6zp4.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-XXDRQBXY-i7MKP1NY.js",
+       "kb": 0.3,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-Y2CYZVJY-DsF7k-Jl.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "classDiagram-v2-L25IHNXF-CdErUIcE.js",
+       "kb": 48.5,
+       "gzipKB": 15.5
+      },
+      {
+       "file": "conn-DeUBbNaX.js",
+       "kb": 12.6,
+       "gzipKB": 4.7
+      },
+      {
+       "file": "core-DdF778CY.js",
+       "kb": 111.1,
+       "gzipKB": 35
+      },
+      {
+       "file": "cose-bilkent-JH36ORCC-C6J2IoHg.js",
+       "kb": 79.3,
+       "gzipKB": 20.8
+      },
+      {
+       "file": "cpp-Cts1PyIS.js",
+       "kb": 778.3,
+       "gzipKB": 52.9
+      },
+      {
+       "file": "cpp-DzjeI0uH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "csharp-dmMxLVLW.js",
+       "kb": 89.3,
+       "gzipKB": 10.4
+      },
+      {
+       "file": "css-BGIxQoYs.js",
+       "kb": 52.1,
+       "gzipKB": 12.1
+      },
+      {
+       "file": "css-DgaLhXQH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefin-EF2NZ3EQ-_NyRGpmQ.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefinDiagram-L36ESFBY-JMDdfA-k.js",
+       "kb": 9.7,
+       "gzipKB": 3.4
+      },
+      {
+       "file": "cytoscape.esm-nTrd5EVq.js",
+       "kb": 431.4,
+       "gzipKB": 135.2
+      },
+      {
+       "file": "d3-scale-CElPUUud.js",
+       "kb": 39.7,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "d3-selection-COWvaQNI.js",
+       "kb": 20.4,
+       "gzipKB": 7.1
+      },
+      {
+       "file": "dagre-SPEB5RXH-DGpVoS-H.js",
+       "kb": 46.7,
+       "gzipKB": 16.5
+      },
+      {
+       "file": "dart-CHZY9Xhz.js",
+       "kb": 8.4,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "db-wasm-JTXsVyIg.js",
+       "kb": 7.8,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "diagram-3B7GL73J-Bk68ruD1.js",
+       "kb": 78.6,
+       "gzipKB": 24.2
+      },
+      {
+       "file": "diagram-DNEMPZML-D5fFXpaG.js",
+       "kb": 4.3,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "diagram-L3MUGCDN-DD1Sa98z.js",
+       "kb": 5.9,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "diagram-LA4NIPWU-CRoGhW-f.js",
+       "kb": 15.8,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "diagram-MHCOC4E2-e62jpo4B.js",
+       "kb": 10.7,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "diagram-XPFHEONP-BV5MX4zg.js",
+       "kb": 7.9,
+       "gzipKB": 3.5
+      },
+      {
+       "file": "diff-woXpYk--.js",
+       "kb": 2.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "dist-DdXDFcej.js",
+       "kb": 25,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "docker-IyjqRm3v.js",
+       "kb": 1.7,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "ebnfDiagram-UZSYDL2S-CciHvU40.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "elixir-raGDl1oO.js",
+       "kb": 15.9,
+       "gzipKB": 2.7
+      },
+      {
+       "file": "elk-XV6XMXQE-C7z3qt-W.js",
+       "kb": 1463.8,
+       "gzipKB": 447.9
+      },
+      {
+       "file": "engine-javascript-C30F4iNc.js",
+       "kb": 56.6,
+       "gzipKB": 19.6
+      },
+      {
+       "file": "erDiagram-EYBAPDEH-Ct5WLnID.js",
+       "kb": 29.9,
+       "gzipKB": 10.3
+      },
+      {
+       "file": "esm-CjrQfb06.js",
+       "kb": 2.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "eventmodeling-K75KTNOO-2FQEK2W8.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "flowDiagram-MALGAFMO-CVz9-a_p.js",
+       "kb": 0.5,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "ganttDiagram-23REXITY-COEiHuNk.js",
+       "kb": 51.8,
+       "gzipKB": 17.1
+      },
+      {
+       "file": "gitGraph-VSP46ZUC-B5FsyDrc.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "gitGraphDiagram-STJD7YCW-d4jvJsAU.js",
+       "kb": 28.3,
+       "gzipKB": 8.3
+      },
+      {
+       "file": "github-dark-C-LZuMrd.js",
+       "kb": 11.1,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "github-light-EUqPIrTm.js",
+       "kb": 10.9,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "go-rLFTqkRN.js",
+       "kb": 45.7,
+       "gzipKB": 4.9
+      },
+      {
+       "file": "graphlib-DS17s2tU.js",
+       "kb": 23.3,
+       "gzipKB": 8.1
+      },
+      {
+       "file": "graphql-BHtseKAV.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "graphql-f69H1Mm0.js",
+       "kb": 17.6,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "haskell-D8IpX4py.js",
+       "kb": 40.5,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "html-BCy9P6D2.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "html-DSw1lh5G.js",
+       "kb": 55.9,
+       "gzipKB": 11.4
+      },
+      {
+       "file": "index-3U_4tsFq.js",
+       "kb": 250.7,
+       "gzipKB": 79.9
+      },
+      {
+       "file": "info-OHQRW6UA-DKqfr6TY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "infoDiagram-KBXO4MBG-D8WV1vWL.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "ini-B5eOa1yu.js",
+       "kb": 1.5,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "ishikawaDiagram-M35NCXHK-3KXs83up.js",
+       "kb": 16.9,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "java-BtIQNnN0.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "java-_ATy9zCa.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "javascript-BzbQS41l.js",
+       "kb": 170.7,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "javascript-CpIGwZ_Y.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "journeyDiagram-OPLOXDXO-DJehl3_Z.js",
+       "kb": 22.6,
+       "gzipKB": 7.9
+      },
+      {
+       "file": "json-B88Oqtu5.js",
+       "kb": 2.7,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "json-C3WlssX3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-C4yDKi0A.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-D3KKoC5L.js",
+       "kb": 173.6,
+       "gzipKB": 15.8
+      },
+      {
+       "file": "kanban-definition-BZKZHSQY-CMh5kYf1.js",
+       "kb": 19.8,
+       "gzipKB": 7
+      },
+      {
+       "file": "katex-BN_UgUnm.js",
+       "kb": 253,
+       "gzipKB": 74.8
+      },
+      {
+       "file": "kotlin-DhhofPvG.js",
+       "kb": 8.6,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "latex-CckfBvVy.js",
+       "kb": 80.9,
+       "gzipKB": 9.2
+      },
+      {
+       "file": "lua-DjuecEsk.js",
+       "kb": 15.2,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "lua-fPRBWD-V.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "make-Dixweg8N.js",
+       "kb": 8.7,
+       "gzipKB": 1.7
+      },
+      {
+       "file": "markdown-BYOwaDjH.js",
+       "kb": 57.9,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "media-CBmALGRc.js",
+       "kb": 3.3,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "mermaid-parser.core-CmnbuAM1.js",
+       "kb": 16.1,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "mermaid.core-DNn2MyQP.js",
+       "kb": 82.9,
+       "gzipKB": 28.3
+      },
+      {
+       "file": "mindmap-definition-I2QAS2VK-CMT8c_ZJ.js",
+       "kb": 22.3,
+       "gzipKB": 7.5
+      },
+      {
+       "file": "nginx-BxRBJ-Af.js",
+       "kb": 34.5,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "oad_markdown-eG68l04I.js",
+       "kb": 3.6,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "objective-c-D1A_Heim.js",
+       "kb": 102.9,
+       "gzipKB": 22.7
+      },
+      {
+       "file": "packet-JDAUHWVQ-BOOsikJA.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pegDiagram-FD4XPPHP-BFhTYpqK.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "people-DgSIOpUE.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "php-WKlfgaoc.js",
+       "kb": 110.5,
+       "gzipKB": 27.9
+      },
+      {
+       "file": "pie-XZMESJXO-CsHkZvQY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pieDiagram-J4AKIIQI-CCPx-Hk5.js",
+       "kb": 4.9,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "powershell-QtSnmXcu.js",
+       "kb": 19.7,
+       "gzipKB": 3.9
+      },
+      {
+       "file": "proto-DB4EqR-F.js",
+       "kb": 6.4,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "python-gzcpVVnB.js",
+       "kb": 68.3,
+       "gzipKB": 8.8
+      },
+      {
+       "file": "quadrantDiagram-XTYBLID2-3YGitIfB.js",
+       "kb": 32.7,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "r-BXEss897.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "r-DWzjseEo.js",
+       "kb": 6.6,
+       "gzipKB": 1.8
+      },
+      {
+       "file": "radar-ABXABTNO-DueDVsTn.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-I3PHUGI6-CH67KiMN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-abnf-LNEFI6M7-BpRhBocN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-ebnf-DWYD2UWJ-XAd5fETu.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-peg-JR7BVNR7-B4cX2BLf.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroadDiagram-MRQ6NCDL-Cj7SM60E.js",
+       "kb": 1.6,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "react-B8SKf8RM.js",
+       "kb": 7.7,
+       "gzipKB": 2.9
+      },
+      {
+       "file": "requirementDiagram-Y7LWUY3S-SBhJ_Gc2.js",
+       "kb": 30.3,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "rolldown-runtime-COiEfhsA.js",
+       "kb": 1.1,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "rough.esm-Dy-Kn_BL.js",
+       "kb": 26.5,
+       "gzipKB": 8.6
+      },
+      {
+       "file": "ruby-BqJ275D2.js",
+       "kb": 53.5,
+       "gzipKB": 6.9
+      },
+      {
+       "file": "rust-DpiIf5JO.js",
+       "kb": 14.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "sankeyDiagram-WGJFYUXA-D22rg0wc.js",
+       "kb": 37.9,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "scala-BiFt_7mu.js",
+       "kb": 28.2,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "scss-8bKmll0B.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "sequenceDiagram-5NDRBG5M-DsiNXoB9.js",
+       "kb": 114.9,
+       "gzipKB": 30.3
+      },
+      {
+       "file": "shellscript-CqHdAlCp.js",
+       "kb": 40.5,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "shiki-DGBgfj04.js",
+       "kb": 5.4,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "sizeCapture-INFHLROL-3uHXrFqA.js",
+       "kb": 0.9,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "sql-CNu3Or2W.js",
+       "kb": 23.1,
+       "gzipKB": 7.3
+      },
+      {
+       "file": "sql-CfM2IJm3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "stateDiagram-v2-FJ4FJNEA-BtIvd2HC.js",
+       "kb": 40.6,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "swift-CyEgAFGc.js",
+       "kb": 85.2,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "swimlanes-UMQ2AFYF-BrTce0OS.js",
+       "kb": 115.1,
+       "gzipKB": 39
+      },
+      {
+       "file": "swimlanesDiagram-OMPLPG4O-BBKyvfEZ.js",
+       "kb": 0.8,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "timeline-definition-SEUHKTQE-g8fqZS5n.js",
+       "kb": 29.8,
+       "gzipKB": 9.7
+      },
+      {
+       "file": "toml-CcmNWLt0.js",
+       "kb": 6.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "treeView-D4JQ5SDB-Dsh2zaLU.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "treemap-SAJKECNS-DXDO2wkq.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "tsx-BOvsFOI6.js",
+       "kb": 171.4,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "tsx-CGosfAUg.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-Bb1J8qyy.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-j_1H8WHN.js",
+       "kb": 176.8,
+       "gzipKB": 15.3
+      },
+      {
+       "file": "usecaseDiagram-AFA6YXN4-gSXscUAi.js",
+       "kb": 183.5,
+       "gzipKB": 47.7
+      },
+      {
+       "file": "vennDiagram-NNMJR3RB-CUjo1Nf5.js",
+       "kb": 40.2,
+       "gzipKB": 14.6
+      },
+      {
+       "file": "vue-jUI-lpPb.js",
+       "kb": 25.1,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "wardley-7MLQ67FV-Bcj7f88B.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "wardleyDiagram-S7YFUSEH-RWmf8orp.js",
+       "kb": 24.6,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "xml-DuKfbPI6.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "xml-WY0zc4PG.js",
+       "kb": 5.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "xychartDiagram-GGNKY7IX-BPzhVTA3.js",
+       "kb": 42.2,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "yaml-DDA_XMNu.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "yaml-DijMHRDA.js",
+       "kb": 10.2,
+       "gzipKB": 2.2
+      },
+      {
+       "file": "yjs-BQdOH2Oc.js",
+       "kb": 84.4,
+       "gzipKB": 25.3
+      },
+      {
+       "file": "zig-CMLA9XwU.js",
+       "kb": 5.2,
+       "gzipKB": 1.5
+      }
+     ],
+     "css": [
+      {
+       "file": "DbPage-DC3DJdpO.css",
+       "kb": 33.7,
+       "gzipKB": 6.8
+      },
+      {
+       "file": "History-DY7zYzgO.css",
+       "kb": 7.4,
+       "gzipKB": 2
+      },
+      {
+       "file": "PageView-BXggyEjT.css",
+       "kb": 4.6,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "Palette-Ci1A-01v.css",
+       "kb": 3.2,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "base-pl2SXF4M.css",
+       "kb": 4.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "cards-BkvP0m8c.css",
+       "kb": 14.4,
+       "gzipKB": 3.6
+      },
+      {
+       "file": "index-ByKvRKvI.css",
+       "kb": 43.3,
+       "gzipKB": 9.3
+      },
+      {
+       "file": "katex-lxMheimU.css",
+       "kb": 29.1,
+       "gzipKB": 7.7
+      },
+      {
+       "file": "settings-CpcdIQ6t.css",
+       "kb": 4.2,
+       "gzipKB": 1.2
+      }
+     ]
+    }
+   },
+   "db": {
+    "setupMs": 1053,
+    "rows": 10000,
+    "openUncached": {
+     "fromNavigation": {
+      "n": 7,
+      "p50": 513.9,
+      "p95": 662.2,
+      "max": 662.2
+     },
+     "storeReady": {
+      "n": 7,
+      "p50": 362.3,
+      "p95": 455.3,
+      "max": 455.3
+     }
+    },
+    "openCached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 38.1,
+      "p95": 116.5,
+      "max": 116.5
+     },
+     "fromNavigation": {
+      "n": 7,
+      "p50": 119,
+      "p95": 147.3,
+      "max": 147.3
+     },
+     "idbToRows": {
+      "n": 7,
+      "p50": 69.3,
+      "p95": 83.9,
+      "max": 83.9
+     },
+     "inAppSwitch": {
+      "n": 7,
+      "p50": 111.9,
+      "p95": 136.1,
+      "max": 136.1
+     }
+    },
+    "scroll": {
+     "vertical": {
+      "frames": 226,
+      "seconds": 4.01,
+      "fps": 56.4,
+      "dropped": 3,
+      "worst": 166.7
+     },
+     "fling": {
+      "frames": 119,
+      "seconds": 2,
+      "fps": 59.4,
+      "dropped": 1,
+      "worst": 50
+     },
+     "horizontal": {
+      "frames": 160,
+      "seconds": 3,
+      "fps": 53.3,
+      "dropped": 1,
+      "worst": 366.6
+     }
+    },
+    "viewChanges": {
+     "filter": {
+      "total": {
+       "n": 7,
+       "p50": 14.2,
+       "p95": 28.6,
+       "max": 28.6
+      },
+      "query": {
+       "n": 7,
+       "p50": 2.2,
+       "p95": 7.4,
+       "max": 7.4
+      }
+     },
+     "filterNested": {
+      "total": {
+       "n": 7,
+       "p50": 13.8,
+       "p95": 22.3,
+       "max": 22.3
+      },
+      "query": {
+       "n": 7,
+       "p50": 0.9,
+       "p95": 3.4,
+       "max": 3.4
+      }
+     },
+     "sort": {
+      "total": {
+       "n": 7,
+       "p50": 22.9,
+       "p95": 38,
+       "max": 38
+      },
+      "query": {
+       "n": 7,
+       "p50": 4,
+       "p95": 9.2,
+       "max": 9.2
+      }
+     },
+     "sortText": {
+      "total": {
+       "n": 7,
+       "p50": 26.1,
+       "p95": 29.2,
+       "max": 29.2
+      },
+      "query": {
+       "n": 7,
+       "p50": 9.4,
+       "p95": 13.3,
+       "max": 13.3
+      }
+     },
+     "group": {
+      "total": {
+       "n": 7,
+       "p50": 19.4,
+       "p95": 26.4,
+       "max": 26.4
+      },
+      "query": {
+       "n": 7,
+       "p50": 6.5,
+       "p95": 10.7,
+       "max": 10.7
+      }
+     },
+     "groupMulti": {
+      "total": {
+       "n": 7,
+       "p50": 19.2,
+       "p95": 24.6,
+       "max": 24.6
+      },
+      "query": {
+       "n": 7,
+       "p50": 8.1,
+       "p95": 8.7,
+       "max": 8.7
+      }
+     },
+     "search": {
+      "total": {
+       "n": 7,
+       "p50": 12.4,
+       "p95": 13.2,
+       "max": 13.2
+      },
+      "query": {
+       "n": 1,
+       "p50": 0,
+       "p95": 0,
+       "max": 0
+      }
+     }
+    }
+   }
+  },
+  {
+   "perf": {
+    "at": "2026-11-19T02:42:01.349Z",
+    "blockCount": 2998,
+    "page": {
+     "topLevel": 522,
+     "blocks": 2998,
+     "markdownKB": 51.6
+    },
+    "openUncached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 197.4,
+      "p95": 211.4,
+      "min": 181,
+      "max": 211.4
+     },
+     "editorFull": {
+      "n": 7,
+      "p50": 223.5,
+      "p95": 389,
+      "min": 186.8,
+      "max": 389
+     }
+    },
+    "openCached": {
+     "reloadFirstContent": {
+      "n": 7,
+      "p50": 41.4,
+      "p95": 86.1,
+      "min": 33.5,
+      "max": 86.1
+     },
+     "firstContentFrom": [
+      "snapshot"
+     ],
+     "reloadEditorFull": {
+      "n": 7,
+      "p50": 228.7,
+      "p95": 266.9,
+      "min": 140.6,
+      "max": 266.9
+     },
+     "inAppSwitchEditorFull": {
+      "n": 7,
+      "p50": 87.6,
+      "p95": 103.9,
+      "min": 78.7,
+      "max": 103.9
+     }
+    },
+    "typing": {
+     "keydownToDom": {
+      "n": 86,
+      "p50": 2.7,
+      "p95": 5.1,
+      "min": 2.3,
+      "max": 11.6
+     },
+     "keydownToNextFrame": {
+      "n": 86,
+      "p50": 4,
+      "p95": 15.7,
+      "min": 2.5,
+      "max": 19.3
+     }
+    },
+    "typingConcurrent": {
+     "keydownToDom": {
+      "n": 172,
+      "p50": 2.6,
+      "p95": 4.8,
+      "min": 1.8,
+      "max": 5
+     },
+     "keydownToNextFrame": {
+      "n": 172,
+      "p50": 3.6,
+      "p95": 14.9,
+      "min": 1.9,
+      "max": 17.2
+     }
+    },
+    "embedScroll": {
+     "firstPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 133.4
+      },
+      "fps": 58.6,
+      "droppedOver25ms": 2
+     },
+     "secondPass": {
+      "frames": 462,
+      "frameMs": {
+       "n": 462,
+       "p50": 16.7,
+       "p95": 16.8,
+       "min": 16.5,
+       "max": 333.3
+      },
+      "fps": 54.9,
+      "droppedOver25ms": 4
+     },
+     "cards": 10
+    },
+    "embedOpen": {
+     "with10Videos": {
+      "n": 5,
+      "p50": 141.8,
+      "p95": 182.5,
+      "min": 92.2,
+      "max": 182.5
+     },
+     "withoutVideos": {
+      "n": 5,
+      "p50": 118,
+      "p95": 174.7,
+      "min": 75.6,
+      "max": 174.7
+     }
+    },
+    "bundle": {
+     "entry": {
+      "file": "index-3U_4tsFq.js",
+      "kb": 250.7,
+      "gzipKB": 79.9
+     },
+     "pageViewChunk": {
+      "file": "PageView-C3VnMfp0.js",
+      "kb": 24.6,
+      "gzipKB": 9
+     },
+     "openPageTotalGzipKB": 98.2,
+     "allJs": [
+      {
+       "file": "DbPage-CSYDbgRe.js",
+       "kb": 146.9,
+       "gzipKB": 44.9
+      },
+      {
+       "file": "History-MXxLILTN.js",
+       "kb": 12.2,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "Inbox-CeEtKC9N.js",
+       "kb": 3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "Invite-VNd6n_42.js",
+       "kb": 3.3,
+       "gzipKB": 1.3
+      },
+      {
+       "file": "PageView-C3VnMfp0.js",
+       "kb": 24.6,
+       "gzipKB": 9
+      },
+      {
+       "file": "Palette-BlSah1WC.js",
+       "kb": 9.6,
+       "gzipKB": 4
+      },
+      {
+       "file": "Settings-CuWf10LP.js",
+       "kb": 18.6,
+       "gzipKB": 5.2
+      },
+      {
+       "file": "Shell-BHaXp3NM.js",
+       "kb": 0.6,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "TableToolbar-DlyPjxPd.js",
+       "kb": 1.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "Trash-CuEay7Nr.js",
+       "kb": 3.2,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "abnfDiagram-S7VZAUFO-CXiM6oPK.js",
+       "kb": 1.8,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "api-ZJML_BEW.js",
+       "kb": 12.1,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "architecture-WOLXFQ4H-DuykQqVM.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "architectureDiagram-YGSQEFNW-BanG-yE8.js",
+       "kb": 145.4,
+       "gzipKB": 39.7
+      },
+      {
+       "file": "base-BOR-OCcJ.js",
+       "kb": 579.3,
+       "gzipKB": 182.4
+      },
+      {
+       "file": "bash-CVTB3cr6.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "blockDiagram-APKKGZFW-BH5Jyxea.js",
+       "kb": 41.4,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "bpmnIcons-APHXDYXF-C0jbCElo.js",
+       "kb": 5.1,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "c-Cz4nF6n_.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "c-SSSlmE39.js",
+       "kb": 70.4,
+       "gzipKB": 10.2
+      },
+      {
+       "file": "c4Diagram-KJ2TOQU5-MQveXHd2.js",
+       "kb": 63.6,
+       "gzipKB": 18
+      },
+      {
+       "file": "cards-CMXnn-bz.js",
+       "kb": 21.1,
+       "gzipKB": 8.4
+      },
+      {
+       "file": "chunk-2Q5K7J3B-C1jixKkw.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-5VM5RSS4-ZNzvKenW.js",
+       "kb": 0.4,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "chunk-6MUBBAK2-BayZtE3O.js",
+       "kb": 15,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "chunk-AXFCVDMN-BHiGSpXu.js",
+       "kb": 119.9,
+       "gzipKB": 30.4
+      },
+      {
+       "file": "chunk-BG4553SI-FkkWBmdc.js",
+       "kb": 235.2,
+       "gzipKB": 36.3
+      },
+      {
+       "file": "chunk-DQASFODM-COKXTxmx.js",
+       "kb": 47.5,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "chunk-DUW6YSOI-Dgx8z5s3.js",
+       "kb": 0.9,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-HFQBQIA3-CeOBDA_J.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-J5ZVWO5B-oDCd-gWO.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-JWPE2WC7-DVXcaiue.js",
+       "kb": 0.2,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-KQLB2F66-7_HiAsR5.js",
+       "kb": 10.1,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-KS47KZWR-BnV_5m6Y.js",
+       "kb": 5.3,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "chunk-LEVMRMFU-D6pqZGyO.js",
+       "kb": 1.4,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "chunk-M57EVK23-DEgLT8Ex.js",
+       "kb": 14.6,
+       "gzipKB": 4.4
+      },
+      {
+       "file": "chunk-NGNAAXSQ-DI_UYJZ4.js",
+       "kb": 614.3,
+       "gzipKB": 122.9
+      },
+      {
+       "file": "chunk-OY52VR5R-DGyjRAXQ.js",
+       "kb": 15.3,
+       "gzipKB": 4.2
+      },
+      {
+       "file": "chunk-QB3YPZ4I-DeZp5uIh.js",
+       "kb": 62.9,
+       "gzipKB": 20
+      },
+      {
+       "file": "chunk-R3KSYZAL-DnE7_Znv.js",
+       "kb": 5.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "chunk-STOXU5M4-X0XJ6Wta.js",
+       "kb": 50,
+       "gzipKB": 16.1
+      },
+      {
+       "file": "chunk-TU62E6Q5-CbeSza8c.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "chunk-X4PVCEUW-DeSK6zp4.js",
+       "kb": 1.9,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "chunk-XXDRQBXY-i7MKP1NY.js",
+       "kb": 0.3,
+       "gzipKB": 0.2
+      },
+      {
+       "file": "chunk-Y2CYZVJY-DsF7k-Jl.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "classDiagram-v2-L25IHNXF-CdErUIcE.js",
+       "kb": 48.5,
+       "gzipKB": 15.5
+      },
+      {
+       "file": "conn-DeUBbNaX.js",
+       "kb": 12.6,
+       "gzipKB": 4.7
+      },
+      {
+       "file": "core-DdF778CY.js",
+       "kb": 111.1,
+       "gzipKB": 35
+      },
+      {
+       "file": "cose-bilkent-JH36ORCC-C6J2IoHg.js",
+       "kb": 79.3,
+       "gzipKB": 20.8
+      },
+      {
+       "file": "cpp-Cts1PyIS.js",
+       "kb": 778.3,
+       "gzipKB": 52.9
+      },
+      {
+       "file": "cpp-DzjeI0uH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "csharp-dmMxLVLW.js",
+       "kb": 89.3,
+       "gzipKB": 10.4
+      },
+      {
+       "file": "css-BGIxQoYs.js",
+       "kb": 52.1,
+       "gzipKB": 12.1
+      },
+      {
+       "file": "css-DgaLhXQH.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefin-EF2NZ3EQ-_NyRGpmQ.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "cynefinDiagram-L36ESFBY-JMDdfA-k.js",
+       "kb": 9.7,
+       "gzipKB": 3.4
+      },
+      {
+       "file": "cytoscape.esm-nTrd5EVq.js",
+       "kb": 431.4,
+       "gzipKB": 135.2
+      },
+      {
+       "file": "d3-scale-CElPUUud.js",
+       "kb": 39.7,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "d3-selection-COWvaQNI.js",
+       "kb": 20.4,
+       "gzipKB": 7.1
+      },
+      {
+       "file": "dagre-SPEB5RXH-DGpVoS-H.js",
+       "kb": 46.7,
+       "gzipKB": 16.5
+      },
+      {
+       "file": "dart-CHZY9Xhz.js",
+       "kb": 8.4,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "db-wasm-JTXsVyIg.js",
+       "kb": 7.8,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "diagram-3B7GL73J-Bk68ruD1.js",
+       "kb": 78.6,
+       "gzipKB": 24.2
+      },
+      {
+       "file": "diagram-DNEMPZML-D5fFXpaG.js",
+       "kb": 4.3,
+       "gzipKB": 1.9
+      },
+      {
+       "file": "diagram-L3MUGCDN-DD1Sa98z.js",
+       "kb": 5.9,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "diagram-LA4NIPWU-CRoGhW-f.js",
+       "kb": 15.8,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "diagram-MHCOC4E2-e62jpo4B.js",
+       "kb": 10.7,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "diagram-XPFHEONP-BV5MX4zg.js",
+       "kb": 7.9,
+       "gzipKB": 3.5
+      },
+      {
+       "file": "diff-woXpYk--.js",
+       "kb": 2.5,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "dist-DdXDFcej.js",
+       "kb": 25,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "docker-IyjqRm3v.js",
+       "kb": 1.7,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "ebnfDiagram-UZSYDL2S-CciHvU40.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "elixir-raGDl1oO.js",
+       "kb": 15.9,
+       "gzipKB": 2.7
+      },
+      {
+       "file": "elk-XV6XMXQE-C7z3qt-W.js",
+       "kb": 1463.8,
+       "gzipKB": 447.9
+      },
+      {
+       "file": "engine-javascript-C30F4iNc.js",
+       "kb": 56.6,
+       "gzipKB": 19.6
+      },
+      {
+       "file": "erDiagram-EYBAPDEH-Ct5WLnID.js",
+       "kb": 29.9,
+       "gzipKB": 10.3
+      },
+      {
+       "file": "esm-CjrQfb06.js",
+       "kb": 2.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "eventmodeling-K75KTNOO-2FQEK2W8.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "flowDiagram-MALGAFMO-CVz9-a_p.js",
+       "kb": 0.5,
+       "gzipKB": 0.3
+      },
+      {
+       "file": "ganttDiagram-23REXITY-COEiHuNk.js",
+       "kb": 51.8,
+       "gzipKB": 17.1
+      },
+      {
+       "file": "gitGraph-VSP46ZUC-B5FsyDrc.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "gitGraphDiagram-STJD7YCW-d4jvJsAU.js",
+       "kb": 28.3,
+       "gzipKB": 8.3
+      },
+      {
+       "file": "github-dark-C-LZuMrd.js",
+       "kb": 11.1,
+       "gzipKB": 2.5
+      },
+      {
+       "file": "github-light-EUqPIrTm.js",
+       "kb": 10.9,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "go-rLFTqkRN.js",
+       "kb": 45.7,
+       "gzipKB": 4.9
+      },
+      {
+       "file": "graphlib-DS17s2tU.js",
+       "kb": 23.3,
+       "gzipKB": 8.1
+      },
+      {
+       "file": "graphql-BHtseKAV.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "graphql-f69H1Mm0.js",
+       "kb": 17.6,
+       "gzipKB": 2.4
+      },
+      {
+       "file": "haskell-D8IpX4py.js",
+       "kb": 40.5,
+       "gzipKB": 6.2
+      },
+      {
+       "file": "html-BCy9P6D2.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "html-DSw1lh5G.js",
+       "kb": 55.9,
+       "gzipKB": 11.4
+      },
+      {
+       "file": "index-3U_4tsFq.js",
+       "kb": 250.7,
+       "gzipKB": 79.9
+      },
+      {
+       "file": "info-OHQRW6UA-DKqfr6TY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "infoDiagram-KBXO4MBG-D8WV1vWL.js",
+       "kb": 0.6,
+       "gzipKB": 0.4
+      },
+      {
+       "file": "ini-B5eOa1yu.js",
+       "kb": 1.5,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "ishikawaDiagram-M35NCXHK-3KXs83up.js",
+       "kb": 16.9,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "java-BtIQNnN0.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "java-_ATy9zCa.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "javascript-BzbQS41l.js",
+       "kb": 170.7,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "javascript-CpIGwZ_Y.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "journeyDiagram-OPLOXDXO-DJehl3_Z.js",
+       "kb": 22.6,
+       "gzipKB": 7.9
+      },
+      {
+       "file": "json-B88Oqtu5.js",
+       "kb": 2.7,
+       "gzipKB": 0.7
+      },
+      {
+       "file": "json-C3WlssX3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-C4yDKi0A.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "jsx-D3KKoC5L.js",
+       "kb": 173.6,
+       "gzipKB": 15.8
+      },
+      {
+       "file": "kanban-definition-BZKZHSQY-CMh5kYf1.js",
+       "kb": 19.8,
+       "gzipKB": 7
+      },
+      {
+       "file": "katex-BN_UgUnm.js",
+       "kb": 253,
+       "gzipKB": 74.8
+      },
+      {
+       "file": "kotlin-DhhofPvG.js",
+       "kb": 8.6,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "latex-CckfBvVy.js",
+       "kb": 80.9,
+       "gzipKB": 9.2
+      },
+      {
+       "file": "lua-DjuecEsk.js",
+       "kb": 15.2,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "lua-fPRBWD-V.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "make-Dixweg8N.js",
+       "kb": 8.7,
+       "gzipKB": 1.7
+      },
+      {
+       "file": "markdown-BYOwaDjH.js",
+       "kb": 57.9,
+       "gzipKB": 5.5
+      },
+      {
+       "file": "media-CBmALGRc.js",
+       "kb": 3.3,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "mermaid-parser.core-CmnbuAM1.js",
+       "kb": 16.1,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "mermaid.core-DNn2MyQP.js",
+       "kb": 82.9,
+       "gzipKB": 28.3
+      },
+      {
+       "file": "mindmap-definition-I2QAS2VK-CMT8c_ZJ.js",
+       "kb": 22.3,
+       "gzipKB": 7.5
+      },
+      {
+       "file": "nginx-BxRBJ-Af.js",
+       "kb": 34.5,
+       "gzipKB": 4.3
+      },
+      {
+       "file": "oad_markdown-eG68l04I.js",
+       "kb": 3.6,
+       "gzipKB": 1.5
+      },
+      {
+       "file": "objective-c-D1A_Heim.js",
+       "kb": 102.9,
+       "gzipKB": 22.7
+      },
+      {
+       "file": "packet-JDAUHWVQ-BOOsikJA.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pegDiagram-FD4XPPHP-BFhTYpqK.js",
+       "kb": 2,
+       "gzipKB": 0.9
+      },
+      {
+       "file": "people-DgSIOpUE.js",
+       "kb": 0.2,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "php-WKlfgaoc.js",
+       "kb": 110.5,
+       "gzipKB": 27.9
+      },
+      {
+       "file": "pie-XZMESJXO-CsHkZvQY.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "pieDiagram-J4AKIIQI-CCPx-Hk5.js",
+       "kb": 4.9,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "powershell-QtSnmXcu.js",
+       "kb": 19.7,
+       "gzipKB": 3.9
+      },
+      {
+       "file": "proto-DB4EqR-F.js",
+       "kb": 6.4,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "python-gzcpVVnB.js",
+       "kb": 68.3,
+       "gzipKB": 8.8
+      },
+      {
+       "file": "quadrantDiagram-XTYBLID2-3YGitIfB.js",
+       "kb": 32.7,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "r-BXEss897.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "r-DWzjseEo.js",
+       "kb": 6.6,
+       "gzipKB": 1.8
+      },
+      {
+       "file": "radar-ABXABTNO-DueDVsTn.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-I3PHUGI6-CH67KiMN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-abnf-LNEFI6M7-BpRhBocN.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-ebnf-DWYD2UWJ-XAd5fETu.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroad-peg-JR7BVNR7-B4cX2BLf.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "railroadDiagram-MRQ6NCDL-Cj7SM60E.js",
+       "kb": 1.6,
+       "gzipKB": 0.8
+      },
+      {
+       "file": "react-B8SKf8RM.js",
+       "kb": 7.7,
+       "gzipKB": 2.9
+      },
+      {
+       "file": "requirementDiagram-Y7LWUY3S-SBhJ_Gc2.js",
+       "kb": 30.3,
+       "gzipKB": 9.5
+      },
+      {
+       "file": "rolldown-runtime-COiEfhsA.js",
+       "kb": 1.1,
+       "gzipKB": 0.6
+      },
+      {
+       "file": "rough.esm-Dy-Kn_BL.js",
+       "kb": 26.5,
+       "gzipKB": 8.6
+      },
+      {
+       "file": "ruby-BqJ275D2.js",
+       "kb": 53.5,
+       "gzipKB": 6.9
+      },
+      {
+       "file": "rust-DpiIf5JO.js",
+       "kb": 14.8,
+       "gzipKB": 2.6
+      },
+      {
+       "file": "sankeyDiagram-WGJFYUXA-D22rg0wc.js",
+       "kb": 37.9,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "scala-BiFt_7mu.js",
+       "kb": 28.2,
+       "gzipKB": 3.8
+      },
+      {
+       "file": "scss-8bKmll0B.js",
+       "kb": 26.6,
+       "gzipKB": 4.1
+      },
+      {
+       "file": "sequenceDiagram-5NDRBG5M-DsiNXoB9.js",
+       "kb": 114.9,
+       "gzipKB": 30.3
+      },
+      {
+       "file": "shellscript-CqHdAlCp.js",
+       "kb": 40.5,
+       "gzipKB": 5.9
+      },
+      {
+       "file": "shiki-DGBgfj04.js",
+       "kb": 5.4,
+       "gzipKB": 2.1
+      },
+      {
+       "file": "sizeCapture-INFHLROL-3uHXrFqA.js",
+       "kb": 0.9,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "sql-CNu3Or2W.js",
+       "kb": 23.1,
+       "gzipKB": 7.3
+      },
+      {
+       "file": "sql-CfM2IJm3.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "stateDiagram-v2-FJ4FJNEA-BtIvd2HC.js",
+       "kb": 40.6,
+       "gzipKB": 13.5
+      },
+      {
+       "file": "swift-CyEgAFGc.js",
+       "kb": 85.2,
+       "gzipKB": 14.3
+      },
+      {
+       "file": "swimlanes-UMQ2AFYF-BrTce0OS.js",
+       "kb": 115.1,
+       "gzipKB": 39
+      },
+      {
+       "file": "swimlanesDiagram-OMPLPG4O-BBKyvfEZ.js",
+       "kb": 0.8,
+       "gzipKB": 0.5
+      },
+      {
+       "file": "timeline-definition-SEUHKTQE-g8fqZS5n.js",
+       "kb": 29.8,
+       "gzipKB": 9.7
+      },
+      {
+       "file": "toml-CcmNWLt0.js",
+       "kb": 6.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "treeView-D4JQ5SDB-Dsh2zaLU.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "treemap-SAJKECNS-DXDO2wkq.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "tsx-BOvsFOI6.js",
+       "kb": 171.4,
+       "gzipKB": 15.7
+      },
+      {
+       "file": "tsx-CGosfAUg.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-Bb1J8qyy.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "typescript-j_1H8WHN.js",
+       "kb": 176.8,
+       "gzipKB": 15.3
+      },
+      {
+       "file": "usecaseDiagram-AFA6YXN4-gSXscUAi.js",
+       "kb": 183.5,
+       "gzipKB": 47.7
+      },
+      {
+       "file": "vennDiagram-NNMJR3RB-CUjo1Nf5.js",
+       "kb": 40.2,
+       "gzipKB": 14.6
+      },
+      {
+       "file": "vue-jUI-lpPb.js",
+       "kb": 25.1,
+       "gzipKB": 3.1
+      },
+      {
+       "file": "wardley-7MLQ67FV-Bcj7f88B.js",
+       "kb": 0.1,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "wardleyDiagram-S7YFUSEH-RWmf8orp.js",
+       "kb": 24.6,
+       "gzipKB": 6.4
+      },
+      {
+       "file": "xml-DuKfbPI6.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "xml-WY0zc4PG.js",
+       "kb": 5.3,
+       "gzipKB": 1.2
+      },
+      {
+       "file": "xychartDiagram-GGNKY7IX-BPzhVTA3.js",
+       "kb": 42.2,
+       "gzipKB": 11.5
+      },
+      {
+       "file": "yaml-DDA_XMNu.js",
+       "kb": 0,
+       "gzipKB": 0.1
+      },
+      {
+       "file": "yaml-DijMHRDA.js",
+       "kb": 10.2,
+       "gzipKB": 2.2
+      },
+      {
+       "file": "yjs-BQdOH2Oc.js",
+       "kb": 84.4,
+       "gzipKB": 25.3
+      },
+      {
+       "file": "zig-CMLA9XwU.js",
+       "kb": 5.2,
+       "gzipKB": 1.5
+      }
+     ],
+     "css": [
+      {
+       "file": "DbPage-DC3DJdpO.css",
+       "kb": 33.7,
+       "gzipKB": 6.8
+      },
+      {
+       "file": "History-DY7zYzgO.css",
+       "kb": 7.4,
+       "gzipKB": 2
+      },
+      {
+       "file": "PageView-BXggyEjT.css",
+       "kb": 4.6,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "Palette-Ci1A-01v.css",
+       "kb": 3.2,
+       "gzipKB": 1.1
+      },
+      {
+       "file": "base-pl2SXF4M.css",
+       "kb": 4.8,
+       "gzipKB": 1.4
+      },
+      {
+       "file": "cards-BkvP0m8c.css",
+       "kb": 14.4,
+       "gzipKB": 3.6
+      },
+      {
+       "file": "index-ByKvRKvI.css",
+       "kb": 43.3,
+       "gzipKB": 9.3
+      },
+      {
+       "file": "katex-lxMheimU.css",
+       "kb": 29.1,
+       "gzipKB": 7.7
+      },
+      {
+       "file": "settings-CpcdIQ6t.css",
+       "kb": 4.2,
+       "gzipKB": 1.2
+      }
+     ]
+    }
+   },
+   "db": {
+    "setupMs": 1602,
+    "rows": 10000,
+    "openUncached": {
+     "fromNavigation": {
+      "n": 7,
+      "p50": 675,
+      "p95": 1098.5,
+      "max": 1098.5
+     },
+     "storeReady": {
+      "n": 7,
+      "p50": 501.9,
+      "p95": 932.6,
+      "max": 932.6
+     }
+    },
+    "openCached": {
+     "firstContent": {
+      "n": 7,
+      "p50": 36.7,
+      "p95": 139.6,
+      "max": 139.6
+     },
+     "fromNavigation": {
+      "n": 7,
+      "p50": 114.3,
+      "p95": 139.6,
+      "max": 139.6
+     },
+     "idbToRows": {
+      "n": 7,
+      "p50": 68.1,
+      "p95": 80.4,
+      "max": 80.4
+     },
+     "inAppSwitch": {
+      "n": 7,
+      "p50": 84.1,
+      "p95": 90.9,
+      "max": 90.9
+     }
+    },
+    "scroll": {
+     "vertical": {
+      "frames": 242,
+      "seconds": 4.01,
+      "fps": 60.3,
+      "dropped": 0,
+      "worst": 16.8
+     },
+     "fling": {
+      "frames": 121,
+      "seconds": 2,
+      "fps": 60.4,
+      "dropped": 0,
+      "worst": 16.8
+     },
+     "horizontal": {
+      "frames": 181,
+      "seconds": 3.01,
+      "fps": 60.2,
+      "dropped": 0,
+      "worst": 16.8
+     }
+    },
+    "viewChanges": {
+     "filter": {
+      "total": {
+       "n": 7,
+       "p50": 25,
+       "p95": 416.3,
+       "max": 416.3
+      },
+      "query": {
+       "n": 7,
+       "p50": 3.4,
+       "p95": 7.3,
+       "max": 7.3
+      }
+     },
+     "filterNested": {
+      "total": {
+       "n": 7,
+       "p50": 17.3,
+       "p95": 25,
+       "max": 25
+      },
+      "query": {
+       "n": 7,
+       "p50": 1,
+       "p95": 3.8,
+       "max": 3.8
+      }
+     },
+     "sort": {
+      "total": {
+       "n": 7,
+       "p50": 14.9,
+       "p95": 27.4,
+       "max": 27.4
+      },
+      "query": {
+       "n": 7,
+       "p50": 3.5,
+       "p95": 8.6,
+       "max": 8.6
+      }
+     },
+     "sortText": {
+      "total": {
+       "n": 7,
+       "p50": 21,
+       "p95": 31.6,
+       "max": 31.6
+      },
+      "query": {
+       "n": 7,
+       "p50": 8.9,
+       "p95": 9.6,
+       "max": 9.6
+      }
+     },
+     "group": {
+      "total": {
+       "n": 7,
+       "p50": 17,
+       "p95": 18.3,
+       "max": 18.3
+      },
+      "query": {
+       "n": 7,
+       "p50": 6.9,
+       "p95": 7.7,
+       "max": 7.7
+      }
+     },
+     "groupMulti": {
+      "total": {
+       "n": 7,
+       "p50": 18.8,
+       "p95": 19.7,
+       "max": 19.7
+      },
+      "query": {
+       "n": 7,
+       "p50": 8.3,
+       "p95": 9,
+       "max": 9
+      }
+     },
+     "search": {
+      "total": {
+       "n": 7,
+       "p50": 12.6,
+       "p95": 13.1,
+       "max": 13.1
+      },
+      "query": {
+       "n": 1,
+       "p50": 0,
+       "p95": 0,
+       "max": 0
+      }
+     }
+    }
+   }
+  }
+ ],
+ "loadavg_browser_runs": [
+  "run 1 load { 223.65 216.83 175.98 }",
+  "run 1 exit 0 load { 268.74 232.37 185.33 }",
+  "run 2 load { 268.74 232.37 185.33 }",
+  "run 2 exit 0 load { 288.05 246.64 194.73 }",
+  "run 3 load { 288.05 246.64 194.73 }",
+  "run 3 exit 0 load { 290.12 256.01 202.38 }"
+ ],
+ "docker_image_bytes": 76310041,
+ "binary_bytes": 41102304
+}

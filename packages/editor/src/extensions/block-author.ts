@@ -7,7 +7,7 @@ import { ySyncPluginKey } from 'y-prosemirror'
 import * as Y from 'yjs'
 
 export interface AuthorInfo {
-  kind: 'user' | 'agent' | string
+  kind: 'user' | 'agent'
   id: string
   name: string
 }

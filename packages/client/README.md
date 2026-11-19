@@ -32,10 +32,15 @@ await db.setCells([{ row_id: ids[0], key: 'status', value: 'done' }]) // 先改�
 db.subscribe(() => render()) // 有变化
 ```
 
-- 每个 HTTP 接口一个方法（`pages`、`createPage`、`threads`、`search`、`versions`、`trash`、`createShare`、`dbRows`、`patchRows`……），
-  没包到的用 `client.request(method, path, body)`。出错抛 `ApiError { status, code, message }`。
-- 类型（`Page`、`Me`、`Thread`、`Schema`、`View`、`Row`……）现在是照 `docs/phase*-contract.md` 手写的，在 `src/types.ts`；
-  服务器出 OpenAPI 以后换成 `openapi-typescript` 生成的，名字不变。
+- 每个 HTTP 接口一个方法（`pages`、`createPage`、`content`、`threads`、`search`、`versions`、`trash`、`queryDatabase`、`agentNotifications`……）。
+  路径、参数、请求体、响应的类型都从 `docs/openapi.json` 来：`client.call('get', '/pages/{id}', { path: { id } })` 能调文档里的任何接口，
+  写错路径、方法、字段编译就报错；`client.request(method, path, body)` 不检查。出错抛 `ApiError { status, code, message }`。
+- 分页的列表（`versions`、`dbHistory`、`trash`、`inbox`、`agentNotifications`）返回一页（带 `next_cursor`）；
+  要全部的用 `for await (const v of client.eachVersion(pageId))`（还有 `eachDbHistory`、`eachTrash`、`eachInbox`、`eachAgentNotification`），
+  按游标一页页取，`break` 了就不再取。
+- 类型（`Page`、`Me`、`Thread`、`DbRow`、`Version`……）是 `src/openapi.ts` 里生成的（`pnpm --filter @oad/client gen:types`；
+  过期了 `test/openapi-fresh.test.ts` 会失败）。文档里只写了 `object` 的（表结构 `Schema`、视图 `View` 等）在 `src/types.ts` 手写。
+  `OAD_BIN=… pnpm test` 还会起真服务器，把 60 多个接口的响应按文档检查一遍（`test/contract.test.ts`）。
 - 只要 HTTP、想让包小一点：`import { createClient } from '@oad/client/core'`（没有 Yjs、没有 WASM）；
   用到协作文档 / 数据库时 `import { openPage } from '@oad/client/page'`、`import { databasePlugin } from '@oad/client/db'`，
   再 `registerPlugin('openPage', openPage)` / `registerPlugin('database', databasePlugin)`。

@@ -19,7 +19,7 @@ export default function TrashPage({ store, canWrite, sidebarCollapsed, onExpandS
   const load = () =>
     api.trash(store.ws).then(
       (r) => {
-        setItems(r.sort((a, b) => b.deleted_at - a.deleted_at))
+        setItems([...r.items].sort((a, b) => b.deleted_at - a.deleted_at))
         setError(null)
       },
       (e) => {

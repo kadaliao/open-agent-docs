@@ -35,7 +35,7 @@ export function HistoryPanel({
 }: {
   pageId: string
   canWrite: boolean
-  selected: string | null
+  selected: number | null
   onSelect: (v: Version | null) => void
   onClose: () => void
 }) {
@@ -47,7 +47,7 @@ export function HistoryPanel({
   const load = () =>
     api.versions(pageId).then(
       (v) => {
-        setVersions([...v].sort((a, b) => b.created_at - a.created_at))
+        setVersions([...v.versions].sort((a, b) => b.created_at - a.created_at))
         setError(null)
       },
       (e) => {

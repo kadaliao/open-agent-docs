@@ -16,6 +16,8 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY vendor vendor
 COPY crates crates
+# Cargo 工作区的成员（只用来编译检查，不进镜像）
+COPY examples/rust-mount examples/rust-mount
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build -p oad-db --features wasm --target wasm32-unknown-unknown --release \
@@ -43,6 +45,8 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY vendor vendor
 COPY crates crates
+# Cargo 工作区的成员（只用来编译检查，不进镜像）
+COPY examples/rust-mount examples/rust-mount
 COPY --from=web /src/apps/web/dist apps/web/dist
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \

@@ -152,7 +152,7 @@ assert.ok((await asAgent.pages(ws)).length > 0, '新 token 能用')
 const share = await c.getShare(home.id)
 assert.ok(share?.url, '分享重建了')
 assert.equal((await fetch(new URL(share.url, URL_))).status, 200)
-const trash = await c.trash(ws)
+const trash = (await c.trash(ws)).items
 assert.ok(trash.some((t) => t.title === '删掉的页面'), '回收站里的页面在新版的回收站里')
 
 // 3. 再跑一遍：什么都不多

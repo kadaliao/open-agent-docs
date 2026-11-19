@@ -214,9 +214,8 @@ const ThreadCard = memo(function ThreadCard({ thread, active, lost, me, candidat
 
 function CommentItem({ c, me, candidates, nameOf, reload }: { c: Comment; me: Me; candidates: Candidate[]; nameOf: (k: string, id: string) => string; reload: () => void }) {
   const [editing, setEditing] = useState(false)
-  const kind = c.author?.kind ?? c.author_kind
-  const id = c.author?.id ?? c.author_id
-  const name = c.author?.name ?? nameOf(kind, id)
+  const { kind, id } = c.author
+  const name = c.author.name || nameOf(kind, id)
   const mine = kind === 'user' && id === me.user.id
   const client = useOadClient()
   if (c.deleted_at) return <div className="comment is-deleted">{t('commentDeleted')}</div>

@@ -6,7 +6,7 @@ import type { PageStore } from './store'
 import { t } from './strings'
 
 function label(n: InboxItem) {
-  const k = n.kind ?? n.type ?? ''
+  const k = n.type ?? ''
   if (k.includes('mention')) return t('notifMention')
   if (k.includes('reply')) return t('notifReply')
   if (k.includes('resolve')) return t('notifResolved')
@@ -19,7 +19,7 @@ export function Inbox({ store }: { store: PageStore }) {
   const box = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
-    api.inbox().then(setItems, () => {})
+    api.inbox().then((r) => setItems(r.items), () => {})
   }, [])
   useEffect(() => {
     load()
@@ -43,7 +43,7 @@ export function Inbox({ store }: { store: PageStore }) {
       setItems((xs) => xs.map((x) => (x.id === n.id ? { ...x, read_at: Date.now() } : x)))
       api.markRead({ ids: [n.id] }).catch(() => {})
     }
-    const page = n.page?.id ?? n.page_id
+    const page = n.page?.id
     if (page) navigate(n.thread_id ? threadPath(page, n.thread_id) : pagePath(page))
   }
 
@@ -75,7 +75,7 @@ export function Inbox({ store }: { store: PageStore }) {
           <div className="inbox-list">
             {items.length === 0 && <div className="inbox-empty">{t('inboxEmpty')}</div>}
             {items.map((n) => {
-              const who = n.actor ?? n.by ?? n.comment?.author
+              const who = n.by ?? n.comment?.author
               return (
                 <button key={n.id} className={'inbox-item' + (n.read_at ? '' : ' is-unread')} onClick={() => go(n)}>
                   <span className={'avatar avatar-sm' + (who?.kind === 'agent' ? ' is-agent' : '')} style={{ background: colorFor(who?.id ?? '?') }}>

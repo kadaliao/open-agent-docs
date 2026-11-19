@@ -86,7 +86,10 @@ describe('HTTP 方法', () => {
     const c = createClient({ fetch })
     expect(await c.search('ws', '同步 协议&x', 5)).toEqual([{ page_id: 'a' }])
     await c.unfurl('https://a.b/c?d=1&e=2')
-    expect(calls[0].url).toBe('/api/v1/workspaces/ws/search?q=%E5%90%8C%E6%AD%A5%20%E5%8D%8F%E8%AE%AE%26x&limit=5&kind=all')
+    // 空格写成 + 或 %20 都行（服务器按表单编码解），比解出来的值
+    const q0 = new URL(calls[0].url, 'http://x')
+    expect(q0.pathname).toBe('/api/v1/workspaces/ws/search')
+    expect(Object.fromEntries(q0.searchParams)).toEqual({ q: '同步 协议&x', limit: '5', kind: 'all' })
     expect(calls[1].url).toBe('/api/v1/unfurl?url=https%3A%2F%2Fa.b%2Fc%3Fd%3D1%26e%3D2')
   })
 
@@ -96,9 +99,61 @@ describe('HTTP 方法', () => {
   })
 
   it('收件箱：data 里的字段摊平', async () => {
-    const { fetch } = fakeFetch(() => json({ notifications: [{ id: 1, type: 'mention', data: { page: { id: 'p' }, quote: 'q' }, created_at: 1 }] }))
-    const [n] = await createClient({ fetch }).inbox()
-    expect(n).toMatchObject({ id: 1, type: 'mention', page: { id: 'p' }, quote: 'q' })
+    const { fetch } = fakeFetch(() => json({ notifications: [{ id: 1, type: 'mention', workspace_id: 'w', data: { page: { id: 'p' }, quote: 'q' }, created_at: 1 }], unread: 1 }))
+    const r = await createClient({ fetch }).inbox()
+    expect(r.unread).toBe(1)
+    expect(r.items[0]).toMatchObject({ id: 1, type: 'mention', page: { id: 'p' }, quote: 'q' })
+  })
+
+  it('分页：each* 按 next_cursor 一页页取，取完为止；break 了就不再取', async () => {
+    // 回收站：三页，每页两条
+    const pages: Record<string, { items: { id: string }[]; next_cursor: string | null }> = {
+      '': { items: [{ id: 'a' }, { id: 'b' }], next_cursor: 'c1' },
+      c1: { items: [{ id: 'c' }, { id: 'd' }], next_cursor: 'c2' },
+      c2: { items: [{ id: 'e' }], next_cursor: null },
+    }
+    const { fetch, calls } = fakeFetch((c) => json(pages[new URL(c.url, 'http://x').searchParams.get('cursor') ?? '']))
+    const c = createClient({ fetch })
+    const got: string[] = []
+    for await (const t of c.eachTrash('w', { limit: 2 })) got.push(t.id)
+    expect(got).toEqual(['a', 'b', 'c', 'd', 'e'])
+    expect(calls.map((x) => x.url)).toEqual(['/api/v1/workspaces/w/trash?limit=2', '/api/v1/workspaces/w/trash?limit=2&cursor=c1', '/api/v1/workspaces/w/trash?limit=2&cursor=c2'])
+    // break：只取了第一页
+    calls.length = 0
+    for await (const t of c.eachTrash('w')) if (t.id === 'b') break
+    expect(calls.length).toBe(1)
+  })
+
+  it('分页：服务器给回同一个游标时停下（不死循环）', async () => {
+    const { fetch, calls } = fakeFetch(() => json({ items: [{ id: 'a' }], next_cursor: 'same' }))
+    const got: string[] = []
+    for await (const t of createClient({ fetch }).eachTrash('w')) got.push(t.id)
+    expect(got).toEqual(['a', 'a'])
+    expect(calls.length).toBe(2)
+  })
+
+  it('分页：版本、库的历史、收件箱、Agent 通知各自的字段名', async () => {
+    const { fetch, calls } = fakeFetch((c) => {
+      const u = new URL(c.url, 'http://x')
+      const second = u.searchParams.get('cursor') === 'n'
+      const one = (k: string, id: number) => json({ [k]: [{ id, seq: id, type: 't', data: {} }], next_cursor: second ? null : 'n', unread: 0, seq: 9 })
+      if (u.pathname.endsWith('/versions')) return one('versions', second ? 2 : 1)
+      if (u.pathname.endsWith('/history')) return one('items', second ? 2 : 1)
+      if (u.pathname.endsWith('/me/notifications')) return one('notifications', second ? 2 : 1)
+      return one('notifications', second ? 2 : 1)
+    })
+    const c = createClient({ fetch })
+    const ids = async (it: AsyncIterable<{ id?: number; seq?: number }>) => {
+      const out: number[] = []
+      for await (const x of it) out.push(x.id ?? x.seq!)
+      return out
+    }
+    expect(await ids(c.eachVersion('p'))).toEqual([1, 2])
+    expect(await ids(c.eachDbHistory('d', { row: 'r' }))).toEqual([1, 2])
+    expect(await ids(c.eachInbox())).toEqual([1, 2])
+    expect(await ids(c.eachAgentNotification({ after: 5 }))).toEqual([1, 2])
+    expect(calls.map((x) => x.url)).toContain('/api/v1/databases/d/history?row=r&cursor=n')
+    expect(calls.map((x) => x.url)).toContain('/api/v1/agent/notifications?after=5&cursor=n')
   })
 
   it('没登记协作文档 / 数据库时说清楚要怎么做', () => {

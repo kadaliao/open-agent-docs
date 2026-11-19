@@ -199,7 +199,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
   )
   // 自己这个标签页的 client id 不用问服务器
   const allAuthors = useMemo(
-    () => (conn ? { ...authors, [String(conn.ydoc.clientID)]: { kind: 'user', id: me.user.id, name: me.user.name } } : authors),
+    () => (conn ? { ...authors, [String(conn.ydoc.clientID)]: { kind: 'user' as const, id: me.user.id, name: me.user.name } } : authors),
     [authors, conn, me.user.id, me.user.name],
   )
   useEffect(() => {
