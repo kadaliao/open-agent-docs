@@ -196,6 +196,32 @@ input {
   color: var(--bad);
   font-size: 13px;
 }
+.login-note {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--oad-line-2);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--oad-fg-2);
+}
+.login-note strong {
+  color: var(--oad-fg);
+}
+.login-card .login-note p {
+  margin: 0;
+}
+.login-note code {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--oad-accent-soft);
+  color: var(--oad-fg);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
 
 /* ---------- 布局 ---------- */
 .app {

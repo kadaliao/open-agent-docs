@@ -274,19 +274,25 @@ type AuthConfigBody struct {
 	// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
 	AllowedOrigins Opt[[]string] `json:"allowed_origins"`
 	// Mode 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）
-	Mode   AuthMode   `json:"mode"`
-	Signup SignupMode `json:"signup"`
+	Mode AuthMode `json:"mode"`
+	// NeedsAdmin 账号密码登录（local）而服务器上一个账号也没有：谁都登录不了，要先建管理员
+	// （`open-agent-docs user add`，或设 `OAD_ADMIN_EMAIL` / `OAD_ADMIN_PASSWORD` 后重启）。旧版服务器没有这个字段
+	NeedsAdmin Opt[bool]  `json:"needs_admin"`
+	Signup     SignupMode `json:"signup"`
 	// Timezone 服务器的时区（IANA 名字）
 	Timezone string `json:"timezone"`
 }
 
 // MarshalJSON 只写设置了的可选字段：Opt 没设置的不发，oad.Null 的发 null。
 func (m AuthConfigBody) MarshalJSON() ([]byte, error) {
-	o := make(map[string]any, 4)
+	o := make(map[string]any, 5)
 	if m.AllowedOrigins.IsSet() {
 		o["allowed_origins"] = m.AllowedOrigins
 	}
 	o["mode"] = m.Mode
+	if m.NeedsAdmin.IsSet() {
+		o["needs_admin"] = m.NeedsAdmin
+	}
 	o["signup"] = m.Signup
 	o["timezone"] = m.Timezone
 	return json.Marshal(o)

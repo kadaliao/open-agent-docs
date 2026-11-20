@@ -205,6 +205,15 @@ async fn user_add(
         .await
         .map_err(|e| e.to_string())?;
     println!("已添加用户 {}（{}）", user.name, user.id);
+    // 服务器要用同一个数据目录才登录得上：写清楚建在了哪里
+    if oad_bin::uses_postgres(&Env::from_process()) {
+        println!("账号在 OAD_DATABASE_URL 指的数据库里，服务器启动时要用同一个");
+    } else {
+        println!(
+            "建在这个数据目录里，服务器启动时 --data-dir 要用它：{}",
+            oad_bin::shown_dir(&data_dir)
+        );
+    }
     Ok(())
 }
 

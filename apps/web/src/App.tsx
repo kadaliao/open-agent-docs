@@ -4,7 +4,7 @@ import { Logo, SidebarIcon } from './icons'
 import { Login } from './Login'
 import { Sidebar } from './Sidebar'
 import { adoptAccountLocale, useLocale } from './i18n'
-import { clearLocalData, navigate, onCommand, pageIdOf, pagePath, pushRecent, storageGet, storageSet, usePath } from './lib'
+import { clearLocalData, LAST_PAGE_KEY, navigate, onCommand, pageIdOf, pagePath, pushRecent, storageGet, storageSet, usePath } from './lib'
 import { Overlays } from './Overlays'
 import { EMBED, post } from './embed'
 import { onToken } from './token'
@@ -81,7 +81,6 @@ const TrashPage = lazy(() => import('./settings/Trash'))
 const InvitePage = lazy(() => import('./settings/Invite'))
 
 const ME_KEY = 'oad:me'
-const LAST_KEY = 'oad:last-page'
 
 type Session = { mode: AuthMode; me: Me } | { mode: AuthMode; me: null } | null
 
@@ -94,6 +93,8 @@ export function App() {
     return me ? { mode: 'local', me } : null
   })
   const [bootError, setBootError] = useState<string | null>(null)
+  // 服务器上一个账号也没有：登录页直接说怎么建，不让人对着“密码不对”猜
+  const [needsAdmin, setNeedsAdmin] = useState(false)
 
   const boot = useCallback(async () => {
     setBootError(null)
@@ -102,7 +103,8 @@ export function App() {
       const config = api.authConfig()
       const mePromise = api.me()
       mePromise.catch(() => {})
-      const { mode } = await config
+      const { mode, needs_admin } = await config
+      setNeedsAdmin(!!needs_admin)
       try {
         const me = await mePromise
         storageSet(ME_KEY, me)
@@ -162,6 +164,7 @@ export function App() {
   if (!session.me)
     return (
       <Login
+        needsAdmin={needsAdmin}
         onDone={(me) => {
           // 换了个人登录：别用上一个人留下的缓存
           const prev = storageGet<Me>(ME_KEY)
@@ -223,7 +226,7 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
       post({ type: 'oad:navigate', pageId, title: store?.pages.get(pageId)?.title ?? '' })
       return
     }
-    storageSet(LAST_KEY, pageId)
+    storageSet(LAST_PAGE_KEY, pageId)
     pushRecent(pageId)
   }, [pageId]) // eslint-disable-line react-hooks/exhaustive-deps
   // ⌘\ 收起 / 展开侧栏
@@ -242,7 +245,7 @@ function Workspace({ me, mode, onLogout, onMe }: { me: Me; mode: AuthMode; onLog
   // 首页：回到上次打开的那页
   useEffect(() => {
     if (path === '/') {
-      const last = storageGet<string>(LAST_KEY)
+      const last = storageGet<string>(LAST_PAGE_KEY)
       if (last) navigate(pagePath(last), true)
     }
   }, [path])

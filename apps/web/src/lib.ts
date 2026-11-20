@@ -164,6 +164,18 @@ export function pushRecent(id: string) {
   storageSet(RECENT_KEY, list.slice(0, 20))
 }
 
+/** 上次打开的页面：打开首页时回到它 */
+export const LAST_PAGE_KEY = 'oad:last-page'
+
+/** 页面删了 / 不存在了：从最近看过、上次打开里去掉。不然首页会一直跳回这个打不开的页面 */
+export function forgetPages(ids: string[]) {
+  const gone = new Set(ids)
+  const list = recentPages()
+  if (list.some((x) => gone.has(x))) storageSet(RECENT_KEY, list.filter((x) => !gone.has(x)))
+  const last = storageGet<string>(LAST_PAGE_KEY)
+  if (last && gone.has(last)) storageSet(LAST_PAGE_KEY, null)
+}
+
 // ---------- 全局命令：快捷键、⌘K 面板发出来，页面、侧栏接 ----------
 export type Command = 'palette' | 'shortcuts' | 'history' | 'share' | 'sidebar' | 'newPage' | 'newDatabase'
 export function runCommand(c: Command) {

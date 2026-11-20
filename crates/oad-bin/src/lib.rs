@@ -105,8 +105,8 @@ pub async fn open_storage(
     tenant: Option<&str>,
 ) -> Result<Arc<dyn Storage>, String> {
     std::fs::create_dir_all(data_dir).map_err(|e| format!("建数据目录失败：{e}"))?;
-    if let Some(url) = env.get("OAD_DATABASE_URL")
-        && (url.starts_with("postgres://") || url.starts_with("postgresql://"))
+    if uses_postgres(env)
+        && let Some(url) = env.get("OAD_DATABASE_URL")
     {
         let schema = tenant.map(|t| format!("t_{}", t.replace('-', "_")));
         let s = Postgres::connect_with(&url, schema.as_deref(), 16)
@@ -118,6 +118,33 @@ pub async fn open_storage(
     Sqlite::open(data_dir.join("oad.db"))
         .map(|s| Arc::new(s) as Arc<dyn Storage>)
         .map_err(|e| e.to_string())
+}
+
+/// 日志、提示里给人看的数据目录：写成绝对路径（`./data` 看不出是哪个目录）。
+pub fn shown_dir(p: &Path) -> String {
+    std::fs::canonicalize(p)
+        .or_else(|_| std::path::absolute(p))
+        .unwrap_or_else(|_| p.to_path_buf())
+        .display()
+        .to_string()
+}
+
+/// 放进给人照抄的命令里：有空格之类的就加单引号。
+fn shell_quote(s: &str) -> String {
+    let plain = s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "/._-+:@,=".contains(c));
+    if plain && !s.is_empty() {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
+/// `OAD_DATABASE_URL` 是 postgres:// 的：数据库用 Postgres，不在数据目录里。
+pub fn uses_postgres(env: &Env) -> bool {
+    env.get("OAD_DATABASE_URL")
+        .is_some_and(|u| u.starts_with("postgres://") || u.starts_with("postgresql://"))
 }
 
 /// 抓外部网页的配置：`OAD_FETCH_PROXY`、`OAD_FETCH_ALLOW_CIDRS`。
@@ -201,9 +228,18 @@ async fn build_core(
                     .map_err(|e| e.to_string())?
                     == 0
                 {
-                    warn!(
-                        "还没有用户：设 OAD_ADMIN_EMAIL / OAD_ADMIN_PASSWORD 后重启，或用 `open-agent-docs user add`"
-                    );
+                    // 最常见的坑：user add 建在了另一个数据目录里。把这次用的目录写全，命令照抄就能用
+                    if uses_postgres(env) {
+                        warn!(
+                            "数据库里还没有账号，谁都登录不了。设 OAD_ADMIN_EMAIL / OAD_ADMIN_PASSWORD 后重启，或者带着同样的 OAD_DATABASE_URL 建管理员：open-agent-docs user add --email 你的邮箱 --role owner"
+                        );
+                    } else {
+                        let dir = shown_dir(data_dir);
+                        warn!(
+                            "数据目录 {dir} 里还没有账号，谁都登录不了。设 OAD_ADMIN_EMAIL / OAD_ADMIN_PASSWORD 后重启，或者建管理员：open-agent-docs user add --email 你的邮箱 --role owner --data-dir {}",
+                            shell_quote(&dir)
+                        );
+                    }
                 }
             }
         }
@@ -378,7 +414,10 @@ pub async fn start(env: &Env) -> Result<Running, String> {
         host.clone()
     };
     let url = format!("http://{shown}:{}", addr.port());
-    info!("在 {url} 上服务（{mode} 模式）");
+    info!(
+        "在 {url} 上服务（{mode} 模式，数据目录 {}）",
+        shown_dir(&data_dir)
+    );
     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
     let server = tokio::spawn(
         axum::serve(
@@ -514,6 +553,18 @@ mod tests {
         assert_eq!(key_name("OAD_PORT"), "OAD_PORT");
         assert_eq!(key_name("jwtJwksUrl"), "OAD_JWT_JWKS_URL");
         assert_eq!(key_name("auth"), "OAD_AUTH");
+    }
+
+    #[test]
+    fn quoted_dir() {
+        assert_eq!(
+            shell_quote("/opt/homebrew/var/open-agent-docs"),
+            "/opt/homebrew/var/open-agent-docs"
+        );
+        assert_eq!(shell_quote("/Users/me/My Docs"), "'/Users/me/My Docs'");
+        assert_eq!(shell_quote("/tmp/it's"), r"'/tmp/it'\''s'");
+        // 相对路径写成绝对的
+        assert!(shown_dir(Path::new("./no-such-dir-here")).starts_with('/'));
     }
 
     #[test]

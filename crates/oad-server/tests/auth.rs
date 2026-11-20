@@ -20,6 +20,10 @@ fn session_cookie(res: &reqwest::Response) -> String {
 async fn local_login_logout() {
     let dir = tempfile::tempdir().unwrap();
     let s = Server::start(dir.path(), AuthConfig::Local, fast_hub()).await;
+    let c = http();
+    // 一个账号也没有：登录页要提示先建管理员
+    let (_, cfg) = json(c.get(s.api("/auth/config"))).await;
+    assert_eq!(cfg["needs_admin"], true);
     assert!(
         s.core
             .ensure_admin("admin@example.com", "correct horse")
@@ -32,9 +36,9 @@ async fn local_login_logout() {
             .await
             .unwrap()
     );
-    let c = http();
     let (_, cfg) = json(c.get(s.api("/auth/config"))).await;
     assert_eq!(cfg["mode"], "local");
+    assert_eq!(cfg["needs_admin"], false);
     let (st, e) = json(c.get(s.api("/me"))).await;
     assert_eq!(st, 401);
     assert_eq!(e["error"]["code"], "unauthorized");
@@ -171,6 +175,7 @@ async fn none_mode() {
     let c = http();
     let (_, cfg) = json(c.get(s.api("/auth/config"))).await;
     assert_eq!(cfg["mode"], "none");
+    assert_eq!(cfg["needs_admin"], false);
     let (st, me) = json(c.get(s.api("/me"))).await;
     assert_eq!(st, 200);
     assert_eq!(me["workspaces"][0]["role"], "owner");

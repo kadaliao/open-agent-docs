@@ -1,7 +1,7 @@
 // 页面树的状态：先用本机存的上一份列表画出来，再拉服务器的，之后跟着 SSE 事件改。
 import { useSyncExternalStore } from 'react'
 import { api, eventsUrl, type Page } from './api'
-import { navigate, pagePath } from './lib'
+import { forgetPages, navigate, pagePath } from './lib'
 import { EMBED_AUTH } from './token'
 
 /** 交给订阅的人的事件（评论栏、收件箱、数据库） */
@@ -68,9 +68,12 @@ export class PageStore {
     this.emit()
   }
 
+  /** 删掉的页面（自己删的、别处删的）：侧栏去掉，打开着的页面收到 'pages.removed' */
   remove(ids: string[]) {
     for (const id of ids) this.pages.delete(id)
+    forgetPages(ids)
     this.emit()
+    this.bus.get('pages.removed')?.forEach((f) => f(ids))
   }
 
   // 子孙也一起去掉（删除时服务器连子页一起进回收站）
@@ -118,6 +121,8 @@ export class PageStore {
       if (type === 'page.created' || type === 'page.updated' || type === 'page.moved') onPage(data)
       else if (type === 'page.deleted') {
         if (data && typeof data === 'object') this.removeTree((data as Page).id)
+        // 回收站页面听这个刷新
+        this.bus.get('page.deleted')?.forEach((f) => f(data))
       } else if (type === 'resync') {
         // 服务器说落下了事件：重新拉一遍
         this.load().catch(() => {})

@@ -33,6 +33,10 @@ brew services start open-agent-docs      # runs as a service and starts at login
 
 Open http://127.0.0.1:8848 and sign in. Logs go to `$(brew --prefix)/var/log/open-agent-docs.log`; upgrade with `brew upgrade open-agent-docs`.
 
+To run it in the foreground and watch the log, first `brew services stop open-agent-docs`, then
+`open-agent-docs serve --data-dir "$(brew --prefix)/var/open-agent-docs"`. Without `--data-dir` it uses `./data` in the
+current directory, which doesn't have the account created above, so signing in fails with a wrong-password error.
+
 ## Binary
 
 Download the archive for your platform from the [releases page](https://github.com/kadaliao/open-agent-docs/releases/latest)

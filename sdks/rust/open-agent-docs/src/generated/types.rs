@@ -165,6 +165,10 @@ pub struct AuthConfigBody {
     pub allowed_origins: Option<Vec<String>>,
     /// 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）
     pub mode: AuthMode,
+    /// 账号密码登录（local）而服务器上一个账号也没有：谁都登录不了，要先建管理员
+    /// （`open-agent-docs user add`，或设 `OAD_ADMIN_EMAIL` / `OAD_ADMIN_PASSWORD` 后重启）。旧版服务器没有这个字段
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub needs_admin: Option<bool>,
     pub signup: SignupMode,
     /// 服务器的时区（IANA 名字）
     pub timezone: String,

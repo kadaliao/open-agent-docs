@@ -177,17 +177,26 @@ pub(crate) struct AuthConfigBody {
     /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
     #[schema(required = false)]
     allowed_origins: Vec<String>,
+    /// 账号密码登录（local）而服务器上一个账号也没有：谁都登录不了，要先建管理员
+    /// （`open-agent-docs user add`，或设 `OAD_ADMIN_EMAIL` / `OAD_ADMIN_PASSWORD` 后重启）。旧版服务器没有这个字段
+    #[schema(required = false)]
+    needs_admin: bool,
 }
 
 #[utoipa::path(get, path = "/auth/config", tag = "auth", security(()), responses((status = 200, body = AuthConfigBody)))]
-pub(crate) async fn auth_config(State(s): State<AppState>) -> Json<AuthConfigBody> {
+pub(crate) async fn auth_config(
+    State(s): State<AppState>,
+) -> Result<Json<AuthConfigBody>, ApiError> {
     let allowed_origins = crate::guard::allowed_origins(&s.config);
-    Json(AuthConfigBody {
-        mode: s.core.auth.mode(),
+    let mode = s.core.auth.mode();
+    let needs_admin = mode == oad_core::AuthMode::Local && s.core.storage.count_users().await? == 0;
+    Ok(Json(AuthConfigBody {
+        mode,
         timezone: oad_core::tz::name(&s.core.timezone),
         signup: s.core.signup_mode(),
         allowed_origins,
-    })
+        needs_admin,
+    }))
 }
 
 #[derive(Deserialize, ToSchema)]

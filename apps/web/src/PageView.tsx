@@ -25,7 +25,7 @@ import { mediaServices, type DbHost } from './media'
 import { usePeople } from './people'
 import { closePage, dropPreopened, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
-import { colorFor, initials, navigate, onCommand, pagePath, threadOf, usePath } from './lib'
+import { colorFor, forgetPages, initials, navigate, onCommand, pagePath, threadOf, usePath } from './lib'
 import { readSnapshot, saveSnapshot, takeSnapshot } from './snapshot'
 import { firstScreen, markFirstContent, peekFirstScreen } from './firstscreen'
 import { PageTitle } from './PageTitle'
@@ -294,7 +294,12 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
         // 普通页面不用再渲染一遍；库、行才要按 kind 换样子
         if (p.kind === 'database' || p.kind === 'row') onPage(p)
       },
-      (e) => alive && e instanceof ApiError && e.status === 404 && setNotFound(true),
+      (e) => {
+        if (!alive || !(e instanceof ApiError) || e.status !== 404) return
+        // 别再当“上次打开的页面”：不然点“回首页”又跳回这里
+        forgetPages([pageId])
+        setNotFound(true)
+      },
     )
     return () => {
       alive = false
@@ -303,6 +308,9 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
       delete (window as unknown as { __oad?: unknown }).__oad
     }
   }, [pageId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 开着的时候被删了（别的标签页、别人、Agent，或者删了它的上级）：不再让人对着进了回收站的页面写
+  useEffect(() => store.on('pages.removed', (ids: string[]) => ids.includes(pageId) && setNotFound(true)), [store, pageId])
 
   // 存首屏快照：改动停下 2 秒后、离开页面时、关窗口前
   const saveSnap = () => {
@@ -345,6 +353,9 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
     (l) => conn?.onStatus(l) ?? (() => {}),
     () => conn?.status() ?? 'connecting',
   )
+  // 要在下面的提前 return 之前算好：上面的 effect 也用它。放在后面的话，页面已经显示“不存在”、
+  // 之后连接才同步好（ready 变了）时 effect 读到还没初始化的变量，整个网页崩成白屏
+  const editable = canWrite && status !== 'denied'
 
   if (notFound)
     return (
@@ -357,8 +368,6 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
         </div>
       </div>
     )
-
-  const editable = canWrite && status !== 'denied'
 
   return (
     <div className="page">

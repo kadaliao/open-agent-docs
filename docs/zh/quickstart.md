@@ -33,6 +33,9 @@ brew services start open-agent-docs      # 当服务跑，开机自启；数据�
 
 打开 http://127.0.0.1:8848 登录。日志在 `$(brew --prefix)/var/log/open-agent-docs.log`，升级用 `brew upgrade open-agent-docs`。
 
+想在前台跑、直接看日志，先 `brew services stop open-agent-docs`，再 `open-agent-docs serve --data-dir "$(brew --prefix)/var/open-agent-docs"`。
+不加 `--data-dir` 用的是当前目录下的 `./data`，上面建的账号不在那里，登录会说密码不对。
+
 ## 二进制
 
 从[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)下载对应平台的压缩包（macOS、Linux，arm64 和 x86_64 都有），或者[从源码编](#从源码编)。

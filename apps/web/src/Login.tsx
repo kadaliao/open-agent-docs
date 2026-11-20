@@ -3,7 +3,7 @@ import { api, ApiError, type Me } from './api'
 import { t } from './strings'
 import { Logo } from './icons'
 
-export function Login({ onDone }: { onDone: (me: Me) => void }) {
+export function Login({ onDone, needsAdmin = false }: { onDone: (me: Me) => void; needsAdmin?: boolean }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -28,6 +28,14 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         <Logo size={48} />
         <h1>{t('appName')}</h1>
         <p className="muted">{t('loginSubtitle')}</p>
+        {needsAdmin && (
+          <div className="login-note" role="note">
+            <strong>{t('needsAdminTitle')}</strong>
+            <p>{t('needsAdminBody')}</p>
+            <code>{t('needsAdminCmd')}</code>
+            <p>{t('needsAdminAfter')}</p>
+          </div>
+        )}
         <label className="field">
           <span>{t('email')}</span>
           <input type="email" autoComplete="username" autoFocus required value={email} onChange={(e) => setEmail(e.target.value)} />

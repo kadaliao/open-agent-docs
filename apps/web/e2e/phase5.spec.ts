@@ -254,6 +254,48 @@ test('回收站：删一页，在回收站里看到，恢复；再删，彻底�
   await ctx.close()
 })
 
+test('删掉的页面：删了正开着的页落到首页；开着时被别处删了显示不存在；回首页不再跳回去、不白屏', async ({ browser, request }) => {
+  const { ctx, page } = await newCtx(browser)
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const missing = page.locator('.page-missing')
+  const lastPage = () => page.evaluate(() => localStorage.getItem('oad:last-page'))
+
+  // 侧栏里删掉正开着的页（新建的空页）：落到首页，不被“回到上次打开的页面”跳回去
+  const a = await createPage(request, '开着就删')
+  await openPage(page, a.id)
+  await page.locator('.tree-row', { hasText: '开着就删' }).hover()
+  await page.locator('.tree-row', { hasText: '开着就删' }).getByRole('button', { name: '更多操作' }).click()
+  page.once('dialog', (d) => d.accept())
+  await page.getByRole('menuitem', { name: '删除' }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await page.waitForTimeout(800)
+  await expect(page).toHaveURL(/\/$/)
+  expect(await lastPage()).toBeNull()
+
+  // 开着的时候别处（别的标签页、Agent）删了：显示不存在，不能再往回收站里的页面写
+  const b = await createPage(request, '被别处删掉', '内容')
+  await openPage(page, b.id)
+  await request.delete(`/api/v1/pages/${b.id}`)
+  await expect(missing).toBeVisible({ timeout: 10_000 })
+
+  // 打开已经删掉的页面（比如上次打开的那页在别的设备上删了）：等连接同步完也不白屏，回首页就停在首页
+  await page.goto('/')
+  await page.evaluate((id) => localStorage.setItem('oad:last-page', JSON.stringify(id)), a.id)
+  await page.goto('/')
+  await expect(page).toHaveURL(new RegExp(`/p/${a.id}$`))
+  await expect(missing).toBeVisible({ timeout: 10_000 })
+  await page.waitForTimeout(2500)
+  await expect(missing).toBeVisible()
+  await missing.getByRole('button', { name: '回到首页' }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await page.waitForTimeout(800)
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.locator('.home')).toBeVisible()
+  expect(errors).toEqual([])
+  await ctx.close()
+})
+
 test('分享：公开、复制链接、带子页面；公开页面不用登录、排版和编辑器一致；停止分享', async ({ browser, request }) => {
   const { ctx, page } = await newCtx(browser)
   await createPage(request, '子页面：附录', '附录内容').then((c) => request.patch(`/api/v1/pages/${c.id}`, { data: { parent_id: docId } }))
