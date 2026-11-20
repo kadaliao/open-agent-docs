@@ -11,6 +11,7 @@ over MCP; people edit, comment and build databases in the browser. One binary (t
 | [Configuration](configuration.md) | Every `OAD_*` environment variable and command-line flag |
 | [Agents](agents.md) | Connecting over MCP (Claude Code, Codex, other clients), notifications, webhook signatures |
 | [Markdown for agents](markdown.md) | What page bodies, block ids and databases look like to an agent |
+| [SDKs](sdks.md) | Official Python, Go, Rust and JS SDKs: acting as a user, events, webhooks, embedding, local servers, operation table |
 | [Embedding](embedding.md) | JS packages, iframe, header auth, JWT, in-process Node / Python, Rust mount |
 | [HTTP API](api.md) | OpenAPI, auth, error codes, pagination, rate limits, versioning, live events |
 | [Deployment](deployment.md) | Reverse proxy, HTTPS, backups |

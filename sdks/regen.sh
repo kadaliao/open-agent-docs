@@ -12,6 +12,7 @@ if [ "${1:-}" = "--check" ]; then
   (cd sdks/python && python3 codegen/generate.py --check)
   (cd sdks/go && go test -count=1 -run TestGeneratedUpToDate ./...)
   (cd sdks/rust && cargo run -q -p codegen -- --check)
+  node sdks/gen-docs.mjs --check
   node scripts/versions.mjs
   echo "✓ openapi.json 和各 SDK 生成的代码都是最新的"
   exit 0
@@ -23,4 +24,5 @@ pnpm --filter @open-agent-docs/client gen:types
 (cd sdks/python && python3 codegen/generate.py)
 (cd sdks/go && go generate ./...)
 (cd sdks/rust && cargo run -q -p codegen)
+node sdks/gen-docs.mjs
 echo "✓ 重新生成好了：git diff 看看改了什么"

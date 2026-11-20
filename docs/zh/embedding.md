@@ -244,17 +244,19 @@ await oad.close()               // 页面都存好后 resolve
 网页里的链接默认在根路径上，所以要么挂在根上，要么只把 `/api`、`/s` 转过去、网页另外处理。
 例子：[examples/node-inprocess](../../examples/node-inprocess)（Express，header 登录）。
 
-**Python**（`open-agent-docs`，PyO3 的 abi3 wheel，`crates/oad-py`，用 maturin 编）：
+**Python**（`pip install "open-agent-docs[server]"`：Python SDK 加上进程内服务器 `open-agent-docs-server`，PyO3 的 abi3 wheel，源码在 `crates/oad-py`）：
 
 ```python
 import open_agent_docs as oad
 
-with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server:
-    print(server.url)           # 退出 with 时关掉（页面都存好）
-# 或者：server = oad.start(...); ...; server.close()
+with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server:   # 退出 with 时关掉（页面都存好）
+    admin = oad.Client(base_url=server.url, header_secret=SECRET)
+    alice = admin.with_user("alice", name="Alice")                                   # 按宿主认出的用户调
+    alice.pages.create(alice.default_workspace(), title="周报", markdown="# 本周")
 ```
 
-例子：[examples/python-inprocess](../../examples/python-inprocess)（FastAPI 的 lifespan 里起，宿主经 httpx 以某个用户的身份调接口）。
+只装 `open-agent-docs`（不带 `[server]`）时，`oad.start()` 会下载发布页的二进制，作为子进程启动。
+SDK 的完整用法见 [SDK](sdks.md)。例子：[examples/python-inprocess](../../examples/python-inprocess)（在 FastAPI 的 lifespan 里起服务器，每个请求按当前用户 `with_user`）。
 
 ## 挂进 Rust 服务
 

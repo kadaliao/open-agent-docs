@@ -11,6 +11,7 @@
 | [配置](configuration.md) | 所有 `OAD_*` 环境变量和命令行参数 |
 | [Agent](agents.md) | 接入 MCP（Claude Code、Codex、别的客户端）、通知、webhook 验签 |
 | [Agent 看到的 Markdown](markdown.md) | 页面正文、块编号、数据库在 Markdown 里的样子 |
+| [SDK](sdks.md) | Python、Go、Rust、JS 的官方 SDK：替用户调、事件、webhook、嵌入、本地起服务器，接口对照表 |
 | [嵌入到自己的应用](embedding.md) | JS 包、iframe、header 登录、JWT、Node / Python 进程内启动、挂进 Rust 服务 |
 | [HTTP 接口](api.md) | OpenAPI、登录、错误码、翻页、限流、版本、实时事件 |
 | [部署](deployment.md) | 反向代理、HTTPS、备份 |

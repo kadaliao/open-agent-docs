@@ -255,17 +255,20 @@ own runtime, a per-request FFI call would copy request and response bodies, and 
 forwarding over loopback is cheap. The web app's links assume the root path, so either mount at `/` or forward only `/api` and `/s`.
 Example: [examples/node-inprocess](../../examples/node-inprocess) (Express, header auth).
 
-**Python** (`open-agent-docs`, a PyO3 abi3 wheel, `crates/oad-py`, built with maturin):
+**Python** (`pip install "open-agent-docs[server]"`: the Python SDK plus the in-process server `open-agent-docs-server`, a PyO3 abi3 wheel built from `crates/oad-py`):
 
 ```python
 import open_agent_docs as oad
 
-with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server:
-    print(server.url)              # closed (pages saved) when the with block ends
-# or: server = oad.start(...); ...; server.close()
+with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server:   # closed (pages saved) when the block ends
+    admin = oad.Client(base_url=server.url, header_secret=SECRET)
+    alice = admin.with_user("alice", name="Alice")                                   # act as the user your host signed in
+    alice.pages.create(alice.default_workspace(), title="Weekly", markdown="# This week")
 ```
 
-Example: [examples/python-inprocess](../../examples/python-inprocess) (started in FastAPI's lifespan; the host calls the API as a user via httpx).
+With plain `open-agent-docs` (no `[server]`), `oad.start()` downloads the release binary and runs it as a child process.
+Full SDK usage: [SDKs](sdks.md). Example: [examples/python-inprocess](../../examples/python-inprocess) (started in FastAPI's lifespan; each request
+calls `with_user` for the current user).
 
 ## Mounting into a Rust service
 

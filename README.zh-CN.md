@@ -71,7 +71,8 @@ claude mcp add --transport http docs http://127.0.0.1:8848/mcp --header "Authori
 
 - [快速开始](docs/zh/quickstart.md) · [配置](docs/zh/configuration.md) · [部署](docs/zh/deployment.md)
 - [Agent](docs/zh/agents.md)（MCP、通知、webhook） · [Agent 看到的 Markdown](docs/zh/markdown.md)
-- [嵌入到自己的应用](docs/zh/embedding.md)（JS 包、iframe、header 登录、JWT）
+- [SDK](docs/zh/sdks.md)：Python（`pip install open-agent-docs`）、Go、Rust（`cargo add open-agent-docs`）、JS（`npm i @open-agent-docs/client`）
+- [嵌入到自己的应用](docs/zh/embedding.md)（Web Component、React 组件、iframe、header 登录、JWT）
 - [从旧版（Python）迁移](docs/zh/migration.md)
 
 ## 开发

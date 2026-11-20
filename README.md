@@ -79,7 +79,8 @@ claude mcp add --transport http docs http://127.0.0.1:8848/mcp --header "Authori
 
 - [Quick start](docs/en/quickstart.md) · [Configuration](docs/en/configuration.md) · [Deployment](docs/en/deployment.md)
 - [Agents](docs/en/agents.md) (MCP, notifications, webhooks) · [Markdown for agents](docs/en/markdown.md)
-- [Embedding](docs/en/embedding.md) (JS packages, iframe, header auth, JWT)
+- [SDKs](docs/en/sdks.md): Python (`pip install open-agent-docs`), Go, Rust (`cargo add open-agent-docs`), JS (`npm i @open-agent-docs/client`)
+- [Embedding](docs/en/embedding.md) (Web Components, React components, iframe, header auth, JWT)
 - [Migrating from the old Python version](docs/en/migration.md)
 
 ## Development
