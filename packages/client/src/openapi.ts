@@ -1483,6 +1483,11 @@ export interface components {
         };
         /** @description 登录方式和站点设置。 */
         AuthConfigBody: {
+            /**
+             * @description 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
+             *     iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+             */
+            allowed_origins?: string[];
             /** @description 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT） */
             mode: components["schemas"]["AuthMode"];
             signup: components["schemas"]["SignupMode"];
@@ -1555,9 +1560,14 @@ export interface components {
             id: string;
             thread_id: string;
         };
-        /** @description 正文：`markdown`（默认）或 `doc`（`?format=json`），带当前版本（改的时候作为 base 带回来）。 */
+        /** @description 正文：`markdown`（默认）、`doc`（`?format=json`）或 `html`（`?format=html`，只读），带当前版本（改的时候作为 base 带回来）。 */
         Content: {
             doc?: components["schemas"]["DocNode"] | null;
+            /**
+             * @description 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
+             *     只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+             */
+            html?: string | null;
             markdown?: string | null;
             /** @description 顶层块一共几个（给了 `limit` 才有） */
             total?: number | null;
@@ -5249,7 +5259,7 @@ export interface operations {
     get_content: {
         parameters: {
             query?: {
-                /** @description markdown（默认）/ json */
+                /** @description markdown（默认）/ json / html（只读 HTML，见 `Content.html`） */
                 format?: string;
                 /** @description 只要前 N 个顶层块（先画第一屏），响应里带 `total` */
                 limit?: number;

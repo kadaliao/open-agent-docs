@@ -2,6 +2,10 @@
 import { useSyncExternalStore } from 'react'
 import { api, eventsUrl, type Page } from './api'
 import { navigate, pagePath } from './lib'
+import { EMBED_AUTH } from './token'
+
+/** 交给订阅的人的事件（评论栏、收件箱、数据库） */
+const BUS_EVENTS = ['comment.created', 'comment.updated', 'comment.deleted', 'thread.updated', 'notification', 'db.changed', 'db.schema']
 
 type Listener = () => void
 
@@ -21,7 +25,7 @@ export class PageStore {
   loaded = false
   private listeners = new Set<Listener>()
   private snapshot: Page[] = []
-  private es: EventSource | null = null
+  private es: { close: () => void } | null = null
   private saveTimer = 0
 
   constructor(public ws: string) {
@@ -107,50 +111,49 @@ export class PageStore {
 
   connect() {
     if (this.es) return
-    const es = new EventSource(eventsUrl(this.ws), { withCredentials: true })
-    const onPage = (e: MessageEvent) => {
-      try {
-        this.upsert(JSON.parse(e.data))
-      } catch {
-        /* 忽略坏数据 */
-      }
+    const onPage = (data: unknown) => {
+      if (data && typeof data === 'object') this.upsert(data as Page)
     }
-    es.addEventListener('page.created', onPage)
-    es.addEventListener('page.updated', onPage)
-    es.addEventListener('page.moved', onPage)
-    es.addEventListener('page.deleted', (e) => {
-      try {
-        const p = JSON.parse((e as MessageEvent).data) as Page
-        this.removeTree(p.id)
-      } catch {
-        /* 忽略 */
-      }
-    })
-    // 评论和通知：交给订阅的人（评论栏、收件箱）
-    for (const type of ['comment.created', 'comment.updated', 'comment.deleted', 'thread.updated', 'notification', 'db.changed', 'db.schema']) {
-      es.addEventListener(type, (e) => {
-        let data: any = null
-        try {
-          data = JSON.parse((e as MessageEvent).data)
-        } catch {
-          /* 忽略 */
-        }
+    const handle = (type: string, data: unknown) => {
+      if (type === 'page.created' || type === 'page.updated' || type === 'page.moved') onPage(data)
+      else if (type === 'page.deleted') {
+        if (data && typeof data === 'object') this.removeTree((data as Page).id)
+      } else if (type === 'resync') {
+        // 服务器说落下了事件：重新拉一遍
+        this.load().catch(() => {})
+        this.bus.get('resync')?.forEach((f) => f(null))
+      } else if (BUS_EVENTS.includes(type)) {
+        // 评论和通知：交给订阅的人（评论栏、收件箱）
         this.bus.get(type)?.forEach((f) => f(data))
-      })
+      }
     }
-    // 服务器说落下了事件，或者断线重连了：重新拉一遍
-    es.addEventListener('resync', () => {
-      this.load().catch(() => {})
-      this.bus.get('resync')?.forEach((f) => f(null))
-    })
+    // 断线重连了：可能落下了事件，重新拉一遍
     let opened = false
-    es.addEventListener('open', () => {
+    const onOpen = () => {
       if (opened) {
         this.load().catch(() => {})
         this.bus.get('resync')?.forEach((f) => f(null))
       }
       opened = true
-    })
+    }
+    if (EMBED_AUTH) {
+      // 跨域嵌入：EventSource 带不了 Authorization，用 fetch 读的那个（每次重连都带最新的 token）
+      const h = api.events(this.ws)
+      h.on('*', (data, name) => handle(name, data))
+      h.onStatus((up) => up && onOpen())
+      this.es = { close: () => h.close() }
+      return
+    }
+    const es = new EventSource(eventsUrl(this.ws), { withCredentials: true })
+    const parse = (e: Event) => {
+      try {
+        return JSON.parse((e as MessageEvent).data)
+      } catch {
+        return null
+      }
+    }
+    for (const type of ['page.created', 'page.updated', 'page.moved', 'page.deleted', 'resync', ...BUS_EVENTS]) es.addEventListener(type, (e) => handle(type, parse(e)))
+    es.addEventListener('open', onOpen)
     this.es = es
   }
 

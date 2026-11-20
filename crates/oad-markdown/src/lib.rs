@@ -2,15 +2,20 @@
 //! 同一份代码编译成 WASM 给浏览器用（复制粘贴、导出），两边结果一致。
 //!
 //! 保证：`parse(&serialize(&doc))` 和 `doc` 一样（块编号除外）；`serialize(&parse(md))` 再来一遍不变。
+mod html;
 pub mod node;
 mod parse;
 mod serialize;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+pub use html::{HtmlOptions, to_html};
 pub use node::{Mark, Node};
 pub use parse::parse;
 pub use serialize::{serialize, serialize_block};
+
+/// 只读 HTML 的样式表（`.oad-content` 里生效）。服务器 `GET /embed/content.css` 和 `@open-agent-docs/markdown/content.css` 都是这一份。
+pub const CONTENT_CSS: &str = include_str!("../content.css");
 
 /// 能当链接卡片的网址：http(s) 开头、没有空白。
 pub fn is_bare_url(s: &str) -> bool {

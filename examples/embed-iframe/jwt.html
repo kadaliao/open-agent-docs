@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>跨域 + JWT 嵌入 Open Agent Docs</title>
+    <style>
+      body { margin: 0; font: 14px/1.5 -apple-system, 'PingFang SC', sans-serif; background: #f3f4f6; color: #111827; }
+      header { display: flex; gap: 12px; align-items: center; padding: 12px 20px; background: #111827; color: #fff; }
+      main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 16px 20px; }
+      iframe { width: 100%; height: calc(100vh - 100px); border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+      #log { font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; background: #fff; border-radius: 12px; padding: 10px; border: 1px solid #e5e7eb; height: calc(100vh - 120px); overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <header><b>我的产品</b><span>（另一个域名，用 JWT 登录 Open Agent Docs）</span></header>
+    <main>
+      <iframe id="oad" title="Open Agent Docs" allow="clipboard-write"></iframe>
+      <div id="log"></div>
+    </main>
+    <script type="module">
+      // ?oad=http://127.0.0.1:8848（默认这个）；?page=<页面 id>，不给就让宿主后端建一页演示用的
+      const q = new URLSearchParams(location.search)
+      const OAD = (q.get('oad') || 'http://127.0.0.1:8848').replace(/\/$/, '')
+      const frame = document.getElementById('oad')
+      const log = (s) => (document.getElementById('log').textContent += new Date().toLocaleTimeString() + ' ' + s + '\n')
+      window.__oadMessages = []
+
+      // 宿主后端签的 JWT（serve.mjs 的 /token；真的宿主按自己的登录态签）
+      const getToken = async () => (await (await fetch('/token')).json()).token
+
+      // iframe 发来的消息：一定要检查 origin
+      window.addEventListener('message', async (e) => {
+        if (e.origin !== OAD || !e.data || typeof e.data.type !== 'string' || !e.data.type.startsWith('oad:')) return
+        window.__oadMessages.push(e.data)
+        log('← ' + JSON.stringify(e.data))
+        // 401 或者 token 快过期了：要个新的发过去（targetOrigin 写死成 Open Agent Docs 的地址，别用 '*'）
+        if (e.data.type === 'oad:auth-required') {
+          frame.contentWindow.postMessage({ type: 'oad:token', token: await getToken() }, OAD)
+          window.__oadRefreshed = (window.__oadRefreshed || 0) + 1
+          log('→ oad:token（新的）')
+        }
+      })
+
+      const r = await fetch('/token')
+      if (!r.ok) {
+        log('宿主没设 OAD_JWT_SECRET：OAD_JWT_SECRET=<和服务器一样的> pnpm start')
+      } else {
+        const page = q.get('page') || (await (await fetch('/demo-page')).json()).id
+        // token 放在 # 后面：不进服务器日志、不进 Referer；iframe 读走后会从地址栏抹掉
+        frame.src = `${OAD}/p/${encodeURIComponent(page)}?embed=1#token=${encodeURIComponent((await r.json()).token)}`
+        log('打开 ' + page)
+      }
+    </script>
+  </body>
+</html>

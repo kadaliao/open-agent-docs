@@ -1,6 +1,6 @@
-//! WASM 版（packages/markdown-wasm）和这里的结果一样：同一组 Markdown 在 Node 里用 WASM 解析、输出，和 Rust 的比。
+//! WASM 版（packages/markdown-wasm）和这里的结果一样：同一组 Markdown 在 Node 里用 WASM 解析、输出、转 HTML，和 Rust 的比。
 //! 要先编好 WASM（`sh packages/markdown-wasm/build.sh`）、有 node；没有就跳过。
-use oad_markdown::{Node, parse, serialize};
+use oad_markdown::{CONTENT_CSS, HtmlOptions, Node, parse, serialize, to_html};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -26,6 +26,8 @@ const SNIPPETS: &[&str] = &[
     "",
     "   ",
     "<script>alert(1)</script>",
+    "[点我](javascript:alert(1)) 和 [好的](https://a.com \"标\\\"题\")",
+    "![图](/api/v1/files/abc123/a.png) [页](/p/xyz) [锚](#a)",
 ];
 
 fn corpus() -> Vec<String> {
@@ -68,10 +70,18 @@ fn wasm_matches_rust() {
         .status()
         .unwrap();
     assert!(st.success(), "node 跑失败了");
-    let got: Vec<serde_json::Value> =
+    let all: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&output).unwrap()).unwrap();
+    assert_eq!(
+        all["css"], CONTENT_CSS,
+        "WASM 里的 content.css 和 Rust 的不一样"
+    );
+    let got = all["cases"].as_array().unwrap();
     assert_eq!(got.len(), cases.len());
-    for (md, g) in cases.iter().zip(&got) {
+    let abs = HtmlOptions {
+        base_url: Some("https://docs.example.com".into()),
+    };
+    for (md, g) in cases.iter().zip(got) {
         let doc = parse(md);
         assert_eq!(
             g["doc"],
@@ -79,6 +89,31 @@ fn wasm_matches_rust() {
             "解析不一样：{md:?}"
         );
         assert_eq!(g["md"], serialize(&doc), "输出不一样：{md:?}");
+        assert_eq!(
+            g["html"],
+            to_html(&doc, &HtmlOptions::default()),
+            "HTML 不一样：{md:?}"
+        );
+        assert_eq!(
+            g["htmlDoc"],
+            to_html(&doc, &abs),
+            "HTML（文档、带地址）不一样：{md:?}"
+        );
     }
     eprintln!("{} 段 Markdown，WASM 和 Rust 一样", cases.len());
+}
+
+/// 包里的 content.css（build.sh 拷进 dist）和服务器用的是同一份：改了 crates/oad-markdown/content.css 要重新跑 build.sh。
+#[test]
+fn packaged_css_is_current() {
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/markdown-wasm/dist/content.css");
+    let Ok(css) = std::fs::read_to_string(p) else {
+        eprintln!("没有 packages/markdown-wasm/dist/content.css，跳过");
+        return;
+    };
+    assert!(
+        css == CONTENT_CSS,
+        "packages/markdown-wasm/dist/content.css 旧了：sh packages/markdown-wasm/build.sh"
+    );
 }

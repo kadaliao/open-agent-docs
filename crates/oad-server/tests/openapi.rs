@@ -32,8 +32,8 @@ fn routes_in_source() -> BTreeSet<(String, String)> {
     for e in std::fs::read_dir(dir).unwrap() {
         let p = e.unwrap().path();
         let name = p.file_name().unwrap().to_string_lossy().to_string();
-        // 分享页面（/s）不在 /api/v1 里
-        if name == "share.rs" || !name.ends_with(".rs") {
+        // 分享页面（/s）、嵌入用的样式表（/embed）不在 /api/v1 里
+        if name == "share.rs" || name == "embed.rs" || !name.ends_with(".rs") {
             continue;
         }
         let src = std::fs::read_to_string(&p).unwrap();

@@ -13,7 +13,10 @@
   客户端要能忽略不认识的字段和事件。
 - 时间是毫秒时间戳（UTC）；编号都是字符串。
 - **压缩**：超过 1KB 的 JSON 响应按 `Accept-Encoding` 压成 br 或 gzip（浏览器、常见 HTTP 库会自动解）；实时事件（SSE）、WebSocket、文件不压。
-- **大页面先拿第一屏**：`GET /pages/{id}/content?limit=N`（`format=json` 也行）只给前 N 个顶层块，响应里带 `total`（一共几块）。
+- **正文的格式**：`GET /pages/{id}/content` 给 `{ markdown, version }`；`?format=json` 给文档树 `{ doc, version }`；
+  `?format=html` 给只读 HTML `{ html, version }`（外面包 `<div class="oad-content">`，只有白名单里的标签，样式表是 `GET /embed/content.css`，
+  见[嵌入](embedding.md#只读-html)）。写（`PUT`）用 Markdown 或文档树。
+- **大页面先拿第一屏**：`GET /pages/{id}/content?limit=N`（哪种 `format` 都行）只给前 N 个顶层块，响应里带 `total`（一共几块）。
 
 ## 登录
 

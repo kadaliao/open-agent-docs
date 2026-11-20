@@ -35,9 +35,11 @@
 | iframe → 宿主 | `{ type: 'oad:ready', pageId }` 内容出来了 |
 | | `{ type: 'oad:navigate', pageId, title }` 在里面换了页 |
 | | `{ type: 'oad:height', height }` 内容高度变了（想让 iframe 跟着长高时用） |
+| | `{ type: 'oad:auth-required', reason }` 要新的 token（`reason`：`'unauthorized'` 收到 401，`'expiring'` 快过期了），见下面的[跨域 + JWT](#跨域--jwt) |
 | 宿主 → iframe | `{ type: 'oad:navigate', pageId }` 换一页 |
 | | `{ type: 'oad:theme', theme: 'light' \| 'dark' \| 'system' }` |
 | | `{ type: 'oad:locale', locale: 'zh' \| 'en' }` |
+| | `{ type: 'oad:token', token }` 换一个 token（只在嵌入模式里认，见下面） |
 
 ```js
 const frame = document.querySelector('iframe')
@@ -48,8 +50,79 @@ addEventListener('message', (e) => {
 frame.contentWindow.postMessage({ type: 'oad:theme', theme: 'dark' }, 'https://docs.example.com')
 ```
 
-iframe 里用的是 Open Agent Docs 自己的登录（cookie）。宿主和它不同域名时浏览器可能拦第三方 cookie：
-让两边同域（反向代理到同一个域名下），或者用 header / JWT 登录。完整的例子：[examples/embed-iframe](../../examples/embed-iframe)。
+iframe 里默认用的是 Open Agent Docs 自己的登录（cookie）。宿主和它不同域名时浏览器会拦第三方 cookie：
+让两边同域（反向代理到同一个域名下），或者用下面的 JWT。完整的例子：[examples/embed-iframe](../../examples/embed-iframe)（同域的、跨域 + JWT 的都有）。
+
+### 跨域 + JWT
+
+宿主在 `app.example.com`，Open Agent Docs 在 `docs.example.com`，不用 cookie：宿主的后端签一个短期 JWT（[JWT](#jwt)），放在 iframe 地址的 `#token=` 后面。
+
+```sh
+OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+```
+
+```html
+<iframe id="oad" src="https://docs.example.com/p/<页面 id>?embed=1#token=<JWT>"></iframe>
+<script>
+  const OAD = 'https://docs.example.com'
+  const frame = document.getElementById('oad')
+  addEventListener('message', async (e) => {
+    if (e.origin !== OAD) return
+    // 401 或者 token 快过期了：问自己的后端要个新的，发进去
+    if (e.data?.type === 'oad:auth-required') {
+      const { token } = await (await fetch('/api/oad-token')).json()
+      frame.contentWindow.postMessage({ type: 'oad:token', token }, OAD)   // targetOrigin 写死，别用 '*'
+    }
+  })
+</script>
+```
+
+- token 放在 `#` 后面：不会发给服务器、不进访问日志、不进 Referer。网页读走后只放在内存里（不进 localStorage），马上从地址栏抹掉。
+  之后接口带 `Authorization: Bearer`，协同编辑的 WebSocket 带 `?token=`，实时事件也带上。
+- 宿主发 `oad:token` 换新的：只认 `OAD_ALLOWED_ORIGINS` 里的 origin（还有 `OAD_PUBLIC_URL` 的，和同源的），而且得是嵌着它的那个窗口发的；
+  这个列表网页从 `GET /api/v1/auth/config` 的 `allowed_origins` 拿。
+- iframe 收到 401、或者 token 离过期（`exp`）不到 60 秒时，发一次 `{ type: 'oad:auth-required', reason }`（同一个 token 每种原因只发一次），宿主回 `oad:token`。
+  一开始没给 token、或者给的不对，iframe 不出登录框，等宿主的 token 来了再登录。
+- 不是嵌入模式（没有 `?embed=1`）时这些都不生效，照常用 cookie。
+- 现在的限制：上传的图片、文件（`/api/v1/files/…`）是 `<img>`、链接直接去取的，带不了 token，跨域时要靠 cookie（`oad_token`）才打得开。
+  图片多的话先让两边同域。
+
+宿主后端签 JWT 用各语言 SDK 的 `sign_jwt` / `signJwt`，拼地址用 `embed_url` / `embedUrl`（见 [SDK](sdks.md)）。
+
+## 只读 HTML
+
+不要编辑器、只想把一页显示出来（文章页、邮件、搜索结果、服务器端渲染）时，要 HTML：
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" 'https://docs.example.com/api/v1/pages/<页面 id>/content?format=html'
+# { "html": "<div class=\"oad-content\"><h1>…</h1>…</div>", "version": "…" }
+```
+
+```html
+<link rel="stylesheet" href="https://docs.example.com/embed/content.css">
+<article>{html}</article>
+```
+
+- 外面包一层 `<div class="oad-content">`；样式表 `GET /embed/content.css` 不用登录、可以跨域取、带 ETag，只在 `.oad-content` 里生效，长得和编辑器一样。
+  颜色、字体用 `--oad-*` 变量换（和编辑器同名）；明暗跟系统，祖先上放 `data-theme="light|dark"` 就按那个。
+- 安全：只出固定的一组标签和属性，文字和属性值都转义；没有 `<script>`、事件属性（`onclick`……）；链接只认 http、https、mailto、tel 和相对地址，
+  图片只认 http、https 和相对地址（`javascript:`、`data:` 之类去掉链接、留下文字）；Markdown 里写的原始 HTML 当文字显示。可以直接 `innerHTML`。
+- 需要脚本的块出成带 `data-*` 的占位，文字留着：公式 `<span class="oad-math-inline" data-latex="…">`、`<div class="oad-math-block" data-latex="…">`，
+  链接卡片 `<div class="oad-embed" data-url="…" data-view="embed|bookmark">`（里面是一个普通链接），上传的文件 `<div class="oad-embed oad-file" data-type="file" data-url="…">`。
+  想画公式就照着 `data-latex` 用 KaTeX 自己画。
+- 图片、文件、站内页面的地址是服务器上的路径（`/api/v1/files/…`、`/p/…`）；设了 `OAD_PUBLIC_URL` 就是完整地址，嵌在别的域名下也指得对。
+  文件要登录才能取，跨域时同样有上面说的 cookie 的限制。
+- `limit` 照常能用（先拿前 N 块）。
+- 浏览器里或者 Node 里自己转：`@open-agent-docs/markdown`（WASM，和服务器同一份代码，输出逐字一样），样式表在包里：
+
+```js
+import init, { toHtml } from '@open-agent-docs/markdown'
+import '@open-agent-docs/markdown/content.css'
+
+await init()
+el.innerHTML = toHtml('# 标题\n\n正文')                 // Markdown
+el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // 文档 JSON（format=json 拿到的）
+```
 
 ## JS 包
 

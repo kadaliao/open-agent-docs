@@ -2,6 +2,7 @@
 mod api;
 mod collab;
 mod dbs;
+mod embed;
 mod error;
 mod files;
 mod guard;
@@ -98,6 +99,7 @@ pub fn router(state: AppState) -> Router {
                 .layer(compress_json()),
         )
         .nest("/s", share::public_routes())
+        .nest("/embed", embed::routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(
@@ -124,6 +126,7 @@ pub fn api_router(state: AppState) -> Router {
                 .layer(compress_json()),
         )
         .nest("/s", share::public_routes())
+        .nest("/embed", embed::routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

@@ -9,4 +9,6 @@ cargo build -p oad-markdown --features wasm --target wasm32-unknown-unknown --re
 wasm-bindgen --target web --remove-name-section --remove-producers-section \
   --out-dir packages/markdown-wasm/dist --out-name oad_markdown \
   target/wasm32-unknown-unknown/release/oad_markdown.wasm
+# 只读 HTML 的样式表：唯一的来源是 crates/oad-markdown/content.css（服务器的 /embed/content.css 也是它），这里只是拷进包里
+cp crates/oad-markdown/content.css packages/markdown-wasm/dist/content.css
 ls -l packages/markdown-wasm/dist

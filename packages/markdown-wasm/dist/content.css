@@ -1,0 +1,524 @@
+/* 只读 HTML（GET /pages/{id}/content?format=html、@open-agent-docs/markdown 的 toHtml）的样式。只在 .oad-content 里生效，不碰宿主的别的东西。
+   长相照着编辑器（packages/editor/src/style.css 的 .oad-prose）抄的：字号、行高、间距、颜色一样。
+   服务器 GET /embed/content.css 和 @open-agent-docs/markdown/content.css 都是这一份（crates/oad-markdown/content.css）。
+   颜色、字体用 --oad-* 变量换（和编辑器同名），在 .oad-content 或它的任何祖先上设都行。
+   明暗：跟系统；祖先或它自己上放 data-theme="light|dark" 就按那个。 */
+
+.oad-content {
+  --_font: var(--oad-font, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+      'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, sans-serif);
+  --_mono: var(--oad-mono, 'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, 'PingFang SC', monospace);
+  --_fg: var(--oad-fg, #1f1e1c);
+  --_fg-2: var(--oad-fg-2, #5f5e5b);
+  --_fg-3: var(--oad-fg-3, #9b9a97);
+  --_bg: var(--oad-bg, #ffffff);
+  --_bg-2: var(--oad-bg-2, #f7f7f5);
+  --_bg-3: var(--oad-bg-3, #efeeeb);
+  --_line: var(--oad-line, #e9e8e5);
+  --_line-2: var(--oad-line-2, #dcdbd7);
+  --_accent: var(--oad-accent, #2f6fe4);
+  --_code-fg: var(--oad-code-fg, #c4432b);
+  --_code-bg: var(--oad-code-bg, rgba(135, 131, 120, 0.13));
+  --_hl: var(--oad-hl, rgba(255, 212, 0, 0.36));
+  --_radius: var(--oad-radius, 8px);
+  --_note: var(--oad-note, #2f6fe4);
+  --_note-bg: var(--oad-note-bg, #eef4fe);
+  --_tip: var(--oad-tip, #1f8a5b);
+  --_tip-bg: var(--oad-tip-bg, #edf7f1);
+  --_important: var(--oad-important, #7b4fd6);
+  --_important-bg: var(--oad-important-bg, #f4effd);
+  --_warning: var(--oad-warning, #b7791f);
+  --_warning-bg: var(--oad-warning-bg, #fdf6e7);
+  --_caution: var(--oad-caution, #d1453b);
+  --_caution-bg: var(--oad-caution-bg, #fdefee);
+
+  color: var(--_fg);
+  font-family: var(--_font);
+  font-size: 16px;
+  line-height: 1.75;
+  word-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'kern', 'liga', 'calt';
+  text-rendering: optimizeLegibility;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .oad-content:not([data-theme='light']) {
+    --_fg: var(--oad-fg, #e8e7e4);
+    --_fg-2: var(--oad-fg-2, #a9a8a4);
+    --_fg-3: var(--oad-fg-3, #72716d);
+    --_bg: var(--oad-bg, #191919);
+    --_bg-2: var(--oad-bg-2, #202020);
+    --_bg-3: var(--oad-bg-3, #2a2a29);
+    --_line: var(--oad-line, #2e2e2d);
+    --_line-2: var(--oad-line-2, #3a3a39);
+    --_accent: var(--oad-accent, #5b8ff0);
+    --_code-fg: var(--oad-code-fg, #f08a73);
+    --_code-bg: var(--oad-code-bg, rgba(255, 255, 255, 0.08));
+    --_hl: var(--oad-hl, rgba(250, 204, 21, 0.26));
+    --_note: var(--oad-note, #6ea1f7);
+    --_note-bg: var(--oad-note-bg, rgba(91, 143, 240, 0.12));
+    --_tip: var(--oad-tip, #4fbf8a);
+    --_tip-bg: var(--oad-tip-bg, rgba(79, 191, 138, 0.11));
+    --_important: var(--oad-important, #a685f0);
+    --_important-bg: var(--oad-important-bg, rgba(166, 133, 240, 0.12));
+    --_warning: var(--oad-warning, #e0a548);
+    --_warning-bg: var(--oad-warning-bg, rgba(224, 165, 72, 0.12));
+    --_caution: var(--oad-caution, #f07368);
+    --_caution-bg: var(--oad-caution-bg, rgba(240, 115, 104, 0.12));
+  }
+}
+
+[data-theme='dark'] .oad-content:not([data-theme='light']),
+.oad-content[data-theme='dark'] {
+  --_fg: var(--oad-fg, #e8e7e4);
+  --_fg-2: var(--oad-fg-2, #a9a8a4);
+  --_fg-3: var(--oad-fg-3, #72716d);
+  --_bg: var(--oad-bg, #191919);
+  --_bg-2: var(--oad-bg-2, #202020);
+  --_bg-3: var(--oad-bg-3, #2a2a29);
+  --_line: var(--oad-line, #2e2e2d);
+  --_line-2: var(--oad-line-2, #3a3a39);
+  --_accent: var(--oad-accent, #5b8ff0);
+  --_code-fg: var(--oad-code-fg, #f08a73);
+  --_code-bg: var(--oad-code-bg, rgba(255, 255, 255, 0.08));
+  --_hl: var(--oad-hl, rgba(250, 204, 21, 0.26));
+  --_note: var(--oad-note, #6ea1f7);
+  --_note-bg: var(--oad-note-bg, rgba(91, 143, 240, 0.12));
+  --_tip: var(--oad-tip, #4fbf8a);
+  --_tip-bg: var(--oad-tip-bg, rgba(79, 191, 138, 0.11));
+  --_important: var(--oad-important, #a685f0);
+  --_important-bg: var(--oad-important-bg, rgba(166, 133, 240, 0.12));
+  --_warning: var(--oad-warning, #e0a548);
+  --_warning-bg: var(--oad-warning-bg, rgba(224, 165, 72, 0.12));
+  --_caution: var(--oad-caution, #f07368);
+  --_caution-bg: var(--oad-caution-bg, rgba(240, 115, 104, 0.12));
+}
+
+.oad-content *,
+.oad-content *::before,
+.oad-content *::after {
+  box-sizing: border-box;
+}
+.oad-content > * + * {
+  margin-top: 2px;
+}
+
+/* ---------- 段落、标题 ---------- */
+.oad-content p {
+  margin: 0;
+  padding: 3px 0;
+  min-height: 1.75em;
+}
+.oad-content h1,
+.oad-content h2,
+.oad-content h3,
+.oad-content h4,
+.oad-content h5,
+.oad-content h6 {
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.oad-content h1 {
+  font-size: 1.875em;
+  padding: 0.9em 0 0.15em;
+}
+.oad-content h2 {
+  font-size: 1.5em;
+  padding: 0.75em 0 0.1em;
+}
+.oad-content h3 {
+  font-size: 1.25em;
+  padding: 0.6em 0 0.05em;
+}
+.oad-content h4,
+.oad-content h5,
+.oad-content h6 {
+  font-size: 1.05em;
+  padding: 0.5em 0 0;
+}
+.oad-content > :first-child {
+  padding-top: 3px;
+}
+
+/* ---------- 行内 ---------- */
+.oad-content strong {
+  font-weight: 650;
+}
+.oad-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--_fg) 35%, transparent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 0.15s ease;
+}
+.oad-content a:hover {
+  text-decoration-color: var(--_fg);
+}
+.oad-content code {
+  font-family: var(--_mono);
+  font-size: 0.86em;
+  color: var(--_code-fg);
+  background: var(--_code-bg);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+.oad-content mark {
+  background: var(--_hl);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.oad-content u {
+  text-underline-offset: 3px;
+}
+.oad-content .oad-link-mention {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--_bg-2);
+  color: var(--_fg);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95em;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.oad-content a.oad-link-mention:hover {
+  background: var(--_bg-3);
+}
+.oad-content .oad-math-inline {
+  font-family: var(--_mono);
+  font-size: 0.9em;
+  padding: 0 2px;
+}
+
+/* ---------- 列表 ---------- */
+.oad-content ul,
+.oad-content ol {
+  margin: 0;
+  padding-left: 1.6em;
+}
+.oad-content li {
+  padding-left: 0.15em;
+}
+.oad-content li > p {
+  padding: 2px 0;
+}
+.oad-content ul {
+  list-style: disc;
+}
+.oad-content ul ul {
+  list-style: circle;
+}
+.oad-content ul ul ul {
+  list-style: square;
+}
+.oad-content li::marker {
+  color: var(--_fg-2);
+}
+.oad-content ol li::marker {
+  font-variant-numeric: tabular-nums;
+}
+.oad-content ul.oad-tasks {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.oad-content li.oad-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  padding-left: 0;
+}
+.oad-content li.oad-task > div {
+  flex: 1;
+  min-width: 0;
+}
+.oad-content li.oad-task > input[type='checkbox'] {
+  appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0.42em 0 0;
+  border: 1.5px solid var(--_fg-3);
+  border-radius: 4px;
+  display: grid;
+  place-content: center;
+  opacity: 1;
+}
+.oad-content li.oad-task > input[type='checkbox']::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px) scale(0);
+}
+.oad-content li.oad-task > input[type='checkbox']:checked {
+  background: var(--_accent);
+  border-color: var(--_accent);
+}
+.oad-content li.oad-task > input[type='checkbox']:checked::after {
+  transform: rotate(-45deg) translate(1px, -1px) scale(1);
+}
+.oad-content li.oad-task[data-checked='true'] > div > p {
+  color: var(--_fg-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--_fg-3) 70%, transparent);
+}
+
+/* ---------- 引用、分割线 ---------- */
+.oad-content blockquote {
+  margin: 4px 0;
+  padding: 0 0 0 14px;
+  border-left: 3px solid var(--_fg);
+}
+.oad-content hr {
+  border: 0;
+  border-top: 1px solid var(--_line-2);
+  margin: 12px 0;
+}
+
+/* ---------- 提示框 ---------- */
+.oad-content .oad-callout {
+  --c: var(--_note);
+  --c-bg: var(--_note-bg);
+  display: flex;
+  gap: 10px;
+  margin: 6px 0;
+  padding: 14px 16px 14px 14px;
+  border-radius: var(--_radius);
+  background: var(--c-bg);
+}
+.oad-content .oad-callout[data-kind='tip'] {
+  --c: var(--_tip);
+  --c-bg: var(--_tip-bg);
+}
+.oad-content .oad-callout[data-kind='important'] {
+  --c: var(--_important);
+  --c-bg: var(--_important-bg);
+}
+.oad-content .oad-callout[data-kind='warning'] {
+  --c: var(--_warning);
+  --c-bg: var(--_warning-bg);
+}
+.oad-content .oad-callout[data-kind='caution'] {
+  --c: var(--_caution);
+  --c-bg: var(--_caution-bg);
+}
+.oad-content .oad-callout-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--c);
+  color: #fff;
+  font: 700 12px/22px var(--_font);
+  text-align: center;
+  user-select: none;
+}
+.oad-content .oad-callout-body {
+  flex: 1;
+  min-width: 0;
+}
+.oad-content .oad-callout-title {
+  color: var(--c);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* ---------- 折叠块（原生 details，不用脚本） ---------- */
+.oad-content .oad-details {
+  margin: 2px 0;
+}
+.oad-content .oad-details > summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 500;
+  padding: 3px 0 3px 22px;
+  min-height: 1.75em;
+  position: relative;
+}
+.oad-content .oad-details > summary::-webkit-details-marker {
+  display: none;
+}
+.oad-content .oad-details > summary::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: calc(3px + 0.875em - 4.5px);
+  border-left: 6px solid var(--_fg-2);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+  transition: transform 0.15s ease;
+}
+.oad-content .oad-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.oad-content .oad-details-content {
+  padding-left: 22px;
+}
+
+/* ---------- 代码 ---------- */
+.oad-content pre.oad-code {
+  margin: 6px 0;
+  padding: 16px 18px;
+  background: var(--_bg-2);
+  border-radius: var(--_radius);
+  overflow-x: auto;
+  font-family: var(--_mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  tab-size: 2;
+  white-space: pre;
+}
+.oad-content pre.oad-code[data-language] {
+  position: relative;
+  padding-top: 36px;
+}
+.oad-content pre.oad-code[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  color: var(--_fg-3);
+  font: 12px/1.6 var(--_font);
+}
+.oad-content pre.oad-code.is-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.oad-content pre.oad-code code {
+  font: inherit;
+  color: var(--_fg);
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ---------- 公式（占位：显示 LaTeX 原文，宿主可以照 data-latex 自己画） ---------- */
+.oad-content .oad-math-block {
+  margin: 6px 0;
+  padding: 10px 12px;
+  text-align: center;
+  overflow-x: auto;
+  font-family: var(--_mono);
+  font-size: 14px;
+  color: var(--_fg-2);
+  background: var(--_bg-2);
+  border-radius: var(--_radius);
+  white-space: pre-wrap;
+}
+
+/* ---------- 图片 ---------- */
+.oad-content .oad-image {
+  margin: 10px auto;
+  max-width: 100%;
+  width: fit-content;
+}
+.oad-content .oad-image.has-width {
+  margin-left: auto;
+  margin-right: auto;
+}
+.oad-content .oad-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+.oad-content .oad-image.has-width img {
+  width: 100%;
+}
+.oad-content .oad-image figcaption {
+  margin-top: 6px;
+  color: var(--_fg-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+.oad-content .oad-image-alt {
+  display: block;
+  padding: 12px;
+  color: var(--_fg-3);
+  font-size: 13.5px;
+  text-align: center;
+  background: var(--_bg-2);
+  border-radius: 6px;
+}
+
+/* ---------- 链接卡片、文件（占位：一行可点的链接） ---------- */
+.oad-content .oad-embed {
+  margin: 8px 0;
+}
+.oad-content .oad-embed > a,
+.oad-content .oad-embed > span {
+  display: block;
+  padding: 12px 16px;
+  border: 1px solid var(--_line);
+  border-radius: 12px;
+  background: var(--_bg);
+  color: var(--_fg-2);
+  font-size: 14px;
+  line-height: 1.5;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.oad-content .oad-embed > a:hover {
+  border-color: var(--_line-2);
+  background: var(--_bg-2);
+}
+.oad-content .oad-file > a {
+  color: var(--_fg);
+  font-weight: 500;
+}
+.oad-content .oad-file > a::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 13px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  border: 1.5px solid var(--_fg-3);
+  border-radius: 2px;
+}
+
+/* ---------- 表格 ---------- */
+.oad-content .oad-table {
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.oad-content table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.oad-content th,
+.oad-content td {
+  border: 1px solid var(--_line-2);
+  padding: 6px 10px;
+  vertical-align: top;
+  text-align: left;
+  min-width: 6em;
+}
+.oad-content th {
+  background: var(--_bg-2);
+  font-weight: 600;
+}
+.oad-content td > p,
+.oad-content th > p {
+  padding: 0;
+  min-height: 1.6em;
+}

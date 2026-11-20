@@ -7,6 +7,7 @@ import { adoptAccountLocale, useLocale } from './i18n'
 import { clearLocalData, navigate, onCommand, pageIdOf, pagePath, pushRecent, storageGet, storageSet, usePath } from './lib'
 import { Overlays } from './Overlays'
 import { EMBED, post } from './embed'
+import { onToken } from './token'
 import { PageStore, usePages } from './store'
 import { markFirstContent, onFirstScreen, peekFirstScreen, prefetchFirstScreen } from './firstscreen'
 import { PageTitle } from './PageTitle'
@@ -123,6 +124,10 @@ export function App() {
     boot()
   }, [boot])
 
+  // 跨域嵌入：宿主后来才给 token（或者换了一个），还没登录上的话用它再登录一次
+  const loggedIn = !!session?.me
+  useEffect(() => onToken(() => !loggedIn && boot()), [boot, loggedIn])
+
   if (bootError && !session)
     return (
       <div className="splash">
@@ -152,6 +157,8 @@ export function App() {
         />
       </Suspense>
     )
+  // 嵌入且宿主签 JWT：登录是宿主的事，等它发 token 来（已经发了 oad:auth-required）
+  if (!session.me && EMBED && session.mode === 'jwt') return <div className="splash" aria-busy="true" />
   if (!session.me)
     return (
       <Login

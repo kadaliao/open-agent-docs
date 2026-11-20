@@ -173,14 +173,31 @@ pub(crate) struct AuthConfigBody {
     /// 服务器的时区（IANA 名字）
     timezone: String,
     signup: oad_core::members::SignupMode,
+    /// 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
+    /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+    #[schema(required = false)]
+    allowed_origins: Vec<String>,
 }
 
 #[utoipa::path(get, path = "/auth/config", tag = "auth", security(()), responses((status = 200, body = AuthConfigBody)))]
 pub(crate) async fn auth_config(State(s): State<AppState>) -> Json<AuthConfigBody> {
+    let mut allowed_origins: Vec<String> = Vec::new();
+    for o in s
+        .config
+        .allowed_origins
+        .iter()
+        .chain(s.config.public_url.as_ref())
+        .map(|o| crate::guard::normalize_origin(o))
+    {
+        if !o.is_empty() && !allowed_origins.contains(&o) {
+            allowed_origins.push(o);
+        }
+    }
     Json(AuthConfigBody {
         mode: s.core.auth.mode(),
         timezone: oad_core::tz::name(&s.core.timezone),
         signup: s.core.signup_mode(),
+        allowed_origins,
     })
 }
 
@@ -429,7 +446,7 @@ pub(crate) async fn delete_page(
 
 // ---- 正文 ----
 
-/// 正文：`markdown`（默认）或 `doc`（`?format=json`），带当前版本（改的时候作为 base 带回来）。
+/// 正文：`markdown`（默认）、`doc`（`?format=json`）或 `html`（`?format=html`，只读），带当前版本（改的时候作为 base 带回来）。
 #[derive(Serialize, ToSchema)]
 pub(crate) struct Content {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -437,6 +454,10 @@ pub(crate) struct Content {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<DocNode>)]
     doc: Option<Node>,
+    /// 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
+    /// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+    #[serde(skip_serializing_if = "Option::is_none")]
+    html: Option<String>,
     version: String,
     /// 顶层块一共几个（给了 `limit` 才有）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -444,7 +465,7 @@ pub(crate) struct Content {
 }
 
 #[utoipa::path(get, path = "/pages/{id}/content", tag = "content",
-    params(("id" = String, Path), ("format" = Option<String>, Query, description = "markdown（默认）/ json"),
+    params(("id" = String, Path), ("format" = Option<String>, Query, description = "markdown（默认）/ json / html（只读 HTML，见 `Content.html`）"),
         ("limit" = Option<usize>, Query, description = "只要前 N 个顶层块（先画第一屏），响应里带 `total`")),
     responses((status = 200, body = Content), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)))]
 pub(crate) async fn get_content(
@@ -469,6 +490,7 @@ pub(crate) async fn get_content(
             Ok(Json(Content {
                 markdown: Some(md),
                 doc: None,
+                html: None,
                 version,
                 total,
             }))
@@ -476,9 +498,24 @@ pub(crate) async fn get_content(
         Some("json") => Ok(Json(Content {
             markdown: None,
             doc: Some(doc),
+            html: None,
             version,
             total,
         })),
+        Some("html") => {
+            // 嵌在别的域名下时，/api/v1/files/… 这种相对地址要拼上对外的地址才打得开
+            let opts = oad_markdown::HtmlOptions {
+                base_url: s.config.public_url.clone(),
+            };
+            let html = blocking(move || oad_markdown::to_html(&doc, &opts)).await?;
+            Ok(Json(Content {
+                markdown: None,
+                doc: None,
+                html: Some(html),
+                version,
+                total,
+            }))
+        }
         Some(f) => Err(ApiError::bad_request(format!("不支持的 format={f}"))),
     }
 }

@@ -14,7 +14,10 @@ The full reference is OpenAPI 3.1: `GET /api/v1/openapi.json` on a running serve
 - Times are millisecond timestamps (UTC); ids are strings.
 - **Compression**: JSON responses over 1KB are compressed with br or gzip according to `Accept-Encoding` (browsers and common HTTP libraries
   decode it for you). Live events (SSE), WebSocket and files are not compressed.
-- **First screen of a big page**: `GET /pages/{id}/content?limit=N` (with or without `format=json`) returns only the first N top-level blocks,
+- **Page content formats**: `GET /pages/{id}/content` returns `{ markdown, version }`; `?format=json` returns the document tree `{ doc, version }`;
+  `?format=html` returns read-only HTML `{ html, version }` (wrapped in `<div class="oad-content">`, whitelisted tags only, styled by
+  `GET /embed/content.css`; see [Embedding](embedding.md#read-only-html)). Writing (`PUT`) takes Markdown or the document tree.
+- **First screen of a big page**: `GET /pages/{id}/content?limit=N` (any `format`) returns only the first N top-level blocks,
   plus `total` (how many there are).
 
 ## Authentication

@@ -2,6 +2,7 @@
 import { registerPlugin, type PageConn, type PageStatus } from '@open-agent-docs/client/core'
 import { openPage as open } from '@open-agent-docs/client/page'
 import { client } from './api'
+import { onToken } from './token'
 
 // 登记 client.openPage（Yjs、y-websocket、y-indexeddb 在这个包里，不进主包）
 registerPlugin('openPage', open)
@@ -9,9 +10,22 @@ registerPlugin('openPage', open)
 export type Status = PageStatus
 export type Conn = PageConn
 
+// 开着的连接：嵌入时宿主换了 token，下次重连带新的（y-websocket 每次连都按 params 重新拼地址）
+const live = new Set<Conn>()
+onToken((t) => {
+  for (const c of live) c.provider.params.token = t
+})
+
 export function openPage(pageId: string): Conn {
   performance.mark('oad:open')
-  return client.openPage(pageId)
+  const c = client.openPage(pageId)
+  live.add(c)
+  const destroy = c.destroy
+  c.destroy = () => {
+    live.delete(c)
+    destroy()
+  }
+  return c
 }
 
 // 启动时就打开地址栏里那一页（App 里调用），不等登录信息和界面

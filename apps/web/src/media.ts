@@ -1,7 +1,7 @@
 // 编辑器用到的外部服务：链接解析（GET /api/v1/unfurl，结果在内存和 IndexedDB 里各存一份，离线、再打开时直接画）、
 // 上传（POST /api/v1/workspaces/{ws}/files，带进度）、Markdown 解析（WASM 版 oad-markdown，按需加载）。
 import type { MediaServices, Unfurl, Uploaded } from '@open-agent-docs/editor'
-import { API, client } from './api'
+import { API, authHeaders, client } from './api'
 
 const mem = new Map<string, Unfurl>()
 const inflight = new Map<string, Promise<Unfurl | null>>()
@@ -42,7 +42,7 @@ async function idbPut(url: string, v: Unfurl) {
 }
 
 async function fetchUnfurl(url: string): Promise<Unfurl | null> {
-  const r = await fetch(`${API}/unfurl?url=${encodeURIComponent(url)}`, { credentials: 'same-origin' })
+  const r = await fetch(`${API}/unfurl?url=${encodeURIComponent(url)}`, { credentials: 'same-origin', headers: authHeaders() })
   if (!r.ok) return null
   const d = (await r.json()) as Unfurl
   mem.set(url, d)

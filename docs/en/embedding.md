@@ -36,9 +36,11 @@ It talks to the host page with `postMessage`:
 | iframe → host | `{ type: 'oad:ready', pageId }` content is showing |
 | | `{ type: 'oad:navigate', pageId, title }` moved to another page inside |
 | | `{ type: 'oad:height', height }` content height changed (to size the iframe to its content) |
+| | `{ type: 'oad:auth-required', reason }` needs a new token (`reason`: `'unauthorized'` got a 401, `'expiring'` about to expire); see [cross-origin + JWT](#cross-origin--jwt) |
 | host → iframe | `{ type: 'oad:navigate', pageId }` open another page |
 | | `{ type: 'oad:theme', theme: 'light' \| 'dark' \| 'system' }` |
 | | `{ type: 'oad:locale', locale: 'zh' \| 'en' }` |
+| | `{ type: 'oad:token', token }` swap in a new token (embed mode only, see below) |
 
 ```js
 const frame = document.querySelector('iframe')
@@ -49,8 +51,85 @@ addEventListener('message', (e) => {
 frame.contentWindow.postMessage({ type: 'oad:theme', theme: 'dark' }, 'https://docs.example.com')
 ```
 
-The iframe uses Open Agent Docs' own sign-in (cookie). When the host is on another domain, browsers may block third-party cookies:
-put both under one domain (reverse proxy), or use header / JWT auth. Full example: [examples/embed-iframe](../../examples/embed-iframe).
+By default the iframe uses Open Agent Docs' own sign-in (cookie). When the host is on another domain, browsers block third-party cookies:
+put both under one domain (reverse proxy), or use a JWT as below. Full example: [examples/embed-iframe](../../examples/embed-iframe) (same-domain and cross-origin + JWT).
+
+### Cross-origin + JWT
+
+The host is on `app.example.com`, Open Agent Docs on `docs.example.com`, no cookies: the host's back end signs a short-lived JWT ([JWT](#jwt))
+and puts it after `#token=` in the iframe URL.
+
+```sh
+OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+```
+
+```html
+<iframe id="oad" src="https://docs.example.com/p/<page id>?embed=1#token=<JWT>"></iframe>
+<script>
+  const OAD = 'https://docs.example.com'
+  const frame = document.getElementById('oad')
+  addEventListener('message', async (e) => {
+    if (e.origin !== OAD) return
+    // got a 401 or the token is about to expire: get a new one from your back end and send it in
+    if (e.data?.type === 'oad:auth-required') {
+      const { token } = await (await fetch('/api/oad-token')).json()
+      frame.contentWindow.postMessage({ type: 'oad:token', token }, OAD)   // fixed targetOrigin, never '*'
+    }
+  })
+</script>
+```
+
+- The token goes after `#`: it is never sent to the server, never lands in access logs or the Referer. The page reads it, keeps it in memory only
+  (not in localStorage) and removes it from the address bar right away. From then on API calls send `Authorization: Bearer`, the collaboration
+  WebSocket sends `?token=`, and so do live events.
+- The host swaps tokens with `oad:token`. Only origins in `OAD_ALLOWED_ORIGINS` (plus `OAD_PUBLIC_URL`'s, and the same origin) are accepted,
+  and only from the window that embeds the iframe; the page gets that list from `allowed_origins` in `GET /api/v1/auth/config`.
+- On a 401, or when the token's `exp` is less than 60 seconds away, the iframe sends `{ type: 'oad:auth-required', reason }` once
+  (once per token and reason); the host answers with `oad:token`. With no token at first, or a bad one, the iframe shows no sign-in form and
+  waits for the host's token.
+- Outside embed mode (no `?embed=1`) none of this applies; cookies work as usual.
+- Current limitation: uploaded images and files (`/api/v1/files/…`) are fetched directly by `<img>` and links, which cannot carry the token,
+  so cross-origin they only load with a cookie (`oad_token`). For image-heavy pages, put both under one domain for now.
+
+Sign the JWT on the host's back end with the SDKs' `sign_jwt` / `signJwt`, and build the URL with `embed_url` / `embedUrl` (see [SDKs](sdks.md)).
+
+## Read-only HTML
+
+When you only want to show a page, without the editor (article pages, emails, search results, server-side rendering), ask for HTML:
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" 'https://docs.example.com/api/v1/pages/<page id>/content?format=html'
+# { "html": "<div class=\"oad-content\"><h1>…</h1>…</div>", "version": "…" }
+```
+
+```html
+<link rel="stylesheet" href="https://docs.example.com/embed/content.css">
+<article>{html}</article>
+```
+
+- It is wrapped in `<div class="oad-content">`. The stylesheet `GET /embed/content.css` needs no sign-in, can be fetched cross-origin, has an ETag,
+  only applies inside `.oad-content`, and looks like the editor. Change colors and fonts with the `--oad-*` variables (same names as the editor);
+  light/dark follows the system, or `data-theme="light|dark"` on an ancestor.
+- Safety: only a fixed set of tags and attributes, with text and attribute values escaped; no `<script>`, no event attributes (`onclick`…);
+  links only allow http, https, mailto, tel and relative URLs, images only http, https and relative URLs (`javascript:`, `data:` and the like
+  lose the link and keep the text); raw HTML written in Markdown shows as text. Safe to set as `innerHTML`.
+- Blocks that need scripts become placeholders with `data-*`, text kept: math `<span class="oad-math-inline" data-latex="…">`,
+  `<div class="oad-math-block" data-latex="…">`; link cards `<div class="oad-embed" data-url="…" data-view="embed|bookmark">` (a plain link inside);
+  uploaded files `<div class="oad-embed oad-file" data-type="file" data-url="…">`. Render math yourself from `data-latex` with KaTeX if you like.
+- Images, files and in-app pages are server paths (`/api/v1/files/…`, `/p/…`); with `OAD_PUBLIC_URL` set they are full URLs, so they still
+  point to the right place on another domain. Files need sign-in, so the cookie limitation above applies cross-origin too.
+- `limit` works as usual (first N blocks).
+- Convert it yourself in the browser or Node: `@open-agent-docs/markdown` (WASM, same code as the server, byte-for-byte the same output);
+  the stylesheet ships in the package:
+
+```js
+import init, { toHtml } from '@open-agent-docs/markdown'
+import '@open-agent-docs/markdown/content.css'
+
+await init()
+el.innerHTML = toHtml('# Title\n\nBody')                 // Markdown
+el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // document JSON (from format=json)
+```
 
 ## JS packages
 

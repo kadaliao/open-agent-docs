@@ -2,6 +2,7 @@
 //   网址参数：embed=1，theme=light|dark（不给跟系统），lang=zh|en（不给跟浏览器 / 账号）
 //   发给宿主：{ type: 'oad:ready', pageId }、{ type: 'oad:navigate', pageId, title }、{ type: 'oad:height', height }
 //   宿主发来：{ type: 'oad:navigate', pageId }、{ type: 'oad:theme', theme }、{ type: 'oad:locale', locale }
+//   跨域登录（#token=、oad:token、oad:auth-required）在 token.ts
 import { setLocale } from './i18n'
 import { applyTheme, navigate, pagePath } from './lib'
 
