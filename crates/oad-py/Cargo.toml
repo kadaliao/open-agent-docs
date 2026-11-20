@@ -6,7 +6,7 @@ version.workspace = true
 publish = false
 
 [lib]
-name = "open_agent_docs"
+name = "open_agent_docs_server"
 crate-type = ["cdylib"]
 # 只在 Python 里加载，测试在 tests/（pytest）
 test = false

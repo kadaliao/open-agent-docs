@@ -1,8 +1,9 @@
-//! Python 绑定（open-agent-docs）：在 Python 进程里起 Open Agent Docs 服务器（自己的线程和 tokio 运行时），
-//! 配置项和命令行程序一样（`OAD_*`，也可以写成 `data_dir=` 这样的关键字参数）。
+//! Python 绑定（PyPI 上的 open-agent-docs-server，模块 open_agent_docs_server）：在 Python 进程里起
+//! Open Agent Docs 服务器（自己的线程和 tokio 运行时），配置项和命令行程序一样（`OAD_*`，也可以写成
+//! `data_dir=` 这样的关键字参数）。一般不直接用：装 `open-agent-docs[server]`，SDK 的 `oad.start()` 会用它。
 //!
 //! ```python
-//! import open_agent_docs as oad
+//! import open_agent_docs as oad          # SDK
 //! with oad.start(data_dir="./data", auth="none") as server:
 //!     print(server.url)
 //! ```
@@ -12,7 +13,7 @@ use pyo3::types::PyDict;
 use std::sync::Mutex;
 
 /// 跑着的服务器。可以当上下文管理器用（退出时关掉）。
-#[pyclass(module = "open_agent_docs")]
+#[pyclass(module = "open_agent_docs_server")]
 struct Server {
     #[pyo3(get)]
     url: String,
@@ -49,7 +50,7 @@ impl Server {
     }
 
     fn __repr__(&self) -> String {
-        format!("<open_agent_docs.Server {}>", self.url)
+        format!("<open_agent_docs_server.Server {}>", self.url)
     }
 }
 
@@ -88,7 +89,7 @@ fn start(py: Python<'_>, options: Option<&Bound<'_, PyDict>>) -> PyResult<Server
 }
 
 #[pymodule]
-fn open_agent_docs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn open_agent_docs_server(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Server>()?;
     m.add_function(wrap_pyfunction!(start, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

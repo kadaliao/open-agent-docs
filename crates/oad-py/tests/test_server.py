@@ -1,8 +1,8 @@
-"""起服务器、用 httpx 打接口、关掉；上下文管理器；配置不对报错。"""
+"""open_agent_docs_server：起服务器、用 httpx 打接口、关掉；上下文管理器；配置不对报错。"""
 import httpx
 import pytest
 
-import open_agent_docs as oad
+import open_agent_docs_server as oad
 
 
 def test_start_and_api(tmp_path):
