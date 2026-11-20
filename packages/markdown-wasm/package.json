@@ -1,6 +1,6 @@
 {
   "name": "@oad/markdown",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "oad-markdown 的 WASM 版：Markdown 和文档（ProseMirror JSON）互转，和服务器同一份代码",
   "type": "module",
   "main": "dist/oad_markdown.js",
