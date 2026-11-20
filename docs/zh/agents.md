@@ -151,6 +151,23 @@ Claude Code 只认它自己在本机拉起的 stdio 进程当 channel，所以�
 }
 ```
 
+`command` 要能在本机找到 `open-agent-docs`。用 Docker 部署的，本机没有这个程序，两种办法选一种：
+
+- 从[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)下载对应平台的二进制，只用来跑 `channel`，`command` 写它的完整路径；
+- 借正在跑的容器，用容器里的同一个程序（地址就是容器里的 `127.0.0.1:8848`，不用管端口映射）：
+
+  ```json
+  "docs-channel": {
+    "command": "docker",
+    "args": ["exec", "-i", "-e", "OAD_TOKEN", "oad", "open-agent-docs", "channel", "--url", "http://127.0.0.1:8848"],
+    "env": { "OAD_TOKEN": "${OAD_TOKEN}" }
+  }
+  ```
+
+  `oad` 是 `docker run --name` 起的容器名。用 Docker Compose 的，把 `args` 换成
+  `["compose", "-f", "/完整路径/docker-compose.yml", "exec", "-T", "-e", "OAD_TOKEN", "oad", "open-agent-docs", "channel", "--url", "http://127.0.0.1:8848"]`
+  （这里的 `oad` 是服务名）。Claude Code 退出时容器里的 `channel` 跟着退出，不会留下进程。
+
 启动时点名这个 channel：
 
 ```sh

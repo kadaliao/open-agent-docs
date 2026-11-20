@@ -154,6 +154,25 @@ Claude Code only accepts a stdio process it starts itself on the same machine as
 }
 ```
 
+`command` must find `open-agent-docs` on this machine. If you deployed with Docker there's no such program locally; pick one:
+
+- download the binary for your platform from the [releases page](https://github.com/kadaliao/open-agent-docs/releases/latest), use it
+  only for `channel`, and put its full path in `command`;
+- borrow the running container and use the same program inside it (the address is the container's own `127.0.0.1:8848`, so
+  port mappings don't matter):
+
+  ```json
+  "docs-channel": {
+    "command": "docker",
+    "args": ["exec", "-i", "-e", "OAD_TOKEN", "oad", "open-agent-docs", "channel", "--url", "http://127.0.0.1:8848"],
+    "env": { "OAD_TOKEN": "${OAD_TOKEN}" }
+  }
+  ```
+
+  `oad` is the container name given to `docker run --name`. With Docker Compose, use these `args` instead:
+  `["compose", "-f", "/full/path/docker-compose.yml", "exec", "-T", "-e", "OAD_TOKEN", "oad", "open-agent-docs", "channel", "--url", "http://127.0.0.1:8848"]`
+  (here `oad` is the service name). When Claude Code exits, `channel` inside the container exits too; nothing is left running.
+
 Name the channel when starting Claude Code:
 
 ```sh
