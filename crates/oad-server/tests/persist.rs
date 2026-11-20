@@ -16,8 +16,9 @@ async fn restart_keeps_content_and_title() {
         let mut a = YClient::new(5001);
         a.connect(&s.ws(&page), &[]).await;
         eventually("同步上", async || a.synced()).await;
-        a.type_at(&para, 3, "（网页打的）");
+        // 先改标题再打字：同一条连接上的更新按顺序到，等到正文时标题一定也到了（反过来在慢机器上会只等到正文就关机）
         a.doc.set_title("网页改的标题");
+        a.type_at(&para, 3, "（网页打的）");
         eventually("服务器收到", async || {
             s.server_doc(&page).await.plain_text().contains("网页打的")
         })
