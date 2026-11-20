@@ -1,0 +1,109 @@
+{
+  "$comment": "各语言 SDK 共用的固定用例。webhook：now_ms 当成“现在”，tolerance_s 内的算新鲜；expect 是 ok 或错误种类（signature / stale / malformed）。embed_url：期望的地址逐字一样。",
+  "webhook": [
+    {
+      "name": "正确的签名",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040", "x-oad-delivery": "42" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000060000,
+      "tolerance_s": 300,
+      "expect": "ok"
+    },
+    {
+      "name": "非 ASCII 的密钥和正文（按 UTF-8 字节算）",
+      "secret": "whsec_测试",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=850f8f62b0c94f164f50bd47ba82610c1d28cdbc574219374404209900833d06" },
+      "body": "{\"prompt\":\"你好\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "ok"
+    },
+    {
+      "name": "请求头名字大小写不论",
+      "secret": "whsec_test_0123456789",
+      "headers": { "X-OAD-Timestamp": "1700000000000", "X-Oad-Signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "ok"
+    },
+    {
+      "name": "正文被改过",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":43,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "signature"
+    },
+    {
+      "name": "密钥不对",
+      "secret": "whsec_wrong",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "signature"
+    },
+    {
+      "name": "太旧（超过 5 分钟，防重放）",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000301000,
+      "tolerance_s": 300,
+      "expect": "stale"
+    },
+    {
+      "name": "来自未来太远也不行",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1699999699000,
+      "tolerance_s": 300,
+      "expect": "stale"
+    },
+    {
+      "name": "没有签名头",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "malformed"
+    },
+    {
+      "name": "时间戳不是数字",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "yesterday", "x-oad-signature": "sha256=617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "malformed"
+    },
+    {
+      "name": "签名不带 sha256= 前缀",
+      "secret": "whsec_test_0123456789",
+      "headers": { "x-oad-timestamp": "1700000000000", "x-oad-signature": "617e1ec5d26477925814def08f9f6c1ad7df5646b5710557abe2dee3ff1dc040" },
+      "body": "{\"id\":42,\"type\":\"mention\"}",
+      "now_ms": 1700000000000,
+      "tolerance_s": 300,
+      "expect": "malformed"
+    }
+  ],
+  "embed_url": [
+    { "base_url": "https://docs.example.com", "page_id": "p1", "options": {}, "expect": "https://docs.example.com/p/p1?embed=1" },
+    { "base_url": "https://docs.example.com/", "page_id": "p1", "options": { "theme": "dark", "lang": "en" }, "expect": "https://docs.example.com/p/p1?embed=1&theme=dark&lang=en" },
+    { "base_url": "https://docs.example.com", "page_id": "a b/c", "options": { "token": "eyJ.x.y" }, "expect": "https://docs.example.com/p/a%20b%2Fc?embed=1#token=eyJ.x.y" },
+    { "base_url": "http://127.0.0.1:8848/docs", "page_id": "p1", "options": { "theme": "light", "token": "t" }, "expect": "http://127.0.0.1:8848/docs/p/p1?embed=1&theme=light#token=t" }
+  ],
+  "jwt": {
+    "$comment": "sign_jwt 的输出要能被 OAD_AUTH=jwt OAD_JWT_SECRET=<secret> 的服务器认（场景 S9）；这里是本地能检查的部分：解开（不验签）后 claims 必须是这些（iat/exp 按 now 算）。",
+    "secret": "jwt-secret-for-tests-0123456789abcdef",
+    "now_s": 1700000000,
+    "input": { "user_id": "u-42", "name": "王小明", "email": "x@example.com", "workspaces": [{ "id": "ws1", "role": "viewer" }], "ttl_s": 600, "issuer": "https://app.example.com", "audience": "oad" },
+    "expect_header": { "alg": "HS256", "typ": "JWT" },
+    "expect_claims": { "sub": "u-42", "name": "王小明", "email": "x@example.com", "workspaces": [{ "id": "ws1", "role": "viewer" }], "iat": 1700000000, "exp": 1700000600, "iss": "https://app.example.com", "aud": "oad" }
+  }
+}
