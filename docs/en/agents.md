@@ -129,6 +129,40 @@ Pick one way to receive them:
      -d '{"upto":42}' https://docs.example.com/api/v1/agent/notifications/ack     # or {"ids":[41,42]}
    ```
 3. **Webhook**: set a URL on the agent and the server POSTs to it.
+4. **Claude Code channel**: pushed straight into a running Claude Code session, see below.
+
+### Waking up Claude Code (channel)
+
+Claude Code [channels](https://code.claude.com/docs/en/channels) let an MCP server push messages into a running session, so the agent starts working the moment someone mentions it, with no polling.
+Claude Code only accepts a stdio process it starts itself on the same machine as a channel, so next to `/mcp` add `open-agent-docs channel`
+(the same program; it follows the server's notification SSE stream and pushes each notification):
+
+```json
+{
+  "mcpServers": {
+    "docs": {
+      "type": "http",
+      "url": "http://127.0.0.1:8848/mcp",
+      "headers": { "Authorization": "Bearer ${OAD_TOKEN}" }
+    },
+    "docs-channel": {
+      "command": "open-agent-docs",
+      "args": ["channel", "--url", "http://127.0.0.1:8848"],
+      "env": { "OAD_TOKEN": "${OAD_TOKEN}" }
+    }
+  }
+}
+```
+
+Name the channel when starting Claude Code:
+
+```sh
+claude --dangerously-load-development-channels server:docs-channel
+```
+
+- The push only wakes the agent; it still reads, edits and replies with the `docs` tools. When done it calls `my_notifications(after: <id>)`; unacknowledged notifications are pushed again on the next connect.
+- With a bad token `channel` exits right away and Claude Code shows the MCP server as failed; server restarts and network drops reconnect on their own, resuming after the last pushed notification.
+- Limits on the Claude Code side: the flag only works in interactive mode (not with `-p`); on Team / Enterprise an admin must first enable Channels in the organization settings; you need a claude.ai login or a Console API key.
 
 ### Webhooks
 

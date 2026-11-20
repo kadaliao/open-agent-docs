@@ -1,5 +1,7 @@
 //! 启动 Open Agent Docs 服务器：命令行程序、Node 绑定（oad-node）、Python 绑定（oad-py）都用这里，配置项一样
 //! （`OAD_*`，见 docs/zh/configuration.md）：先看调用方给的，再看进程的环境变量。
+pub mod channel;
+
 use oad_core::s3::{S3Blobs, S3Config};
 use oad_core::storage::pg::Postgres;
 use oad_core::storage::sqlite::Sqlite;
@@ -484,6 +486,17 @@ pub fn init_logging() {
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
+        .try_init();
+}
+
+/// 日志写 stderr（stdout 留给 stdio 协议）。
+pub fn init_logging_stderr() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .with_writer(std::io::stderr)
+        .with_ansi(false)
         .try_init();
 }
 

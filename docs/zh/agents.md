@@ -112,7 +112,7 @@ Agent 自己写的评论不会叫别的 Agent。通知的内容：
 }
 ```
 
-三种取法，选一种：
+四种取法，选一种：
 
 1. **MCP 工具** `my_notifications`：Agent 自己时不时看一眼。
 2. **长轮询 / SSE**（适合常驻的 Bot）：
@@ -126,6 +126,40 @@ Agent 自己写的评论不会叫别的 Agent。通知的内容：
      -d '{"upto":42}' https://docs.example.com/api/v1/agent/notifications/ack     # 或 {"ids":[41,42]}
    ```
 3. **webhook**：建 Agent 时填地址，服务器 POST 过去。
+4. **Claude Code channel**：直接推进正在跑的 Claude Code 会话，见下面。
+
+### 叫醒 Claude Code（channel）
+
+Claude Code 的 [channel](https://code.claude.com/docs/en/channels) 能让 MCP 服务往正在跑的会话里推消息，有人 @ Agent 时它马上就开始干活，不用轮询。
+Claude Code 只认它自己在本机拉起的 stdio 进程当 channel，所以除了 `/mcp`，再加一个 `open-agent-docs channel`
+（同一个程序；它连服务器的通知 SSE，每来一条推一条）：
+
+```json
+{
+  "mcpServers": {
+    "docs": {
+      "type": "http",
+      "url": "http://127.0.0.1:8848/mcp",
+      "headers": { "Authorization": "Bearer ${OAD_TOKEN}" }
+    },
+    "docs-channel": {
+      "command": "open-agent-docs",
+      "args": ["channel", "--url", "http://127.0.0.1:8848"],
+      "env": { "OAD_TOKEN": "${OAD_TOKEN}" }
+    }
+  }
+}
+```
+
+启动时点名这个 channel：
+
+```sh
+claude --dangerously-load-development-channels server:docs-channel
+```
+
+- 推送只管叫醒，读写页面、回评论还是用 `docs` 的工具；处理完 Agent 调 `my_notifications(after: <编号>)` 确认，没确认的下次连上会再推。
+- token 不对时 `channel` 直接退出，Claude Code 里显示这个 MCP 连不上；服务器重启、断网会自己重连，从推过的最后一条续上。
+- Claude Code 那边的限制：这个参数只在交互模式下有效（`-p` 不行）；Team / Enterprise 要管理员先在组织设置里打开 Channels；登录要用 claude.ai 账号或 Console API key。
 
 ### webhook
 

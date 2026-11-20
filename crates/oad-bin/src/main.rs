@@ -24,6 +24,18 @@ enum Cmd {
         #[command(subcommand)]
         cmd: UserCmd,
     },
+    /// 给 Claude Code 当 channel（stdio MCP）：有人在评论里叫这个 Agent 时，把通知推进正在跑的会话
+    Channel(ChannelArgs),
+}
+
+#[derive(Parser)]
+struct ChannelArgs {
+    /// 服务器地址，比如 http://127.0.0.1:8848（写 MCP 地址 …/mcp 也行）
+    #[arg(long, env = "OAD_URL", default_value = "http://127.0.0.1:8848")]
+    url: String,
+    /// Agent 的 token（oad_...）；最好用环境变量给，别写在命令行里
+    #[arg(long, env = "OAD_TOKEN", hide_env_values = true)]
+    token: String,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -198,8 +210,13 @@ async fn user_add(
 
 fn main() -> ExitCode {
     let started = Instant::now();
-    oad_bin::init_logging();
     let cli = Cli::parse();
+    // channel 的 stdout 是 MCP 协议，日志只能写 stderr
+    if matches!(cli.cmd, Cmd::Channel(_)) {
+        oad_bin::init_logging_stderr();
+    } else {
+        oad_bin::init_logging();
+    }
     let rt = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -222,6 +239,13 @@ fn main() -> ExitCode {
                         data_dir,
                     },
             } => user_add(email, name, role, data_dir).await,
+            Cmd::Channel(a) => {
+                oad_bin::channel::run(oad_bin::channel::Opts {
+                    url: a.url,
+                    token: a.token,
+                })
+                .await
+            }
         }
     });
     match r {
