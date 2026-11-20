@@ -1,0 +1,11 @@
+[package]
+name = "codegen"
+description = "读 docs/openapi.json 和 sdks/operations.json，生成 open-agent-docs/src/generated/"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+serde_json = { version = "1.0.154", features = ["preserve_order"] }

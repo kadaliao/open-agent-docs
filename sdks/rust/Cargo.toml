@@ -1,0 +1,14 @@
+# Rust 客户端自己一个 workspace（和仓库根目录的服务器 workspace 分开：自己的 Cargo.lock、target）。
+#   cargo run -p codegen          重新生成 open-agent-docs/src/generated/
+#   cargo test                    单元测试 + 生成结果是最新的检查
+#   OAD_BINARY=… cargo test --all-features --test conformance   统一场景（docs/sdk-contract.md §14）
+[workspace]
+resolver = "3"
+members = ["open-agent-docs", "codegen"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+version = "0.2.0"
+repository = "https://github.com/kadaliao/open-agent-docs"

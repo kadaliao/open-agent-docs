@@ -1,0 +1,49 @@
+[package]
+name = "open-agent-docs"
+description = "Rust client for Open Agent Docs: docs that people and AI agents write together (REST API, SSE events, webhooks, embedding helpers)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+homepage = "https://github.com/kadaliao/open-agent-docs"
+documentation = "https://docs.rs/open-agent-docs"
+readme = "../README.en.md"
+keywords = ["open-agent-docs", "docs", "agents", "api-client", "sdk"]
+categories = ["api-bindings", "web-programming::http-client", "asynchronous"]
+
+[lib]
+name = "open_agent_docs"
+
+[features]
+default = ["rustls"]
+# TLS 用 rustls（reqwest 的默认，加密库是 aws-lc-rs）；关掉 default 时自己用 http_client() 传一个配好 TLS 的 reqwest::Client
+rustls = ["reqwest/rustls"]
+# oad::start()：本机拉起一个服务器（二进制从 OAD_BINARY、缓存或 GitHub 发布页来）
+launcher = ["dep:dirs", "dep:flate2", "dep:tar", "dep:libc", "tokio/process", "tokio/io-util", "tokio/fs", "tokio/net"]
+
+[dependencies]
+base64 = "0.22.1"
+bytes = "1.12.2"
+futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
+hmac = "0.12.1"
+reqwest = { version = "0.13.5", default-features = false, features = ["stream", "gzip", "brotli", "http2"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["time", "sync"] }
+
+dirs = { version = "6.0.0", optional = true }
+flate2 = { version = "1.1.11", optional = true }
+tar = { version = "0.4.44", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2.177", optional = true }
+
+[dev-dependencies]
+axum = "0.8.9"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "process", "io-util"] }
+
+[package.metadata.docs.rs]
+all-features = true
