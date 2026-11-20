@@ -4,7 +4,27 @@ import net from 'node:net'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const native = require(`./oad-server.${process.platform}-${process.arch}.node`)
+const native = loadNative()
+
+/** 原生模块：开发时是包里编出来的 oad-server.<平台>-<架构>.node；从 npm 装的在按平台拆开的包里
+ *  （@open-agent-docs/server-darwin-arm64 之类，optionalDependencies，npm 只装当前平台那个）。 */
+function loadNative() {
+  const plat = `${process.platform}-${process.arch}`
+  try {
+    return require(`./oad-server.${plat}.node`)
+  } catch (e) {
+    if (e?.code !== 'MODULE_NOT_FOUND') throw e
+  }
+  try {
+    return require(`@open-agent-docs/server-${plat}`)
+  } catch (e) {
+    if (e?.code !== 'MODULE_NOT_FOUND') throw e
+    throw new Error(
+      `@open-agent-docs/server 没有 ${plat} 的版本（有 darwin-arm64、darwin-x64、linux-x64、linux-arm64）。` +
+        '别的平台请单独跑服务器（Docker 或发布页的二进制）。',
+    )
+  }
+}
 
 /** 配置项：和命令行一样的 OAD_* 名字，也可以写成 dataDir、auth、port 这样；值转成字符串。 */
 function toOptions(opts = {}) {
