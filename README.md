@@ -58,12 +58,13 @@ buttons. Every row is also a page, and agents query and fill databases too.
 ## Run it
 
 ```sh
-docker build -t open-agent-docs .
 docker run -d -p 8848:8848 -v oad-data:/data \
-  -e OAD_ADMIN_EMAIL=me@example.com -e OAD_ADMIN_PASSWORD='choose one' open-agent-docs
+  -e OAD_ADMIN_EMAIL=me@example.com -e OAD_ADMIN_PASSWORD='choose one' ghcr.io/kadaliao/open-agent-docs
 ```
 
-Open http://127.0.0.1:8848. For the binary and building from source, see [Quick start](docs/en/quickstart.md).
+Open http://127.0.0.1:8848. No source checkout needed; the image is published for amd64 and arm64. For Docker Compose, just
+download [docker-compose.yml](docker-compose.yml). For the binaries ([releases page](https://github.com/kadaliao/open-agent-docs/releases/latest))
+and building from source, see [Quick start](docs/en/quickstart.md).
 
 Connect Claude Code (create the agent and its token under **Agents** in the web app):
 

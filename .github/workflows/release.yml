@@ -1,0 +1,147 @@
+# 推 v* 标签时发版：网页构建一次，四个平台各编一个二进制，打包传到 GitHub 发布页，
+# 再用 Linux 的两个二进制做多架构镜像推到 ghcr.io/kadaliao/open-agent-docs。
+#   git tag v0.1.0 && git push origin v0.1.0
+# 标签必须和 Cargo.toml 里的 workspace 版本号一致。
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: 标签和 Cargo 版本号一致
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          [ "$want" = "$have" ] || { echo "标签 $GITHUB_REF_NAME 和 Cargo.toml 的 $have 不一致"; exit 1; }
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm --filter @oad/web build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+
+  build:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          - { target: x86_64-apple-darwin, os: macos-15 }
+          # 22.04 的 glibc 2.35：老一点的发行版也能跑，镜像（Debian 12）也用这份
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked -p oad-bin --target ${{ matrix.target }}
+      - name: 打包
+        run: |
+          name="open-agent-docs-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/open-agent-docs" LICENSE README.md README.zh-CN.md "dist/$name/"
+          case "${{ matrix.target }}" in aarch64-apple-darwin|*linux*) "dist/$name/open-agent-docs" --version ;; esac
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: dist
+      - run: cd dist && sha256sum -- *.tar.gz > SHA256SUMS
+      - name: 发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber -R "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes \
+              --verify-tag -R "$GITHUB_REPOSITORY"
+          fi
+
+  docker:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*-linux-gnu
+          merge-multiple: true
+          path: dist
+      - name: 按架构放好二进制
+        run: |
+          for pair in amd64:x86_64 arm64:aarch64; do
+            arch="${pair%%:*}"; t="${pair#*:}-unknown-linux-gnu"
+            mkdir -p "ctx/$arch"
+            tar -xzf "dist/open-agent-docs-${GITHUB_REF_NAME}-$t.tar.gz" -C "ctx/$arch" --strip-components=1
+          done
+          mkdir -p ctx/data
+          cp .github/release.Dockerfile ctx/Dockerfile
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: latest=auto
+          labels: |
+            org.opencontainers.image.title=Open Agent Docs
+            org.opencontainers.image.description=Docs that people and AI agents edit together
+      # 只有 COPY，没有 RUN，所以 arm64 不用模拟
+      - uses: docker/build-push-action@v6
+        with:
+          context: ctx
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

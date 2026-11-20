@@ -6,7 +6,14 @@
 
 ## 二进制
 
-从发布页下载对应平台的 `open-agent-docs`（发布以后），或者[从源码编](#从源码编)。
+从[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)下载对应平台的压缩包（macOS、Linux，arm64 和 x86_64 都有），或者[从源码编](#从源码编)。
+
+```sh
+tar xzf open-agent-docs-*.tar.gz
+cd open-agent-docs-*/
+# 只有 macOS 要：程序没做公证，第一次运行前去掉隔离标记
+xattr -d com.apple.quarantine open-agent-docs 2>/dev/null
+```
 
 ```sh
 # 还没有任何用户时，用这两个变量建管理员（已经有用户了就不管它们）
@@ -33,18 +40,29 @@ OAD_AUTH=none ./open-agent-docs serve
 
 ## Docker
 
+不用下源码，直接用发布好的镜像（`ghcr.io/kadaliao/open-agent-docs`，amd64 和 arm64；`latest` 是最新版，也可以写死版本号，比如 `:0.1.0`）：
+
 ```sh
-docker build -t open-agent-docs .
 docker run -d --name oad -p 8848:8848 -v oad-data:/data \
   -e OAD_ADMIN_EMAIL=me@example.com -e OAD_ADMIN_PASSWORD='至少 8 位' \
-  open-agent-docs
+  ghcr.io/kadaliao/open-agent-docs
 ```
+
+用 Docker Compose：
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/kadaliao/open-agent-docs/main/docker-compose.yml
+# 改一下里面的 OAD_ADMIN_EMAIL
+OAD_ADMIN_PASSWORD='至少 8 位' docker compose up -d
+```
+
+想自己编镜像，在源码目录里 `docker build -t open-agent-docs .`。
 
 镜像里已经设好 `OAD_HOST=0.0.0.0`、`OAD_DATA_DIR=/data`，以非 root 用户（uid 65532）运行。用自己的目录挂载时先
 `chown 65532:65532` 那个目录。镜像里只有这一个程序，没有 shell；加账号这样跑：
 
 ```sh
-docker run --rm -it -v oad-data:/data open-agent-docs user add --email you@example.com --role editor
+docker run --rm -it -v oad-data:/data ghcr.io/kadaliao/open-agent-docs user add --email you@example.com --role editor
 ```
 
 对外提供服务前看[部署](deployment.md)：放在 HTTPS 反向代理后面，设 `OAD_PUBLIC_URL` 和 `OAD_COOKIE_SECURE`。

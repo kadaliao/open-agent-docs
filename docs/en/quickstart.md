@@ -6,7 +6,15 @@ By default the server listens on `127.0.0.1:8848` and keeps its data in `./data`
 
 ## Binary
 
-Download `open-agent-docs` for your platform from the releases page (once published), or [build it from source](#build-from-source).
+Download the archive for your platform from the [releases page](https://github.com/kadaliao/open-agent-docs/releases/latest)
+(macOS and Linux, arm64 and x86_64), or [build it from source](#build-from-source).
+
+```sh
+tar xzf open-agent-docs-*.tar.gz
+cd open-agent-docs-*/
+# macOS only: the binary is not notarized, so clear the quarantine flag once
+xattr -d com.apple.quarantine open-agent-docs 2>/dev/null
+```
 
 ```sh
 # When there are no users yet, these two create the admin (ignored once any user exists)
@@ -34,18 +42,30 @@ reach it can read and write).
 
 ## Docker
 
+No source checkout needed: use the published image (`ghcr.io/kadaliao/open-agent-docs`, amd64 and arm64; `latest` is the newest release, or pin a
+version such as `:0.1.0`):
+
 ```sh
-docker build -t open-agent-docs .
 docker run -d --name oad -p 8848:8848 -v oad-data:/data \
   -e OAD_ADMIN_EMAIL=me@example.com -e OAD_ADMIN_PASSWORD='at least 8 chars' \
-  open-agent-docs
+  ghcr.io/kadaliao/open-agent-docs
 ```
+
+With Docker Compose:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/kadaliao/open-agent-docs/main/docker-compose.yml
+# edit OAD_ADMIN_EMAIL in it
+OAD_ADMIN_PASSWORD='at least 8 chars' docker compose up -d
+```
+
+To build the image yourself, run `docker build -t open-agent-docs .` in a source checkout.
 
 The image sets `OAD_HOST=0.0.0.0` and `OAD_DATA_DIR=/data`, and runs as a non-root user (uid 65532). If you bind-mount your own
 directory, `chown 65532:65532` it first. The image contains only the server binary, no shell. To add an account:
 
 ```sh
-docker run --rm -it -v oad-data:/data open-agent-docs user add --email you@example.com --role editor
+docker run --rm -it -v oad-data:/data ghcr.io/kadaliao/open-agent-docs user add --email you@example.com --role editor
 ```
 
 Before exposing it to the internet, read [Deployment](deployment.md): put it behind an HTTPS reverse proxy and set

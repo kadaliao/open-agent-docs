@@ -84,10 +84,12 @@ WantedBy=multi-user.target
 
 ## Docker Compose
 
+仓库根目录的 [docker-compose.yml](../../docker-compose.yml) 下载下来就能用（`curl -fsSLO https://raw.githubusercontent.com/kadaliao/open-agent-docs/main/docker-compose.yml`）。对外提供服务时大致是这样：
+
 ```yaml
 services:
   oad:
-    build: .                       # 或者发布后的镜像
+    image: ghcr.io/kadaliao/open-agent-docs:latest   # 自己编的话换成 build: .
     restart: unless-stopped
     ports: ["127.0.0.1:8848:8848"]
     volumes: ["oad-data:/data"]
@@ -128,4 +130,4 @@ docker run --rm -v oad-data:/data -v "$PWD":/backup alpine \
 
 ## 升级
 
-换掉二进制（或镜像）重启。数据库结构的升级在启动时自动做；升级前先备份。
+换掉二进制（或镜像）重启，用 Docker Compose 的话是 `docker compose pull && docker compose up -d`。数据库结构的升级在启动时自动做；升级前先备份。

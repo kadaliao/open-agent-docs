@@ -84,10 +84,13 @@ On SIGTERM the server finishes writing pending changes before it exits.
 
 ## Docker Compose
 
+The [docker-compose.yml](../../docker-compose.yml) at the repository root works as is (`curl -fsSLO https://raw.githubusercontent.com/kadaliao/open-agent-docs/main/docker-compose.yml`). For a public
+deployment it looks roughly like this:
+
 ```yaml
 services:
   oad:
-    build: .                       # or a published image
+    image: ghcr.io/kadaliao/open-agent-docs:latest   # or build: . to build it yourself
     restart: unless-stopped
     ports: ["127.0.0.1:8848:8848"]
     volumes: ["oad-data:/data"]
@@ -129,4 +132,4 @@ docker run --rm -v oad-data:/data -v "$PWD":/backup alpine \
 
 ## Upgrading
 
-Replace the binary (or image) and restart. Database schema upgrades run automatically at startup; back up first.
+Replace the binary (or image) and restart; with Docker Compose that is `docker compose pull && docker compose up -d`. Database schema upgrades run automatically at startup; back up first.
