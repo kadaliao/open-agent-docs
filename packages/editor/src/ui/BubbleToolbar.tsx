@@ -64,7 +64,7 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
         if (e.isActive('codeBlock')) return false
         // 选中的是整块（图片、公式块）不弹
         if ((state.selection as { node?: unknown }).node) return false
-        return view.hasFocus() || element.contains(document.activeElement)
+        return view.hasFocus() || element.contains((element.getRootNode() as Document | ShadowRoot).activeElement)
       }}
       options={{ placement: 'top', offset: 8, onHide: () => setLink(null) }}
     >

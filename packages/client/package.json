@@ -28,6 +28,11 @@
       "types": "./dist/db/index.d.ts",
       "import": "./dist/db/index.js"
     },
+    "./node": {
+      "oad-source": "./src/node.ts",
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

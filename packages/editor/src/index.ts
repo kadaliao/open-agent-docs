@@ -33,7 +33,7 @@ setLoc(getLocale())
 onLocale(() => setLoc(getLocale()))
 
 // 第 6 阶段：给别的宿主用的组件（要 @open-agent-docs/client）
-export { OadProvider, useOadClient } from './react/context'
+export { OadProvider, OadPortalRoot, useOadClient } from './react/context'
 export { useOadPage, type OadPage } from './react/useOadPage'
 export { CommentsPanel, CommentsPanel as OadComments, usePageComments } from './comments/CommentsPanel'
 export type { Candidate } from './comments/Composer'

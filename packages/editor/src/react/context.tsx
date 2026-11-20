@@ -8,6 +8,10 @@ export function OadProvider({ client, children }: { client: OadClient; children:
   return <Ctx.Provider value={client}>{children}</Ctx.Provider>
 }
 
+/** 浮层（弹出菜单、公式编辑器）挂在哪：默认 document.body；放进 Shadow DOM 时（@open-agent-docs/elements）给 shadow 里的一个元素，样式才跟得过去 */
+export const OadPortalRoot = createContext<HTMLElement | null>(null)
+export const usePortalRoot = () => useContext(OadPortalRoot) ?? document.body
+
 /** 拿到 <OadProvider> 给的客户端；没有就报错（说清楚要怎么包） */
 export function useOadClient(explicit?: OadClient | null): OadClient {
   const c = useContext(Ctx)

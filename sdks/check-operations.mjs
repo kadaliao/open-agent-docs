@@ -1,5 +1,5 @@
 // 检查 sdks/operations.json 和 docs/openapi.json 对得上：每个 operationId 恰好登记一次（operations 或 skip），名字不重复，
-// 提示字段合法。服务器加了接口忘了起名字时这里失败。  node sdks/check-operations.mjs
+// 提示字段合法，每个接口都有 JS 的方法名（js）。服务器加了接口忘了起名字时这里失败。  node sdks/check-operations.mjs
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
@@ -20,6 +20,7 @@ for (const [path, item] of Object.entries(spec.paths)) {
 
 const KEYS = new Set(['name', 'unwrap', 'paginate', 'null_on_404', 'sse', 'upload', 'download', 'js'])
 const names = new Map()
+const jsNames = new Map()
 for (const [id, e] of Object.entries(table.operations)) {
   const o = ids.get(id)
   if (!o) {
@@ -31,6 +32,10 @@ for (const [id, e] of Object.entries(table.operations)) {
   if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/.test(e.name ?? '')) errors.push(`${id}：名字 ${e.name} 不是 snake_case 的点路径`)
   if (names.has(e.name)) errors.push(`名字重复：${e.name}（${names.get(e.name)} 和 ${id}）`)
   names.set(e.name, id)
+  // JS 客户端的方法名（平铺在 createClient() 上；packages/client/test/operations.test.ts 检查真有这些方法）
+  if (!/^[a-z][A-Za-z0-9]*$/.test(e.js ?? '')) errors.push(`${id}：js 字段 ${e.js ?? '（没有）'} 应该是 camelCase 的方法名`)
+  else if (jsNames.has(e.js)) errors.push(`js 名字重复：${e.js}（${jsNames.get(e.js)} 和 ${id}）`)
+  else jsNames.set(e.js, id)
   // 资源和方法不能同名（pages.list 是方法，就不能再有 pages.list.x）
   const resp = o.op.responses ?? {}
   const ok = Object.keys(resp).find((k) => k.startsWith('2'))

@@ -61,7 +61,7 @@ describe('HTTP 方法', () => {
 
   it('出错但不是 JSON：code 是 http_<状态>', async () => {
     const { fetch } = fakeFetch(() => new Response('bad gateway', { status: 502, statusText: 'Bad Gateway' }))
-    const err = await createClient({ fetch })
+    const err = await createClient({ fetch, maxRetries: 0 })
       .me()
       .catch((e) => e)
     expect(err).toMatchObject({ status: 502, code: 'http_502' })

@@ -12,7 +12,6 @@ import { openPage } from './page.ts'
 export * from './core.ts'
 export { openPage } from './page.ts'
 export * from './db/index.ts'
-export const VERSION = '0.1.0'
 
 /** 带协作文档和本地数据库的客户端 */
 export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}) {

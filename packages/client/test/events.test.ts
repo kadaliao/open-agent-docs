@@ -103,4 +103,36 @@ describe('events', () => {
     expect(auth[0]).toBe('Bearer tok')
     ev.close()
   })
+  it('401 / 403 / 404 不重连：关掉，onError 拿到 ApiError', async () => {
+    let n = 0
+    const fetch = (async () => {
+      n++
+      return new Response(JSON.stringify({ error: { code: 'unauthorized', message: '要登录' } }), { status: 401 })
+    }) as typeof globalThis.fetch
+    const ev = openEvents('/e', { credentials: 'same-origin', headers: () => ({}), fetch, minRetry: 5 })
+    const errs: unknown[] = []
+    ev.onError((e) => errs.push(e))
+    await until(() => errs.length === 1)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(n).toBe(1)
+    expect(errs[0]).toMatchObject({ status: 401, code: 'unauthorized' })
+    ev.close()
+  })
+
+  it('agentEvents：连 /agent/notifications/stream，after 放进查询参数', async () => {
+    const urls: string[] = []
+    const s = stream()
+    const fetch = (async (u: string) => {
+      urls.push(String(u))
+      return new Response(s.body, { status: 200 })
+    }) as typeof globalThis.fetch
+    const ev = createClient({ fetch, baseUrl: 'http://h' }).agentEvents({ after: 7 })
+    const got: unknown[] = []
+    ev.on('notification', (d) => got.push(d))
+    s.push('id: 8\nevent: notification\ndata: {"id":8}\n\n')
+    await until(() => got.length === 1)
+    expect(urls[0]).toBe('http://h/api/v1/agent/notifications/stream?after=7')
+    expect(got).toEqual([{ id: 8 }])
+    ev.close()
+  })
 })

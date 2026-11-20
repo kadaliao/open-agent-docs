@@ -1,6 +1,7 @@
 // 公式编辑器：属性、函数补全，实时检查（引擎的 checkFormula），预览前几行算出来的值。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { usePortalRoot } from '../react/context'
 import { useDb } from './cells'
 import { FUNCTIONS } from './functions'
 import { t } from './strings'
@@ -17,6 +18,7 @@ interface Item {
 
 export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) {
   const { store } = useDb()
+  const root = usePortalRoot()
   const [src, setSrc] = useState(p.formula ?? '')
   const [caret, setCaret] = useState(src.length)
   const [active, setActive] = useState(0)
@@ -171,6 +173,6 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
         </div>
       </div>
     </div>,
-    document.body,
+    root,
   )
 }

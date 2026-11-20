@@ -1,0 +1,16 @@
+{
+  "name": "@open-agent-docs/example-embed-elements",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@open-agent-docs/client": "workspace:*",
+    "@open-agent-docs/elements": "workspace:*"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.1"
+  }
+}

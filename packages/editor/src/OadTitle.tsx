@@ -83,7 +83,8 @@ export const OadTitle = forwardRef<OadTitleHandle, OadTitleProps>(function OadTi
     onChange?.(ta.value)
     const obs = (e: Y.YTextEvent) => {
       if (e.transaction.origin === origin.current) return
-      const focused = document.activeElement === ta
+      // getRootNode：放在 Shadow DOM 里时 document.activeElement 是宿主元素
+      const focused = (ta.getRootNode() as Document | ShadowRoot).activeElement === ta
       let s = ta.selectionStart
       let en = ta.selectionEnd
       let pos = 0

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>宿主应用 · 用 Web Components 嵌入 Open Agent Docs</title>
+    <!-- 真实项目里换成 CDN：https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@<版本>/dist/elements.js -->
+    <script type="module" src="/oad/elements.js"></script>
+    <style>
+      body { margin: 0; font: 15px/1.6 -apple-system, 'PingFang SC', sans-serif; background: #faf9f7; color: #222; }
+      header { display: flex; gap: 16px; align-items: center; padding: 10px 24px; background: #1f2937; color: #fff; }
+      header a { color: #a5b4fc; }
+      main { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 24px; }
+      section { background: #fff; border-radius: 12px; padding: 20px 28px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); min-width: 0; }
+      h2 { margin: 0 0 12px; font-size: 13px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+      .wide { grid-column: 1 / -1; }
+      #log { grid-column: 1 / -1; font: 12px/1.5 ui-monospace, monospace; color: #6b7280; max-height: 160px; overflow: auto; }
+      /* 换主题：CSS 变量写在元素上 */
+      oad-editor, oad-viewer, oad-database { --oad-accent: #7c3aed; --oad-accent-soft: rgba(124, 58, 237, 0.14); }
+      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>我的产品</b>
+      <span id="me"></span>
+      <span>换人：<a href="/login?as=alice">Alice</a> / <a href="/login?as=bob">Bob</a></span>
+      <button id="reload-viewer" type="button">刷新只读视图</button>
+    </header>
+    <main>
+      <section>
+        <h2>&lt;oad-editor comments&gt;</h2>
+        <oad-editor id="editor" comments></oad-editor>
+      </section>
+      <section>
+        <h2>&lt;oad-viewer&gt;（只读，不连 WebSocket）</h2>
+        <oad-viewer id="viewer"></oad-viewer>
+      </section>
+      <section class="wide">
+        <h2>&lt;oad-database&gt;</h2>
+        <oad-database id="db"></oad-database>
+      </section>
+      <pre id="log"></pre>
+    </main>
+    <script type="module">
+      // 宿主自己的后端发 JWT（/token），元素快过期、遇到 401 时会再来要
+      const getToken = () => fetch('/token').then((r) => r.json()).then((j) => j.token)
+      const log = (...a) => (document.getElementById('log').textContent += a.join(' ') + '\n')
+
+      const { pageId, dbId, user } = await fetch('/host/page').then((r) => r.json())
+      document.getElementById('me').textContent = user.name
+
+      document.getElementById('db').dbId = dbId
+      for (const el of [document.getElementById('editor'), document.getElementById('viewer'), document.getElementById('db')]) {
+        el.getToken = getToken
+        if (el.localName !== 'oad-database') el.pageId = pageId // 或者 <oad-editor page-id="…">
+        el.addEventListener('oad-ready', (e) => log(el.localName, 'ready', JSON.stringify(e.detail)))
+        el.addEventListener('oad-error', (e) => log(el.localName, 'error', e.detail.status ?? '', e.detail.message))
+        el.addEventListener('oad-navigate', (e) => {
+          e.preventDefault() // 宿主自己决定怎么开别的页
+          log(el.localName, 'navigate', e.detail.pageId ?? e.detail.href)
+        })
+      }
+      document.getElementById('editor').addEventListener('oad-change', (e) => log('oad-editor', 'change', e.detail.kind, e.detail.local ? '自己改的' : '别人改的', e.detail.title))
+      document.getElementById('reload-viewer').onclick = () => document.getElementById('viewer').reload()
+    </script>
+  </body>
+</html>

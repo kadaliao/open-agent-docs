@@ -21,7 +21,9 @@ import type {
   View,
 } from './types.ts'
 import type { DbStore } from './db/store.ts'
+import { ApiConnectionError, ApiError, ApiTimeoutError, errorFrom, isApiError, parseRetryAfter } from './errors.ts'
 import { openEvents, type EventsHandle } from './events.ts'
+import { VERSION } from './version.ts'
 import type { OpenPageOptions, PageConn } from './page.ts'
 
 // 协作文档（要 Yjs）和本地数据库（要 WASM 引擎）放在另外两个模块里，用到才加载：
@@ -39,17 +41,6 @@ export function registerPlugin<K extends keyof ClientPlugins>(k: K, f: NonNullab
   globalPlugins[k] = f
 }
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public code: string,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
-
 export interface ClientOptions {
   /** 服务器地址，比如 https://docs.example.com；空字符串是同源（网页里） */
   baseUrl?: string
@@ -65,7 +56,46 @@ export interface ClientOptions {
   headers?: Record<string, string>
   /** Node 18–21 没有全局 WebSocket：传一个进来（比如 ws 包） */
   WebSocket?: unknown
+  /** 失败了最多重试几次（默认 2）：429；502 / 503 / 504（POST、PATCH 除外）；连不上（GET、PUT、DELETE，或者确定没发出去） */
+  maxRetries?: number
+  /** 单个请求的超时（毫秒，默认 60 秒；0 是不限）。事件流只限连接，不限总时长 */
+  timeout?: number
 }
+
+/** 正文：format 是 'html' 时返回 { html, version }（服务器 0.3 起有） */
+export interface HtmlContent {
+  html: string
+  version: string
+  total?: number | null
+}
+
+/** 嵌入网页的地址：<base>/p/<id>?embed=1[&theme=][&lang=][#token=]。token 放在 # 后面，不进服务器日志和 Referer */
+export function embedUrl(baseUrl: string, pageId: string, o: { theme?: 'light' | 'dark' | string; lang?: string; token?: string } = {}): string {
+  let u = baseUrl.replace(/\/+$/, '') + '/p/' + encodeURIComponent(pageId) + '?embed=1'
+  if (o.theme) u += '&theme=' + encodeURIComponent(o.theme)
+  if (o.lang) u += '&lang=' + encodeURIComponent(o.lang)
+  if (o.token) u += '#token=' + o.token
+  return u
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** 第 n 次重试前等多久（毫秒）：Retry-After 照它（最多 60 秒）；没有就 0.5 秒 × 2^n，最多 8 秒，加 0–25% 的随机 */
+export function retryDelay(n: number, retryAfter?: number): number {
+  if (retryAfter !== undefined) return Math.min(60, retryAfter) * 1000
+  return Math.min(8000, 500 * 2 ** n) * (1 + Math.random() * 0.25)
+}
+// 这些错误码说明连接根本没建起来（请求没发出去），POST 也能放心重发
+const NOT_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_CONNECT'])
+const notSent = (e: unknown) => {
+  const c = (e as { cause?: { code?: string } })?.cause
+  return !!c && NOT_SENT.has(c.code ?? '')
+}
+// 不直接写 process：浏览器项目（没有 @types/node）也要能编译这个文件
+const IS_NODE = (() => {
+  const g = globalThis as { process?: { versions?: { node?: string } }; window?: unknown }
+  return !!g.process?.versions?.node && typeof g.window === 'undefined'
+})()
+
 
 // ---------- 从 paths 推出每个操作的类型 ----------
 type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
@@ -116,8 +146,12 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
   const API = base + '/api/v1'
   const f = opts.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const credentials = opts.credentials ?? (base ? 'include' : 'same-origin')
+  const maxRetries = opts.maxRetries ?? 2
+  const timeout = opts.timeout ?? 60_000
   const headers = (json: boolean): Record<string, string> => {
-    const h: Record<string, string> = { ...(opts.headers ?? {}) }
+    // 浏览器不让改 User-Agent，只在 Node 里带
+    const h: Record<string, string> = IS_NODE ? { 'user-agent': 'open-agent-docs-js/' + VERSION } : {}
+    Object.assign(h, opts.headers ?? {})
     const tok = opts.token ? val(opts.token) : null
     if (tok) h.authorization = 'Bearer ' + tok
     const loc = opts.locale ? val(opts.locale) : null
@@ -126,27 +160,67 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     return h
   }
 
-  async function fail(r: Response): Promise<never> {
-    let code = 'http_' + r.status
-    let message = r.statusText
-    try {
-      const j = await r.json()
-      code = j?.error?.code ?? code
-      message = j?.error?.message ?? message
-    } catch {
-      /* 不是 JSON */
+  /** 发请求，带超时和重试；read 在超时的范围里读响应（读完才算这个请求结束） */
+  async function send<R>(url: string, init: RequestInit, read: (r: Response) => Promise<R>): Promise<R> {
+    const method = (init.method ?? 'GET').toUpperCase()
+    const idempotent = method === 'GET' || method === 'HEAD' || method === 'PUT' || method === 'DELETE'
+    for (let n = 0; ; n++) {
+      const ctrl = new AbortController()
+      let timedOut = false
+      const t = timeout > 0 ? setTimeout(() => ((timedOut = true), ctrl.abort()), timeout) : null
+      try {
+        let r: Response
+        try {
+          r = await f(url, { ...init, credentials, signal: ctrl.signal })
+        } catch (e) {
+          if (timedOut) throw new ApiTimeoutError(`${method} ${url}：${timeout} 毫秒没有响应`)
+          if (n < maxRetries && (idempotent || notSent(e))) {
+            await sleep(retryDelay(n))
+            continue
+          }
+          throw new ApiConnectionError(`${method} ${url}：连不上（${(e as Error)?.message ?? e}）`, { cause: e })
+        }
+        if (!r.ok) {
+          const retryable = r.status === 429 || ((r.status === 502 || r.status === 503 || r.status === 504) && method !== 'POST' && method !== 'PATCH')
+          if (retryable && n < maxRetries) {
+            const wait = retryDelay(n, parseRetryAfter(r.headers.get('retry-after')))
+            await r.body?.cancel().catch(() => {})
+            if (t) clearTimeout(t)
+            await sleep(wait)
+            continue
+          }
+          throw await errorFrom(r)
+        }
+        try {
+          return await read(r)
+        } catch (e) {
+          if (timedOut) throw new ApiTimeoutError(`${method} ${url}：${timeout} 毫秒没有读完`)
+          throw e
+        }
+      } finally {
+        if (t) clearTimeout(t)
+      }
     }
-    throw new ApiError(r.status, code, message)
   }
 
-  /** 发一个任意的请求（路径不在文档里、或者想自己拼时用） */
-  async function req<R>(method: string, path: string, body?: unknown): Promise<R> {
-    const r = await f(API + path, { method, credentials, headers: headers(body !== undefined), body: body === undefined ? undefined : JSON.stringify(body) })
-    if (!r.ok) await fail(r)
+  const readJson = async <R>(r: Response): Promise<R> => {
     if (r.status === 204) return undefined as R
     const text = await r.text()
     return (text ? JSON.parse(text) : undefined) as R
   }
+
+  /** 发一个任意的请求（路径不在文档里、或者想自己拼时用） */
+  function req<R>(method: string, path: string, body?: unknown): Promise<R> {
+    return send(API + path, { method, headers: headers(body !== undefined), body: body === undefined ? undefined : JSON.stringify(body) }, readJson<R>)
+  }
+
+  /** 拿二进制（文件、导出的 CSV） */
+  const blob = (path: string, q?: Record<string, string | number | undefined>) => {
+    const qs = q ? Object.entries(q).filter(([, v]) => v !== undefined) : []
+    return send(API + path + (qs.length ? '?' + new URLSearchParams(qs.map(([k, v]) => [k, String(v)])) : ''), { headers: headers(false) }, (r) => r.blob())
+  }
+  const enc = encodeURIComponent
+  let defaultWs: Promise<string> | null = null
 
   /** 按文档调一个接口：路径模板、方法、参数、请求体、响应都有类型 */
   function call<P extends keyof paths & string, M extends MethodOf<P>>(
@@ -164,6 +238,12 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
 
   const dbs = new Map<string, DbStore>()
 
+  function contentFn(id: string, format: 'html', q?: { limit?: number }): Promise<HtmlContent>
+  function contentFn(id: string, format?: 'markdown' | 'json', q?: { limit?: number }): Promise<ResponseOf<'/pages/{id}/content', 'get'>>
+  function contentFn(id: string, format: 'markdown' | 'json' | 'html' = 'markdown', q: { limit?: number } = {}) {
+    return call('get', '/pages/{id}/content', { path: { id }, query: { format, ...q } })
+  }
+
   const client = {
     baseUrl: base,
     apiUrl: API,
@@ -176,6 +256,19 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     logout: () => call('post', '/auth/logout'),
     signup: (b: BodyOf<'/auth/signup', 'post'>) => call('post', '/auth/signup', { body: b }),
     me: () => call('get', '/me'),
+    /** /me 里第一个工作区的 id（取一次就记住） */
+    defaultWorkspace: (): Promise<string> =>
+      (defaultWs ??= call('get', '/me').then(
+        (m) => {
+          const id = m.workspaces[0]?.id
+          if (!id) throw new Error('这个用户还没有工作区')
+          return id
+        },
+        (e) => {
+          defaultWs = null
+          throw e
+        },
+      )),
     patchMe: (b: BodyOf<'/me', 'patch'>) => call('patch', '/me', { body: b }),
     changePassword: (current: string, next: string) => call('post', '/me/password', { body: { current, new: next } }),
 
@@ -186,8 +279,8 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     // 移动：after 不给 = 放最后，after: null = 放最前
     patchPage: (id: string, b: BodyOf<'/pages/{id}', 'patch'>) => call('patch', '/pages/{id}', { path: { id }, body: b }),
     deletePage: (id: string) => call('delete', '/pages/{id}', { path: { id } }),
-    /** 正文：Markdown（默认）或文档 JSON，带 version（改的时候当 base） */
-    content: (id: string, format: 'markdown' | 'json' = 'markdown') => call('get', '/pages/{id}/content', { path: { id }, query: { format } }),
+    /** 正文：Markdown（默认）、文档 JSON 或只读 HTML（{ html, version }），带 version（改的时候当 base）。limit：只要前 N 个顶层块 */
+    content: contentFn,
     putContent: (id: string, b: BodyOf<'/pages/{id}/content', 'put'>) => call('put', '/pages/{id}/content', { path: { id }, body: b }),
     block: (id: string, block: string) => call('get', '/pages/{id}/blocks/{block_id}', { path: { id, block_id: block } }),
     putBlock: (id: string, block: string, b: BodyOf<'/pages/{id}/blocks/{block_id}', 'put'>) =>
@@ -218,6 +311,14 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     /** 从 after 往后逐条取完（不等新的） */
     eachAgentNotification: (q: { after?: number; limit?: number } = {}): AsyncGenerator<AgentNotification> =>
       paginate((cursor) => call('get', '/agent/notifications', { query: { ...q, cursor } }).then((r) => ({ items: r.notifications, next_cursor: r.next_cursor }))),
+    /** Agent 通知的实时流（SSE，事件名 notification，data 是 AgentNotification）；断了自动重连，从上次收到的接着来 */
+    agentEvents: (q: { after?: number } = {}): EventsHandle =>
+      openEvents(`${API}/agent/notifications/stream${q.after !== undefined ? '?after=' + q.after : ''}`, {
+        credentials,
+        headers: () => headers(false),
+        fetch: f,
+        timeout,
+      }),
 
     // ---------- 成员、邀请、工作区 ----------
     members: (ws: string) => call('get', '/workspaces/{ws}/members', { path: { ws } }).then((r) => r.members),
@@ -242,10 +343,22 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     createDatabase: (ws: string, b: BodyOf<'/workspaces/{ws}/databases', 'post'>) =>
       loose<DbMeta>(call('post', '/workspaces/{ws}/databases', { path: { ws }, body: b })),
     getDatabase: (id: string) => loose<DbMeta>(call('get', '/databases/{id}', { path: { id } })),
+    /** 从 CSV 建一个库（第一行是表头） */
+    importCsv: (ws: string, csv: string | Blob, q: { title?: string; parent_id?: string } = {}) => {
+      const qs = Object.entries(q).filter(([, v]) => v !== undefined && v !== null) as [string, string][]
+      return send(
+        `${API}/workspaces/${enc(ws)}/databases/import${qs.length ? '?' + new URLSearchParams(qs) : ''}`,
+        { method: 'POST', headers: { ...headers(false), 'content-type': 'text/csv' }, body: csv },
+        (r) => readJson<DbMeta>(r),
+      )
+    },
+    /** 导出成 CSV（文字） */
+    exportCsv: (id: string) => send(`${API}/databases/${enc(id)}/export.csv`, { headers: headers(false) }, (r) => r.text()),
     dbRows: (id: string, since?: number) => call('get', '/databases/{id}/rows', { path: { id }, query: { since } }),
     addRows: (id: string, rows: BodyOf<'/databases/{id}/rows', 'post'>['rows']) => call('post', '/databases/{id}/rows', { path: { id }, body: { rows } }),
     patchRows: (id: string, ops: BodyOf<'/databases/{id}/rows', 'patch'>['ops']) => call('patch', '/databases/{id}/rows', { path: { id }, body: { ops } }),
     deleteRows: (id: string, ids: string[]) => call('delete', '/databases/{id}/rows', { path: { id }, body: { ids } }),
+    deleteRow: (id: string, row: string) => call('delete', '/databases/{id}/rows/{row}', { path: { id, row } }),
     /** 服务器算的查询（筛选、排序、分组、汇总，带 computed） */
     queryDatabase: (id: string, q: BodyOf<'/databases/{id}/query', 'post'>) => call('post', '/databases/{id}/query', { path: { id }, body: q }),
     patchSchema: (id: string, ops: Record<string, unknown>[]) =>
@@ -293,15 +406,19 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     // ---------- 分享 ----------
     getShare: (page: string) =>
       call('get', '/pages/{id}/share', { path: { id: page } }).catch((e) => {
-        if (e instanceof ApiError && e.status === 404) return null
+        if (isApiError(e) && e.status === 404) return null
         throw e
       }),
     createShare: (page: string, b: BodyOf<'/pages/{id}/share', 'post'>) => call('post', '/pages/{id}/share', { path: { id: page }, body: b }),
     revokeShare: (page: string) => call('delete', '/pages/{id}/share', { path: { id: page } }),
 
     // ---------- 文件、链接卡片 ----------
-    /** 上传文件（浏览器里有进度） */
-    upload(ws: string, file: Blob & { name?: string }, onProgress?: (f: number) => void): Promise<T.Uploaded> {
+    /** 上传文件（浏览器里有进度）。file 可以是 File / Blob，也可以是字节或字符串（这时用 name 给文件名） */
+    upload(ws: string, input: Blob | ArrayBuffer | Uint8Array | string, o?: ((f: number) => void) | { name?: string; onProgress?: (f: number) => void }): Promise<T.Uploaded> {
+      const opt = typeof o === 'function' ? { onProgress: o } : (o ?? {})
+      const onProgress = opt.onProgress
+      const file: Blob & { name?: string } = input instanceof Blob ? input : new Blob([input as BlobPart])
+      const name = opt.name || file.name || 'file'
       const url = `${API}/workspaces/${encodeURIComponent(ws)}/files`
       if (typeof XMLHttpRequest !== 'undefined' && onProgress) {
         return new Promise((resolve, reject) => {
@@ -317,26 +434,40 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
               } catch (e) {
                 reject(e)
               }
-            } else reject(new ApiError(xhr.status, 'http_' + xhr.status, xhr.statusText))
+            } else {
+              let code = 'http_' + xhr.status
+              let message = xhr.statusText
+              try {
+                const j = JSON.parse(xhr.responseText)
+                code = j?.error?.code ?? code
+                message = j?.error?.message ?? message
+              } catch {
+                /* 不是 JSON */
+              }
+              reject(new ApiError(xhr.status, code, message))
+            }
           }
-          xhr.onerror = () => reject(new Error('network'))
+          xhr.onerror = () => reject(new ApiConnectionError('上传失败：连不上'))
           const fd = new FormData()
-          fd.append('file', file, file.name || 'file')
+          fd.append('file', file, name)
           xhr.send(fd)
         })
       }
       const fd = new FormData()
-      fd.append('file', file, file.name || 'file')
-      return f(url, { method: 'POST', credentials, headers: headers(false), body: fd }).then(async (r) => {
-        if (!r.ok) await fail(r)
-        return r.json()
-      })
+      fd.append('file', file, name)
+      return send(url, { method: 'POST', headers: headers(false), body: fd }, (r) => r.json())
     },
+    /** 下载文件（Blob）；w：图片要多宽的缩略图 */
+    download: (id: string, q: { w?: number } = {}) => blob(`/files/${enc(id)}`, q),
+    /** 同上，地址里带文件名（下载时浏览器用这个名字） */
+    downloadNamed: (id: string, name: string, q: { w?: number } = {}) => blob(`/files/${enc(id)}/${enc(name)}`, q),
+    /** 按内容哈希取媒体（图片、附件） */
+    media: (hash: string, q: { w?: number } = {}) => blob(`/media/${enc(hash)}`, q),
     /** 链接解析（卡片用）；失败返回 null */
     unfurl: (url: string) => call('get', '/unfurl', { query: { url } }).catch(() => null),
 
     /** 工作区的实时事件（SSE，断了自动重连，带 Last-Event-ID） */
-    events: (ws: string): EventsHandle => openEvents(`${API}/workspaces/${ws}/events`, { credentials, headers: () => headers(false), fetch: f }),
+    events: (ws: string): EventsHandle => openEvents(`${API}/workspaces/${enc(ws)}/events`, { credentials, headers: () => headers(false), fetch: f, timeout }),
     /** 一页的协作文档：Y.Doc + WebSocket 同步 + 浏览器里的 IndexedDB 缓存 */
     openPage: (id: string, o: OpenPageOptions = {}): PageConn => {
       if (!plugins.openPage) throw new Error("@open-agent-docs/client：openPage 要先 import '@open-agent-docs/client/page'（或者从 '@open-agent-docs/client' 整个引入）")
@@ -369,6 +500,8 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
 
 export type OadClient = ReturnType<typeof createClient>
 export * from './types.ts'
+export * from './errors.ts'
+export { VERSION } from './version.ts'
 export { openEvents, type EventsHandle } from './events.ts'
 export type { OpenPageOptions, PageConn, PageStatus } from './page.ts'
 export type { DbStore, EventSource_ as EventsLike, Status as DbStatus } from './db/store.ts'

@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { getLocale } from '../i18n'
+import { usePortalRoot } from '../react/context'
 import type { Color, Prop, PropType, SelectOption } from '@open-agent-docs/client'
 
 // ---------- 浮层 ----------
@@ -20,6 +21,7 @@ export const rectOf = (el: Element | null): Anchor => {
 
 export function Popover({ anchor, onClose, children, className = '', width, align = 'left' }: { anchor: Anchor; onClose: () => void; children: ReactNode; className?: string; width?: number; align?: 'left' | 'right' }) {
   const box = useRef<HTMLDivElement>(null)
+  const root = usePortalRoot()
   const [pos, setPos] = useState<{ left: number; top: number; up: boolean }>({ left: anchor.left, top: anchor.bottom + 4, up: false })
   useLayoutEffect(() => {
     const el = box.current
@@ -32,8 +34,10 @@ export function Popover({ anchor, onClose, children, className = '', width, alig
     setPos({ left, top: up ? anchor.top - h - 4 : Math.min(anchor.bottom + 4, window.innerHeight - h - 8), up })
   }, [anchor.left, anchor.top, anchor.bottom, align]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
+    // 用 composedPath 而不是 e.target：在 Shadow DOM 里 document 上的监听只看得到宿主元素
     const down = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node) && !(e.target as HTMLElement).closest?.('.db-pop')) onClose()
+      const path = e.composedPath()
+      if (box.current && !path.includes(box.current) && !path.some((n) => (n as Element).classList?.contains('db-pop'))) onClose()
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -54,7 +58,7 @@ export function Popover({ anchor, onClose, children, className = '', width, alig
     <div ref={box} className={'db-pop oad-root ' + className} style={{ left: pos.left, top: pos.top, width }} onMouseDown={(e) => e.stopPropagation()}>
       {children}
     </div>,
-    document.body,
+    root,
   )
 }
 

@@ -1,0 +1,50 @@
+{
+  "name": "@open-agent-docs/elements",
+  "version": "0.2.0",
+  "description": "Open Agent Docs 的 Web Components：<oad-editor>、<oad-viewer>、<oad-database>。宿主不用 React，一个 <script type=\"module\"> 就能用（React、编辑器都打在包里）",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/elements.js",
+  "module": "dist/elements.js",
+  "types": "./dist/elements.d.ts",
+  "exports": {
+    ".": {
+      "oad-source": "./src/index.ts",
+      "types": "./dist/elements.d.ts",
+      "import": "./dist/elements.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.en.md"
+  ],
+  "sideEffects": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "rm -rf dist && vite build && node scripts/dts.mjs",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "size": "node scripts/size.mjs"
+  },
+  "devDependencies": {
+    "@open-agent-docs/client": "workspace:*",
+    "@open-agent-docs/editor": "workspace:*",
+    "@open-agent-docs/markdown": "workspace:*",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "jsdom": "^31.0.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "yjs": "^13.6.33"
+  }
+}

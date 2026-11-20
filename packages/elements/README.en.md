@@ -1,0 +1,117 @@
+# @open-agent-docs/elements
+
+Web Components for Open Agent Docs: `<oad-editor>`, `<oad-viewer>`, `<oad-database>`. The host doesn't need React (React, the editor and Yjs are bundled),
+so they work with Vue, Svelte, Angular, plain HTML or server-rendered templates. [中文](README.md)
+
+## Install
+
+```html
+<!-- No bundler: load it from a CDN; the elements are registered on import -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.2.0/dist/elements.js"></script>
+
+<oad-editor base-url="https://docs.example.com" page-id="Qj1y9Gufp11" token="eyJ…"></oad-editor>
+```
+
+```sh
+npm i @open-agent-docs/elements
+```
+
+```ts
+import '@open-agent-docs/elements' // registers the three elements; document.querySelector('oad-editor') is typed
+```
+
+`dist/elements.js` is the entry (about 13 KB gzipped). The editor, database view, code highlighting, math and diagrams live in `dist/chunks/` and are
+fetched relative to `elements.js` the first time they're needed (works from a CDN too): about 290 KB more once there's an `<oad-editor>` on the page,
+about 570 KB for `<oad-database>` (including the ~250 KB WASM query engine; code shared with the editor is downloaded once). A page with only `<oad-viewer>` never downloads the editor.
+
+## Elements
+
+| Element | Attributes | |
+| --- | --- | --- |
+| `<oad-editor>` | `page-id`, `comments`, `readonly` | Title + collaborative editor (real-time over WebSocket, with other people's cursors). `comments` adds the comments panel (moves below when narrow); `readonly` (automatic for viewers) |
+| `<oad-viewer>` | `page-id`, `content-css` | Read-only and lightest: one `GET /pages/{id}/content?format=html`, no WebSocket, no editor code. Stylesheet defaults to `<base-url>/embed/content.css`. On servers without `format=html` it converts Markdown in the browser (`@open-agent-docs/markdown`, loaded on demand) |
+| `<oad-database>` | `db-id`, `view-id`, `readonly` | Database view: table, board, calendar, gallery, list. `view-id` shows just that view |
+
+Shared by all three:
+
+| Attribute / property | |
+| --- | --- |
+| `base-url` / `el.baseUrl` | Server URL; empty means same origin (the host proxies `/api` to Open Agent Docs) |
+| `token` / `el.token` | JWT or Agent token: `Authorization: Bearer` for requests, `?token=` for the WebSocket. Without it, cookies are used (same origin, signed in) |
+| `el.getToken = async () => …` | Called when there's no token, when the JWT expires in under 60 seconds, or on a 401 (one call at a time); WebSocket reconnects use the new token |
+| `theme` | `light` / `dark` / omit to follow the system |
+| `lang` | `zh` / `en`: UI language (defaults to the browser's) |
+| `el.client` | The `@open-agent-docs/client` client the element uses (same auth), for your own API calls |
+| `el.reload()` | Tear down and start again (e.g. to refresh an `<oad-viewer>`) |
+
+Changing `page-id`, `db-id` or `base-url` reconnects; `comments`, `readonly` and `view-id` only re-render. Removing an element closes its WebSocket and
+event stream and frees the Y.Doc; moving it within the page (remove + append) doesn't reconnect. Setting `el.token` / `el.getToken` before the script
+has loaded is fine too.
+
+## Events
+
+All are `CustomEvent`s that bubble and cross the shadow boundary, with data in `detail`:
+
+| Event | `detail` | When |
+| --- | --- | --- |
+| `oad-ready` | `{ id, title }` | Content is there (editor: local cache or first server sync; viewer: rendered; database: data loaded) |
+| `oad-change` | `{ id, kind: 'title' \| 'content', title, local }` | Title or body changed (body changes are batched per 300 ms). `local`: this user vs. a collaborator or Agent |
+| `oad-navigate` | `{ href, pageId? }` | Going to another page (internal link, opening a database row). Call `preventDefault()` to handle it yourself; otherwise the browser navigates |
+| `oad-error` | `{ error, status?, code?, message }` | Something failed (401, 403, 404…); a short message is also shown in place |
+
+```js
+const el = document.querySelector('oad-editor')
+el.getToken = () => fetch('/my-backend/oad-token').then((r) => r.json()).then((j) => j.token)
+el.addEventListener('oad-change', (e) => console.log(e.detail.kind, e.detail.title))
+el.addEventListener('oad-navigate', (e) => {
+  e.preventDefault()
+  router.push('/docs/' + e.detail.pageId)
+})
+```
+
+## Auth
+
+- **JWT** (recommended, `OAD_AUTH=jwt`): your backend signs with `signJwt(secret, userId, { name, email })` from `@open-agent-docs/client/node` and hands it to the element through `getToken`; `/api` is proxied as is.
+- **Same origin + proxy**: the host proxies `/api/*` (including the WebSocket) and adds `X-OAD-User-*` (`OAD_AUTH=header`); no token or `base-url` needed.
+- **Agent token**: `token="oad_…"`, for internal tools.
+
+Talking to another origin directly (`base-url` on a different domain) needs CORS headers on `/api`, which the server doesn't send yet (only
+`/embed/content.css` does). For now, proxy `/api` (and the WebSocket) under the host's domain and leave `base-url` empty; the WebSocket handshake checks
+the Origin, so set `OAD_ALLOWED_ORIGINS` to the host's origin in production. See `examples/embed-elements` in the repo (plain HTML + a small Node server
+that signs JWTs and proxies `/api`).
+
+## Styling
+
+Styles live inside the Shadow DOM: the host page's CSS doesn't leak in and ours doesn't leak out. Change colors and fonts with CSS variables,
+**set on the element** (not on `:root`):
+
+```css
+oad-editor, oad-viewer, oad-database {
+  --oad-accent: #7c3aed;
+  --oad-accent-soft: rgba(124, 58, 237, 0.14);
+  --oad-font: 'Inter', -apple-system, sans-serif;
+  --oad-fg: #1f1e1c; --oad-bg: #fff; --oad-radius: 8px;
+}
+```
+
+The variables are the same as in `@open-agent-docs/editor` (`--oad-fg`, `--oad-fg-2`, `--oad-bg-2`, `--oad-line`…). Dark mode: `theme="dark"`, or omit it to
+follow the system. `::part(root)` selects the outermost `div` inside the element.
+
+## Differences from the React components
+
+`@open-agent-docs/editor` is the React version, where the host manages React and the stylesheet; this package wraps the same components:
+
+- Two things attached to `document.body` (the code-block language hint list and the image lightbox) don't work well with the Shadow DOM: the lightbox
+  is unstyled and the hint list doesn't show (database popovers are already rendered inside the shadow root).
+- All elements on a page share one UI language (`lang` changes it globally).
+
+## Development
+
+```sh
+pnpm --filter @open-agent-docs/elements build   # dist/: vite library mode + type declarations (scripts/dts.mjs)
+pnpm --filter @open-agent-docs/elements size    # gzipped sizes of each part
+pnpm --filter @open-agent-docs/elements test    # jsdom: registration, attribute changes, events, tokens, disconnect
+```
+
+At build time each `import './x.css'` becomes `addCss(cssText)` (a plugin in `vite.config.ts`, see `src/styles.ts`), with `:root` rewritten to `:host`,
+and is adopted into every element's shadow root.
