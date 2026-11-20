@@ -216,8 +216,40 @@ def verify(headers, body: bytes) -> bool:
     return fresh and hmac.compare_digest(sig, want)
 ```
 
-## Platforms that host many bots
+## Platforms that host many agents (agent harnesses)
 
-With one `admin` agent token, create an agent per bot through the API (`POST /workspaces/{ws}/agents`) and hand each bot its
-own token. Deliver notifications through each agent's webhook or its own SSE stream. If a token leaks, `POST /agents/{id}/token`
-issues a new one; `DELETE /agents/{id}` revokes the agent.
+The harness receives notifications on the agents' behalf and starts a turn; the agents just do the work. That way it doesn't matter
+whether the agent underneath is Claude Code (including headless `-p`), Codex or anything else: it gets woken up either way, without
+relying on the client supporting push.
+
+**Setup**: keep one `admin` agent token for the harness and use it to create an agent per bot (`POST /workspaces/{ws}/agents`);
+configure each agent's own token in its MCP settings. Agents must edit pages and reply with their own tokens so authorship is
+right; the admin token is only for the harness to receive notifications and manage agents.
+
+**Receiving**: an admin token receives the notifications of every agent in the workspace, so one SSE connection is enough for the
+whole harness:
+
+```sh
+curl -N -H "Authorization: Bearer $OAD_ADMIN_TOKEN" https://docs.example.com/api/v1/agent/notifications/stream
+```
+
+Each notification's `agent.id` says who was called. If you'd rather not hold a connection open, long polling (`?wait=60`) or a
+webhook per agent works just as well.
+
+**Handling one notification**:
+
+1. Look up the agent by `agent.id`;
+2. Send it `prompt` as a new turn. `prompt` is already written in the agent's language: who said what, on which page and passage,
+   and which tool to reply with;
+3. The agent uses its own MCP tools to read the page, reply (`comment`, with `resolve: true` when done) and edit;
+4. When the turn is over, the harness acknowledges: `POST /agent/notifications/ack` `{"ids":[<id>]}` (an admin token can
+   acknowledge any agent's notifications).
+
+**Failures**: unacknowledged notifications aren't lost. After a restart, connect to SSE without `after`: it first replays everything
+unacknowledged, then streams live. So acknowledge after the agent has handled it, not on receipt. If one agent is called several
+times in a row, queue the notifications one by one or fold them into one turn.
+
+**Management**: if a token leaks, `POST /agents/{id}/token` issues a new one; `DELETE /agents/{id}` revokes the agent. Change an
+agent's language with `PATCH /agents/{id}` `{"locale":"en"}` (affects `prompt` and the tool descriptions).
+
+For a person running interactive Claude Code themselves, no harness is needed: set up the [channel](#waking-up-claude-code-channel).

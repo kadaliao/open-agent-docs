@@ -211,7 +211,34 @@ def verify(headers, body: bytes) -> bool:
     return fresh and hmac.compare_digest(sig, want)
 ```
 
-## 托管很多 Bot 的平台
+## 托管很多 Agent 的平台（Agent Harness）
 
-用一个 `admin` 权限的 Agent token，经接口给每个 Bot 建一个 Agent（`POST /workspaces/{ws}/agents`），各自的 token 发给各自的 Bot；
-通知用每个 Agent 的 webhook，或者各自连 SSE。token 泄漏时 `POST /agents/{id}/token` 换一个，`DELETE /agents/{id}` 撤销。
+Harness 替 Agent 收通知、开一轮对话，Agent 只管干活。这样不管底下跑的是 Claude Code（包括 `-p` 无人值守）、Codex
+还是别的，都能被叫醒，不依赖客户端支不支持推送。
+
+**准备**：用一个 `admin` 权限的 Agent token（Harness 自己留着），经接口给每个 Agent 建一个
+（`POST /workspaces/{ws}/agents`），各自的 token 配进各自的 MCP。Agent 写页面、回评论要用自己的 token，
+署名才对；admin token 只给 Harness 收通知、管 Agent 用。
+
+**收通知**：admin token 收得到整个工作区所有 Agent 的通知，Harness 连一条 SSE 就够了，不用每个 Agent 一条：
+
+```sh
+curl -N -H "Authorization: Bearer $OAD_ADMIN_TOKEN" https://docs.example.com/api/v1/agent/notifications/stream
+```
+
+每条通知的 `agent.id` 说明是叫谁的。不想常连的话用长轮询（`?wait=60`），或者给每个 Agent 填 webhook，效果一样。
+
+**一条通知的处理**：
+
+1. 按 `agent.id` 找到对应的 Agent；
+2. 把 `prompt` 当成一轮新消息发给它。`prompt` 已经按 Agent 的语言写好：谁、在哪一页哪一段、说了什么、用哪个工具怎么回；
+3. Agent 用自己的 MCP 工具读页面、回评论（`comment`，处理完 `resolve: true`）、改页面；
+4. 这一轮跑完，Harness 确认：`POST /agent/notifications/ack` `{"ids":[<编号>]}`（admin token 能确认任何 Agent 的）。
+
+**断了怎么办**：没确认的通知不会丢。Harness 重启后不带 `after` 连 SSE，先补发所有没确认的，再接着实时推；
+所以等 Agent 处理完再确认，别一收到就确认。同一个 Agent 短时间被叫好几次，可以排队一条一条来，也可以合成一轮。
+
+**管理**：token 泄漏时 `POST /agents/{id}/token` 换一个，`DELETE /agents/{id}` 撤销；Agent 的语言用
+`PATCH /agents/{id}` `{"locale":"en"}` 改（影响 `prompt` 和工具说明）。
+
+只是人自己开着交互式的 Claude Code 用时，不用 Harness，配上 [channel](#叫醒-claude-codechannel) 就行。
