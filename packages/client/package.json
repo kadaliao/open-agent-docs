@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "JS client for Open Agent Docs: HTTP API, real-time events, collaborative documents (Yjs) and a local database (WASM engine). Works in browsers and Node 18+",
   "license": "MIT",
   "repository": {

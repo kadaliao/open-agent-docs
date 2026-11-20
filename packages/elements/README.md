@@ -9,7 +9,7 @@ so they work with Vue, Svelte, Angular, plain HTML or server-rendered templates.
 
 ```html
 <!-- No bundler: load it from a CDN; the elements are registered on import -->
-<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.3.0/dist/elements.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.3.1/dist/elements.js"></script>
 
 <oad-editor base-url="https://docs.example.com" page-id="Qj1y9Gufp11" token="eyJ…"></oad-editor>
 ```

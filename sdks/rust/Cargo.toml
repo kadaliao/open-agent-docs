@@ -10,5 +10,5 @@ members = ["open-agent-docs", "codegen"]
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-version = "0.3.0"
+version = "0.3.1"
 repository = "https://github.com/kadaliao/open-agent-docs"
