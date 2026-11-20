@@ -4,7 +4,7 @@
 
 The full reference is OpenAPI 3.1: `GET /api/v1/openapi.json` on a running server (no sign-in needed), with a copy in the repo at
 [docs/openapi.json](../openapi.json) (generated from the code; a test keeps it in sync). Generate a client from it with
-`npx openapi-typescript docs/openapi.json -o api.d.ts`, or use `@oad/client` (generated the same way). Swagger UI, Scalar, Redocly and similar tools can display it.
+`npx openapi-typescript docs/openapi.json -o api.d.ts`, or use `@open-agent-docs/client` (generated the same way). Swagger UI, Scalar, Redocly and similar tools can display it.
 
 ## Basics
 

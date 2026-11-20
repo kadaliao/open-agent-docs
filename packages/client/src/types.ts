@@ -1,4 +1,4 @@
-// 接口里的数据结构：从 docs/openapi.json 生成的 openapi.ts 里取（pnpm --filter @oad/client gen:types）。
+// 接口里的数据结构：从 docs/openapi.json 生成的 openapi.ts 里取（pnpm --filter @open-agent-docs/client gen:types）。
 // 只有两种还是手写的：文档里只写了 `object`、没写里面是什么的（表结构、视图、几个 `{ name }` 之类，下面标着“文档没写”），
 // 和只在客户端里有的（WASM 引擎的接口、收件箱拍平以后的样子）。
 import type { components } from './openapi.ts'
@@ -197,7 +197,7 @@ export interface QueryResult {
   totals?: Record<string, unknown>
 }
 
-/** @oad/db 的接口（WASM）。网页只通过它算筛选、排序、分组、公式、汇总。 */
+/** @open-agent-docs/db 的接口（WASM）。网页只通过它算筛选、排序、分组、公式、汇总。 */
 export interface DbEngine {
   loadRows(rows: Row[] | string): void
   loadRelated(dbId: string, schema: Schema, rows: Row[]): void

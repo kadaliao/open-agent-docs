@@ -1,16 +1,16 @@
-# @oad/editor
+# @open-agent-docs/editor
 
 Open Agent Docs 的编辑器和组件：协作编辑器（Tiptap + Yjs）、标题、评论栏、数据库视图，加一个 `useOadPage` hook。
 React 19，样式是一个单独的 CSS 文件。
 
 ```sh
-pnpm add @oad/editor @oad/client react react-dom yjs
+pnpm add @open-agent-docs/editor @open-agent-docs/client react react-dom yjs
 ```
 
 ```tsx
-import { createClient } from '@oad/client'
-import { OadComments, OadDatabaseView, OadEditor, OadProvider, OadTitle, useOadPage } from '@oad/editor'
-import '@oad/editor/style.css'
+import { createClient } from '@open-agent-docs/client'
+import { OadComments, OadDatabaseView, OadEditor, OadProvider, OadTitle, useOadPage } from '@open-agent-docs/editor'
+import '@open-agent-docs/editor/style.css'
 
 const client = createClient({ baseUrl: '' }) // 同源（宿主把 /api 转给 Open Agent Docs）
 
@@ -37,10 +37,10 @@ function Doc({ id, me }) {
 | `OadEditor` | 正文编辑器（`ydoc`、`provider`、`user`、`editable`、`onComment`、`media`……） |
 | `OadTitle` | 标题（`ydoc` 里的 `title`） |
 | `OadComments` | 评论栏；配 `usePageComments(client, pageId, events)`、`usePeople(...)` |
-| `OadDatabaseView` | 数据库：表格、看板、日历、画廊、列表（按需加载；`@oad/editor/database` 里有不按需加载的版本） |
+| `OadDatabaseView` | 数据库：表格、看板、日历、画廊、列表（按需加载；`@open-agent-docs/editor/database` 里有不按需加载的版本） |
 | `useOadPage(client, id)` | 打开一页的协作文档，卸载时关掉 |
 | `OadProvider` / `useOadClient` | 把客户端放进上下文，组件就不用一个个传 `client` |
-| `setLocale('zh' \| 'en' \| 'auto')` | 界面语言（默认跟浏览器），换了不用刷新（`@oad/editor/i18n`） |
+| `setLocale('zh' \| 'en' \| 'auto')` | 界面语言（默认跟浏览器），换了不用刷新（`@open-agent-docs/editor/i18n`） |
 
 ## 换主题
 

@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import '@oad/editor/style.css'
+import '@open-agent-docs/editor/style.css'
 import { App } from './App'
 import './styles.css'
 

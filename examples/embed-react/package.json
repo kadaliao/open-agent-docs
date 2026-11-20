@@ -1,5 +1,5 @@
 {
-  "name": "@oad/example-embed-react",
+  "name": "@open-agent-docs/example-embed-react",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "smoke": "node smoke.mjs"
   },
   "dependencies": {
-    "@oad/client": "workspace:*",
-    "@oad/editor": "workspace:*",
+    "@open-agent-docs/client": "workspace:*",
+    "@open-agent-docs/editor": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "yjs": "^13.6.33"

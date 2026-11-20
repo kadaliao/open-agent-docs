@@ -1,10 +1,10 @@
-// 网页对 @oad/db（WASM 引擎）的用法：查询的结果形状、汇总、规范化、显示、公式检查，1 万行的查询时间。
+// 网页对 @open-agent-docs/db（WASM 引擎）的用法：查询的结果形状、汇总、规范化、显示、公式检查，1 万行的查询时间。
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { DbEngine, initSync } from '@oad/db'
-import { safeQuery, tryNormalize } from '@oad/client/db'
-import type { DbEngine as Eng, Schema } from '@oad/client'
+import { DbEngine, initSync } from '@open-agent-docs/db'
+import { safeQuery, tryNormalize } from '@open-agent-docs/client/db'
+import type { DbEngine as Eng, Schema } from '@open-agent-docs/client'
 
 const schema: Schema = {
   props: [
@@ -38,7 +38,7 @@ beforeAll(() => {
   )
 })
 
-describe('@oad/db 在网页里的用法', () => {
+describe('@open-agent-docs/db 在网页里的用法', () => {
   it('筛选、排序、分组、汇总', () => {
     const r = safeQuery(eng, { filter: { op: 'and', items: [{ prop: 'st', cond: 'eq', value: 's2' }] }, sorts: [{ prop: 'est', dir: 'desc' }], totals: { est: 'sum', ok: 'percent_checked' } })
     expect(r.ids[0]).toBe('r28')

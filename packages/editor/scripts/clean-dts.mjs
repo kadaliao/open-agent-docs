@@ -13,5 +13,5 @@ for (const f of walk(new URL('../dist/types', import.meta.url).pathname)) {
   if (t !== s) writeFileSync(f, t)
 }
 
-// `import '@oad/editor/style.css'` 在开了 noUncheckedSideEffectImports（TS 6 起默认开）的项目里也要有类型
+// `import '@open-agent-docs/editor/style.css'` 在开了 noUncheckedSideEffectImports（TS 6 起默认开）的项目里也要有类型
 writeFileSync(new URL('../dist/style.css.d.ts', import.meta.url), '// 样式文件，没有导出\nexport {}\n')

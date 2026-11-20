@@ -1,12 +1,12 @@
 // 格子：按类型显示，按类型编辑（文字、数字、选项、日期、人员、勾选、文件、关联、网址）。
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { Person } from '@oad/client'
+import type { Person } from '@open-agent-docs/client'
 import type { MediaServices } from '../extensions/media'
 import { colorFor, initials } from '../react/util'
-import { tryNormalize } from '@oad/client'
-import type { DbStore } from '@oad/client'
+import { tryNormalize } from '@open-agent-docs/client'
+import type { DbStore } from '@open-agent-docs/client'
 import { t } from './strings'
-import type { DateValue, Prop, Row, SelectOption } from '@oad/client'
+import type { DateValue, Prop, Row, SelectOption } from '@open-agent-docs/client'
 import { optId, Pill, Popover, randomColor, READONLY, type Anchor } from './ui'
 
 export interface DbCtx {

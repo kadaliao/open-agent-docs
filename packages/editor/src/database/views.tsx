@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CellView, cellValue, isEmptyVal, useDb } from './cells'
 import { groupDefaults, visibleProps } from './TableView'
 import { t } from './strings'
-import type { DateValue, Group, OadClient, Prop, QueryResult, Row, View } from '@oad/client'
+import type { DateValue, Group, OadClient, Prop, QueryResult, Row, View } from '@open-agent-docs/client'
 import { Pill, READONLY, TypeIcon } from './ui'
 
 interface VProps {

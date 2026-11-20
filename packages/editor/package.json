@@ -1,5 +1,5 @@
 {
-  "name": "@oad/editor",
+  "name": "@open-agent-docs/editor",
   "version": "0.2.0",
   "type": "module",
   "main": "dist/index.js",
@@ -77,13 +77,13 @@
     "y-protocols": "^1.0.7"
   },
   "peerDependencies": {
-    "@oad/client": "workspace:*",
+    "@open-agent-docs/client": "workspace:*",
     "react": "^19",
     "react-dom": "^19",
     "yjs": "^13.6"
   },
   "devDependencies": {
-    "@oad/client": "workspace:*",
+    "@open-agent-docs/client": "workspace:*",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

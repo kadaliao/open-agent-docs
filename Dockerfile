@@ -37,7 +37,7 @@ COPY scripts scripts
 COPY --from=wasm /out/db-wasm packages/db-wasm/dist
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
-RUN pnpm --filter @oad/web build
+RUN pnpm --filter @open-agent-docs/web build
 
 # ---------- 3. 服务器（把网页打进去）----------
 FROM rust:${RUST_VERSION}-bookworm AS server

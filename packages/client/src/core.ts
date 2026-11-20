@@ -25,7 +25,7 @@ import { openEvents, type EventsHandle } from './events.ts'
 import type { OpenPageOptions, PageConn } from './page.ts'
 
 // 协作文档（要 Yjs）和本地数据库（要 WASM 引擎）放在另外两个模块里，用到才加载：
-// import '@oad/client'（全部）或者 '@oad/client/page'、'@oad/client/db' 会把它们登记到这里。
+// import '@open-agent-docs/client'（全部）或者 '@open-agent-docs/client/page'、'@open-agent-docs/client/db' 会把它们登记到这里。
 export type OpenPageFn = (id: string, o: OpenPageOptions & { url: string; token?: string; WebSocket?: unknown }) => PageConn
 export type DbFactory = (client: OadClient, id: string) => DbStore
 export interface ClientPlugins {
@@ -34,7 +34,7 @@ export interface ClientPlugins {
 }
 const globalPlugins: ClientPlugins = {}
 /** 全局登记（所有客户端都能用）。打包工具可能把只为副作用引入的模块摇掉，所以要显式调一次：
- *    import { openPage } from '@oad/client/page';  registerPlugin('openPage', openPage) */
+ *    import { openPage } from '@open-agent-docs/client/page';  registerPlugin('openPage', openPage) */
 export function registerPlugin<K extends keyof ClientPlugins>(k: K, f: NonNullable<ClientPlugins[K]>) {
   globalPlugins[k] = f
 }
@@ -339,7 +339,7 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     events: (ws: string): EventsHandle => openEvents(`${API}/workspaces/${ws}/events`, { credentials, headers: () => headers(false), fetch: f }),
     /** 一页的协作文档：Y.Doc + WebSocket 同步 + 浏览器里的 IndexedDB 缓存 */
     openPage: (id: string, o: OpenPageOptions = {}): PageConn => {
-      if (!plugins.openPage) throw new Error("@oad/client：openPage 要先 import '@oad/client/page'（或者从 '@oad/client' 整个引入）")
+      if (!plugins.openPage) throw new Error("@open-agent-docs/client：openPage 要先 import '@open-agent-docs/client/page'（或者从 '@open-agent-docs/client' 整个引入）")
       return plugins.openPage(id, {
         url: syncUrl(),
         token: opts.token ? val(opts.token) ?? undefined : undefined,
@@ -351,7 +351,7 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     database(id: string): DbStore {
       let s = dbs.get(id)
       if (!s) {
-        if (!plugins.database) throw new Error("@oad/client：database 要先 import '@oad/client/db'（或者从 '@oad/client' 整个引入）")
+        if (!plugins.database) throw new Error("@open-agent-docs/client：database 要先 import '@open-agent-docs/client/db'（或者从 '@open-agent-docs/client' 整个引入）")
         dbs.set(id, (s = plugins.database(client, id)))
       }
       return s

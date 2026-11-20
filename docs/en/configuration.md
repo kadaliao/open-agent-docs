@@ -3,7 +3,7 @@
 [简体中文](../zh/configuration.md) · [Contents](README.md)
 
 Everything is an environment variable; the first few `serve` settings are also command-line flags (`open-agent-docs serve --help`).
-When starting in-process (Node's `@oad/server`, Python's `open_agent_docs`) the same names are options; `OAD_DATA_DIR` can also be written
+When starting in-process (Node's `@open-agent-docs/server`, Python's `open_agent_docs`) the same names are options; `OAD_DATA_DIR` can also be written
 `dataDir` / `data_dir`, and anything not given falls back to the environment (see [Embedding](embedding.md#in-process-node--python)).
 An empty value counts as unset. The tables list every `OAD_*` variable the code reads (under `crates/`).
 

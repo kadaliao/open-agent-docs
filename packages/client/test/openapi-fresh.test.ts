@@ -1,4 +1,4 @@
-// src/openapi.ts 要和 docs/openapi.json 对得上：服务器改了接口、文档重新生成以后，这里也要重新生成（pnpm --filter @oad/client gen:types）。
+// src/openapi.ts 要和 docs/openapi.json 对得上：服务器改了接口、文档重新生成以后，这里也要重新生成（pnpm --filter @open-agent-docs/client gen:types）。
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'

@@ -1,5 +1,5 @@
 {
-  "name": "@oad/migrate-legacy",
+  "name": "@open-agent-docs/migrate-legacy",
   "private": true,
   "type": "module",
   "description": "把旧版（Python）Open Agent Docs 的数据导进新版",
@@ -7,7 +7,7 @@
     "oad-migrate-legacy": "./migrate.mjs"
   },
   "scripts": {
-    "prepare-client": "pnpm --filter @oad/client build",
+    "prepare-client": "pnpm --filter @open-agent-docs/client build",
     "migrate": "node migrate.mjs",
     "test": "node --test test/",
     "e2e": "node test-e2e.mjs"
@@ -16,6 +16,6 @@
     "node": ">=22.5"
   },
   "dependencies": {
-    "@oad/client": "workspace:*"
+    "@open-agent-docs/client": "workspace:*"
   }
 }

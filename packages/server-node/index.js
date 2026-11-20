@@ -1,4 +1,4 @@
-// @oad/server：在 Node 进程里起 Open Agent Docs 服务器。服务器跑在它自己的线程和 tokio 运行时上，不占 Node 的事件循环。
+// @open-agent-docs/server：在 Node 进程里起 Open Agent Docs 服务器。服务器跑在它自己的线程和 tokio 运行时上，不占 Node 的事件循环。
 import http from 'node:http'
 import net from 'node:net'
 import { createRequire } from 'node:module'

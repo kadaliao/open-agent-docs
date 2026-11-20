@@ -1,6 +1,6 @@
 // 写评论的输入框：输入 @ 弹出可选的人和 Agent，存的时候换成 @[名字](agent:<id>)。⌘/Ctrl + 回车发送。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Person } from '@oad/client/core'
+import type { Person } from '@open-agent-docs/client/core'
 import { colorFor, initials } from '../react/util'
 import { t } from './strings'
 import { bodyToDraft, draftToBody } from './body'

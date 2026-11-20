@@ -1,5 +1,5 @@
 // 库模式打包：dist/ 下是 ES 模块（每个入口一个文件，按需加载的部分各自一块）+ 一个 style.css；
-// 依赖（react、tiptap、yjs、@oad/client……）都不打进去，由用的人装。类型声明另外用 tsc 出到 dist/types。
+// 依赖（react、tiptap、yjs、@open-agent-docs/client……）都不打进去，由用的人装。类型声明另外用 tsc 出到 dist/types。
 import react from '@vitejs/plugin-react'
 import { isAbsolute } from 'node:path'
 import { defineConfig } from 'vite'

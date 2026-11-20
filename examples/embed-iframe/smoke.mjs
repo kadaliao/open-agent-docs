@@ -1,6 +1,6 @@
 // 冒烟测试：起 Open Agent Docs（不登录模式，带网页）、建一页，宿主页面用 iframe 嵌进来：
 // 看到正文、没有侧栏和顶栏、收到 oad:ready；宿主发 oad:theme / oad:locale 能换主题和语言；在 iframe 里打字存得上。
-//   OAD_BIN=/path/to/open-agent-docs node smoke.mjs     （网页用仓库里 apps/web/dist，先 pnpm --filter @oad/web build）
+//   OAD_BIN=/path/to/open-agent-docs node smoke.mjs     （网页用仓库里 apps/web/dist，先 pnpm --filter @open-agent-docs/web build）
 import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'

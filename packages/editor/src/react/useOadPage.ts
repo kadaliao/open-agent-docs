@@ -2,13 +2,13 @@
 //   const page = useOadPage(client, id, { user })
 //   if (!page.conn) return null
 //   <OadTitle ydoc={page.ydoc} /> <OadEditor ydoc={page.ydoc} provider={page.provider} user={user} />
-import type { OadClient, OpenPageOptions, PageConn, PageStatus } from '@oad/client/core'
-import { registerPlugin } from '@oad/client/core'
-import { openPage } from '@oad/client/page'
+import type { OadClient, OpenPageOptions, PageConn, PageStatus } from '@open-agent-docs/client/core'
+import { registerPlugin } from '@open-agent-docs/client/core'
+import { openPage } from '@open-agent-docs/client/page'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { OadUser } from '../extensions'
 
-// 宿主只引了 '@oad/client/core' 也能用
+// 宿主只引了 '@open-agent-docs/client/core' 也能用
 registerPlugin('openPage', openPage)
 
 export interface OadPage {

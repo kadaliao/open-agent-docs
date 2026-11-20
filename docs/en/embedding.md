@@ -5,7 +5,7 @@
 Two ways on the web side:
 
 - **iframe**: point an iframe at an Open Agent Docs page. No front-end code.
-- **JS packages**: `@oad/client` (API, live events, collaborative documents, local databases) and `@oad/editor` (React components:
+- **JS packages**: `@open-agent-docs/client` (API, live events, collaborative documents, local databases) and `@open-agent-docs/editor` (React components:
   editor, comment panel, database views). The editor lives inside your page and follows your styles.
 
 Three ways to run the server: a separate `open-agent-docs serve` next to the host (behind its reverse proxy); inside the host's
@@ -58,13 +58,13 @@ put both under one domain (reverse proxy), or use header / JWT auth. Full exampl
 > `npm i ./oad-client-x.y.z.tgz` and so on.
 
 ```sh
-npm i @oad/client @oad/editor react react-dom yjs
+npm i @open-agent-docs/client @open-agent-docs/editor react react-dom yjs
 ```
 
-### @oad/client
+### @open-agent-docs/client
 
 ```ts
-import { createClient } from '@oad/client'
+import { createClient } from '@open-agent-docs/client'
 
 const client = createClient({
   baseUrl: 'https://docs.example.com',  // '' for same origin
@@ -91,14 +91,14 @@ const { ids } = db.engine!.query({ sorts: [{ prop: 'n', dir: 'desc' }] })
 await db.setCells([{ row_id: ids[0], key: 'n', value: 3 }])   // applied locally first, rolled back if the server refuses
 ```
 
-Entry points: `@oad/client` (everything), `@oad/client/core` (API and events only, no Yjs or WASM — the smallest),
-`@oad/client/page`, `@oad/client/db`. With core alone, register plugins explicitly: `registerPlugin('openPage', openPage)`.
+Entry points: `@open-agent-docs/client` (everything), `@open-agent-docs/client/core` (API and events only, no Yjs or WASM — the smallest),
+`@open-agent-docs/client/page`, `@open-agent-docs/client/db`. With core alone, register plugins explicitly: `registerPlugin('openPage', openPage)`.
 
-### @oad/editor
+### @open-agent-docs/editor
 
 ```tsx
-import { OadEditor, OadTitle, OadComments, OadDatabaseView, useOadPage, colorFor } from '@oad/editor'
-import '@oad/editor/style.css'
+import { OadEditor, OadTitle, OadComments, OadDatabaseView, useOadPage, colorFor } from '@open-agent-docs/editor'
+import '@open-agent-docs/editor/style.css'
 
 function Doc({ pageId, me }) {
   const user = { id: me.user.id, name: me.user.name, color: colorFor(me.user.id) }
@@ -113,8 +113,8 @@ function Doc({ pageId, me }) {
 }
 ```
 
-`react`, `react-dom`, `yjs` and `@oad/client` are peer dependencies. Component styles apply only inside `.oad-root` and don't
-leak into the host; change colors and fonts with CSS variables. UI language: `import { setLocale } from '@oad/editor/i18n'`.
+`react`, `react-dom`, `yjs` and `@open-agent-docs/client` are peer dependencies. Component styles apply only inside `.oad-root` and don't
+leak into the host; change colors and fonts with CSS variables. UI language: `import { setLocale } from '@open-agent-docs/editor/i18n'`.
 Full example (editor + comments + database views + two users): [examples/embed-react](../../examples/embed-react).
 
 ## Header auth
@@ -146,7 +146,7 @@ OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json ope
 # Optional: OAD_JWT_ISSUER, OAD_JWT_AUDIENCE, OAD_JWT_LEEWAY (seconds, default 60)
 ```
 
-- Send it as `Authorization: Bearer <jwt>`, as `?token=<jwt>` on WebSockets, or in the `oad_token` cookie. `@oad/client`'s `token` option handles this.
+- Send it as `Authorization: Bearer <jwt>`, as `?token=<jwt>` on WebSockets, or in the `oad_token` cookie. `@open-agent-docs/client`'s `token` option handles this.
 - Claims: `sub` (required, user id), `exp` (required), `name`, `email`, `workspaces` (array of workspace ids, or
   `[{ "id": "…", "role": "editor" }]`; the default workspace if omitted).
 - Users are matched by `sub` and created on first sight; the name follows the claims; a role given in the claims wins, new members default to editor.
@@ -159,10 +159,10 @@ If you'd rather not run a separate process, start the server inside the host's o
 runtime, so it doesn't block Node's event loop or hold Python's GIL. Options are exactly the command-line ones (`OAD_*`, see
 [Configuration](configuration.md)), also writable as `dataDir` / `data_dir`, with the environment as fallback; without a port it picks a free one.
 
-**Node** (`@oad/server`, napi-rs, `packages/server-node`):
+**Node** (`@open-agent-docs/server`, napi-rs, `packages/server-node`):
 
 ```js
-import { start } from '@oad/server'
+import { start } from '@open-agent-docs/server'
 
 const oad = await start({ dataDir: './data', auth: 'header', headerSecret: process.env.OAD_HEADER_SECRET })
 console.log(oad.url)               // http://127.0.0.1:<port>

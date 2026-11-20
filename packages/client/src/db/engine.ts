@@ -1,4 +1,4 @@
-// 计算引擎：@oad/db（packages/db-wasm，和服务器同一份 Rust 代码，按需下载）。
+// 计算引擎：@open-agent-docs/db（packages/db-wasm，和服务器同一份 Rust 代码，按需下载）。
 import type { DbEngine, QueryResult, Schema, View } from '../types.ts'
 
 type Mod = { default?: unknown; DbEngine: { create(schema: Schema, opts?: { id?: string }): Promise<DbEngine> } }
@@ -6,7 +6,7 @@ let mod: Promise<Mod> | null = null
 
 /** 引擎先下载好（打开库页面之前就可以开始） */
 export const preloadEngine = () =>
-  (mod ??= import('@oad/db').then(async (m) => {
+  (mod ??= import('@open-agent-docs/db').then(async (m) => {
     const x = m as unknown as Mod & { initSync?: (o: { module: unknown }) => void }
     // Node 里 fetch 不了 file:// 的 WASM：直接从磁盘读
     const g = globalThis as { process?: { versions?: { node?: string } }; window?: unknown }
@@ -14,7 +14,7 @@ export const preloadEngine = () =>
     if (isNode && x.initSync) {
       const fs = 'node:fs'
       const { readFileSync } = (await import(/* @vite-ignore */ fs)) as { readFileSync: (u: URL) => Uint8Array }
-      const wasm = new URL('./dist/oad_db_bg.wasm', import.meta.resolve('@oad/db'))
+      const wasm = new URL('./dist/oad_db_bg.wasm', import.meta.resolve('@open-agent-docs/db'))
       x.initSync({ module: readFileSync(wasm) })
     } else if (typeof x.default === 'function') await (x.default as () => Promise<unknown>)()
     // wasm-bindgen 打的包要先 init（上面做了）

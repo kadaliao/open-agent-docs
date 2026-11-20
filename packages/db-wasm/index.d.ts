@@ -1,4 +1,4 @@
-// @oad/db 的类型。数据结构见 docs/phase4-contract.md「模型」，引擎的取舍见「引擎实现说明」。
+// @open-agent-docs/db 的类型。数据结构见 docs/phase4-contract.md「模型」，引擎的取舍见「引擎实现说明」。
 import type { InitInput, InitOutput, SyncInitInput } from './dist/oad_db'
 
 export type PropType =

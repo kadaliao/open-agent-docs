@@ -23,7 +23,7 @@ OAD_HEADER_SECRET=change-me OAD_URL=http://127.0.0.1:8848 pnpm start   # http://
 打开 http://localhost:5180 是 Alice；右上角能换成 Bob（演示用的“登录”，真的服务换成自己的会话）。
 两个人看到的是同一个工作区，第一次来时 Open Agent Docs 会自动建用户、加进工作区。
 
-`src/main.tsx` 用到了 `@oad/client`（`createClient`、`client.events`）和 `@oad/editor`（`OadTitle`、`OadEditor`、`OadComments`、
+`src/main.tsx` 用到了 `@open-agent-docs/client`（`createClient`、`client.events`）和 `@open-agent-docs/editor`（`OadTitle`、`OadEditor`、`OadComments`、
 `OadDatabaseView`、`useOadPage`）；`src/host.css` 演示用 CSS 变量换成宿主的强调色和字体。
 
 上线时：Open Agent Docs 只监听内网（`OAD_HOST=127.0.0.1`），`OAD_ALLOWED_ORIGINS` 设成宿主的域名（WebSocket 握手要检查 Origin）。

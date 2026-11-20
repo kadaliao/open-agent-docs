@@ -4,9 +4,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CellEditor, CellView, cellValue, isEmptyVal, useDb } from './cells'
 import { ColumnMenu, AddPropMenu } from './ColumnMenu'
 import { useLocale } from '../i18n'
-import { tryNormalize } from '@oad/client'
+import { tryNormalize } from '@open-agent-docs/client'
 import { t, TOTAL_NAMES } from './strings'
-import type { Group, Prop, QueryResult, Row, View } from '@oad/client'
+import type { Group, Prop, QueryResult, Row, View } from '@open-agent-docs/client'
 import { Pill, Popover, READONLY, rectOf, totalsFor, TypeIcon, type Anchor } from './ui'
 
 const ROW_H = 34

@@ -31,7 +31,7 @@ pnpm start                                           # http://localhost:5181/?oa
 ## 冒烟测试
 
 ```sh
-pnpm --filter @oad/web build                 # 网页（嵌进来的就是它）
+pnpm --filter @open-agent-docs/web build                 # 网页（嵌进来的就是它）
 OAD_BIN=/path/to/open-agent-docs pnpm smoke
 ```
 

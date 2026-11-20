@@ -1,4 +1,4 @@
-/* 网页外壳。颜色沿用编辑器的 --oad-* 变量（@oad/editor/style.css 里定义，明暗两套）。 */
+/* 网页外壳。颜色沿用编辑器的 --oad-* 变量（@open-agent-docs/editor/style.css 里定义，明暗两套）。 */
 :root {
   --side-w: 260px;
   --side-bg: #f8f8f7;

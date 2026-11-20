@@ -10,13 +10,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@oad/db':
+      '@open-agent-docs/db':
         specifier: workspace:*
         version: link:../../packages/db-wasm
-      '@oad/editor':
+      '@open-agent-docs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
       '@tanstack/react-virtual':
@@ -74,10 +74,10 @@ importers:
 
   examples/embed-react:
     dependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@oad/editor':
+      '@open-agent-docs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
       react:
@@ -111,10 +111,10 @@ importers:
 
   examples/node-inprocess:
     dependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@oad/server':
+      '@open-agent-docs/server':
         specifier: workspace:*
         version: link:../../packages/server-node
       express:
@@ -123,7 +123,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@oad/db':
+      '@open-agent-docs/db':
         specifier: workspace:*
         version: link:../db-wasm
       y-indexeddb:
@@ -262,7 +262,7 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(yjs@13.6.33)
     devDependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../client
       '@types/node':
@@ -303,13 +303,13 @@ importers:
 
   packages/server-node:
     devDependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../client
 
   scripts/migrate-legacy:
     dependencies:
-      '@oad/client':
+      '@open-agent-docs/client':
         specifier: workspace:*
         version: link:../../packages/client
 

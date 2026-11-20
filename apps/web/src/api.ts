@@ -1,7 +1,7 @@
-// 和服务器的 HTTP 接口：用 @oad/client（方法、类型都在那里，网页和别的宿主用同一份）。
-import { createClient } from '@oad/client/core'
+// 和服务器的 HTTP 接口：用 @open-agent-docs/client（方法、类型都在那里，网页和别的宿主用同一份）。
+import { createClient } from '@open-agent-docs/client/core'
 import { getLocale } from './i18n'
-export * from '@oad/client/core'
+export * from '@open-agent-docs/client/core'
 
 export const API = '/api/v1'
 

@@ -1,4 +1,4 @@
-/* @oad/editor 的样式。颜色都是 --oad-* 变量，宿主页面可以覆盖。
+/* @open-agent-docs/editor 的样式。颜色都是 --oad-* 变量，宿主页面可以覆盖。
    明暗：跟系统（prefers-color-scheme），或在祖先元素上放 data-theme="light|dark"。 */
 
 :root {

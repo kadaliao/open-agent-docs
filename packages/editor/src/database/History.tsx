@@ -1,6 +1,6 @@
 // 库的改动记录：谁、什么时候改了哪一格（从什么改成什么）、改了表结构；能撤销（撤销也记一条）。整个库或某一行。
 import { useEffect, useState } from 'react'
-import { ApiError, type DbHistoryItem, type Person } from '@oad/client'
+import { ApiError, type DbHistoryItem, type Person } from '@open-agent-docs/client'
 import { fmtAgo, fmtDate, useLocale } from '../i18n'
 import { colorFor, initials } from '../react/util'
 import { useDb } from './cells'

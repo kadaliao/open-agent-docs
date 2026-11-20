@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useDb } from './cells'
 import { DbHistory } from './History'
 import { COND_NAMES, t, TYPE_NAMES, WITHIN_NAMES } from './strings'
-import type { Cond, Filter, Prop, View } from '@oad/client'
-import { isGroup } from '@oad/client'
+import type { Cond, Filter, Prop, View } from '@open-agent-docs/client'
+import { isGroup } from '@open-agent-docs/client'
 import { condsFor, NO_VALUE, Pill, Popover, rectOf, TypeIcon, type Anchor } from './ui'
 
 interface Props {

@@ -5,7 +5,7 @@
 网页这边两种做法：
 
 - **iframe**：放一个 iframe 指向 Open Agent Docs 的页面，不用写前端代码。
-- **JS 包**：`@oad/client`（接口、实时事件、协作文档、本地数据库）和 `@oad/editor`（React 组件：编辑器、评论栏、数据库视图），
+- **JS 包**：`@open-agent-docs/client`（接口、实时事件、协作文档、本地数据库）和 `@open-agent-docs/editor`（React 组件：编辑器、评论栏、数据库视图），
   编辑器直接长在你的页面里，跟着你的样式。
 
 服务器这边三种跑法：单独跑一个 `open-agent-docs serve`（宿主旁挂、反向代理过去）；在宿主的 Node / Python 进程里启动
@@ -56,13 +56,13 @@ iframe 里用的是 Open Agent Docs 自己的登录（cookie）。宿主和它�
 > 还没发布到 npm。现在用仓库里打的包：`pnpm pack:all` 生成 `dist-packs/*.tgz`，在你的项目里 `npm i ./oad-client-x.y.z.tgz` 等。
 
 ```sh
-npm i @oad/client @oad/editor react react-dom yjs
+npm i @open-agent-docs/client @open-agent-docs/editor react react-dom yjs
 ```
 
-### @oad/client
+### @open-agent-docs/client
 
 ```ts
-import { createClient } from '@oad/client'
+import { createClient } from '@open-agent-docs/client'
 
 const client = createClient({
   baseUrl: 'https://docs.example.com',  // 同源时给 ''
@@ -89,14 +89,14 @@ const { ids } = db.engine!.query({ sorts: [{ prop: 'n', dir: 'desc' }] })
 await db.setCells([{ row_id: ids[0], key: 'n', value: 3 }])   // 先改本地，服务器失败会退回
 ```
 
-入口：`@oad/client`（全部）、`@oad/client/core`（只有接口和事件，不带 Yjs、WASM，最小）、`@oad/client/page`、`@oad/client/db`。
+入口：`@open-agent-docs/client`（全部）、`@open-agent-docs/client/core`（只有接口和事件，不带 Yjs、WASM，最小）、`@open-agent-docs/client/page`、`@open-agent-docs/client/db`。
 只用 core 时要显式注册：`registerPlugin('openPage', openPage)`。
 
-### @oad/editor
+### @open-agent-docs/editor
 
 ```tsx
-import { OadEditor, OadTitle, OadComments, OadDatabaseView, useOadPage, colorFor } from '@oad/editor'
-import '@oad/editor/style.css'
+import { OadEditor, OadTitle, OadComments, OadDatabaseView, useOadPage, colorFor } from '@open-agent-docs/editor'
+import '@open-agent-docs/editor/style.css'
 
 function Doc({ pageId, me }) {
   const user = { id: me.user.id, name: me.user.name, color: colorFor(me.user.id) }
@@ -111,8 +111,8 @@ function Doc({ pageId, me }) {
 }
 ```
 
-`react`、`react-dom`、`yjs`、`@oad/client` 是 peer 依赖。组件的样式只在 `.oad-root` 里生效，不会影响宿主；颜色、字体用 CSS 变量换。
-界面语言：`import { setLocale } from '@oad/editor/i18n'`。完整的例子（编辑器 + 评论栏 + 数据库视图 + 两个用户）：[examples/embed-react](../../examples/embed-react)。
+`react`、`react-dom`、`yjs`、`@open-agent-docs/client` 是 peer 依赖。组件的样式只在 `.oad-root` 里生效，不会影响宿主；颜色、字体用 CSS 变量换。
+界面语言：`import { setLocale } from '@open-agent-docs/editor/i18n'`。完整的例子（编辑器 + 评论栏 + 数据库视图 + 两个用户）：[examples/embed-react](../../examples/embed-react)。
 
 ## header 登录
 
@@ -143,7 +143,7 @@ OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json ope
 # 可选：OAD_JWT_ISSUER、OAD_JWT_AUDIENCE、OAD_JWT_LEEWAY（秒，默认 60）
 ```
 
-- 带法：`Authorization: Bearer <jwt>`、WebSocket 用 `?token=<jwt>`，或 cookie `oad_token`。`@oad/client` 的 `token` 选项都替你处理了。
+- 带法：`Authorization: Bearer <jwt>`、WebSocket 用 `?token=<jwt>`，或 cookie `oad_token`。`@open-agent-docs/client` 的 `token` 选项都替你处理了。
 - claims：`sub`（必填，用户编号）、`exp`（必填）、`name`、`email`、`workspaces`（工作区 id 的数组，或 `[{ "id": "…", "role": "editor" }]`；不给就进默认工作区）。
 - 用户按 `sub` 认，第一次见到时自动建；名字跟着 claims 变；claims 里给了角色就以它为准，没给的新成员是 editor。
 - JWKS 按 `kid` 缓存 10 分钟，宿主换了钥匙（新的 kid）会自动再取；签名算法必须和那把钥匙的一致。
@@ -154,10 +154,10 @@ OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json ope
 不想另外起一个进程时，在宿主自己的进程里启动服务器。服务器跑在它自己的线程和 tokio 运行时上，不占 Node 的事件循环、不占 Python 的 GIL；
 配置项和命令行完全一样（`OAD_*`，见[配置](configuration.md)），写成 `dataDir` / `data_dir` 也行，没给的再看环境变量；不给端口时随便挑一个空端口。
 
-**Node**（`@oad/server`，napi-rs，`packages/server-node`）：
+**Node**（`@open-agent-docs/server`，napi-rs，`packages/server-node`）：
 
 ```js
-import { start } from '@oad/server'
+import { start } from '@open-agent-docs/server'
 
 const oad = await start({ dataDir: './data', auth: 'header', headerSecret: process.env.OAD_HEADER_SECRET })
 console.log(oad.url)            // http://127.0.0.1:<端口>

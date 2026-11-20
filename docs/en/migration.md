@@ -12,7 +12,7 @@ to be running: the tool only reads its database file and never changes it.
 2. Start the new version ([Quick start](quickstart.md)) and create the admin.
 3. Prepare the tool in the repo (Node 22.5 or newer):
    ```sh
-   pnpm install && pnpm --filter @oad/client build
+   pnpm install && pnpm --filter @open-agent-docs/client build
    ```
 4. See what would be imported (writes nothing):
    ```sh

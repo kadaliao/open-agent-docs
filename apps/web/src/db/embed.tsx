@@ -1,6 +1,6 @@
 // 页面里内嵌的库：编辑器的 embed 节点视图调 renderDatabase，这里挂一个 React 根。
 import { createRoot } from 'react-dom/client'
-import { DatabaseView } from '@oad/editor/database'
+import { DatabaseView } from '@open-agent-docs/editor/database'
 import { client, type Me } from '../api'
 import { navigate, pagePath } from '../lib'
 import { mediaServices } from '../media'

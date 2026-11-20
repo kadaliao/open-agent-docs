@@ -1,7 +1,7 @@
-// Express 宿主：Open Agent Docs 在同一个进程里跑（@oad/server），宿主自己的路由在前面，其余请求转给它。
+// Express 宿主：Open Agent Docs 在同一个进程里跑（@open-agent-docs/server），宿主自己的路由在前面，其余请求转给它。
 // 宿主用 header 登录告诉 Open Agent Docs 是谁（这里演示用一个固定的用户；真实服务从自己的会话里取）。
 import express from 'express'
-import { start } from '@oad/server'
+import { start } from '@open-agent-docs/server'
 
 const SECRET = process.env.OAD_HEADER_SECRET ?? 'demo-secret-change-me'
 

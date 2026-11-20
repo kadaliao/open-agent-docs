@@ -14,7 +14,7 @@ import {
   type Editor,
   type OadTitleHandle,
   type OadUser,
-} from '@oad/editor'
+} from '@open-agent-docs/editor'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebsocketProvider } from 'y-websocket'
 import { api, ApiError, client, threadAnchor, type Me, type Page, type Version } from './api'

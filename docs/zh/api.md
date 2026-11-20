@@ -3,7 +3,7 @@
 [English](../en/api.md) · [文档目录](README.md)
 
 完整的参考是 OpenAPI 3.1：运行着的服务器上 `GET /api/v1/openapi.json`（不用登录），仓库里也有一份 [docs/openapi.json](../openapi.json)
-（由代码生成，测试保证和代码一致）。拿它生成客户端：`npx openapi-typescript docs/openapi.json -o api.d.ts`，或者直接用 `@oad/client`（就是这么生成的）。
+（由代码生成，测试保证和代码一致）。拿它生成客户端：`npx openapi-typescript docs/openapi.json -o api.d.ts`，或者直接用 `@open-agent-docs/client`（就是这么生成的）。
 可以用 Swagger UI、Scalar、Redocly 之类的工具打开看。
 
 ## 基本约定

@@ -1,6 +1,6 @@
-// 一页的连接：用 @oad/client 的 openPage（Y.Doc + 本机缓存 + WebSocket 同步）。单独打包，比编辑器先下载、先连上。
-import { registerPlugin, type PageConn, type PageStatus } from '@oad/client/core'
-import { openPage as open } from '@oad/client/page'
+// 一页的连接：用 @open-agent-docs/client 的 openPage（Y.Doc + 本机缓存 + WebSocket 同步）。单独打包，比编辑器先下载、先连上。
+import { registerPlugin, type PageConn, type PageStatus } from '@open-agent-docs/client/core'
+import { openPage as open } from '@open-agent-docs/client/page'
 import { client } from './api'
 
 // 登记 client.openPage（Yjs、y-websocket、y-indexeddb 在这个包里，不进主包）

@@ -1,5 +1,5 @@
 {
-  "name": "@oad/example-node-inprocess",
+  "name": "@open-agent-docs/example-node-inprocess",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,8 +7,8 @@
     "smoke": "node smoke.mjs"
   },
   "dependencies": {
-    "@oad/client": "workspace:*",
-    "@oad/server": "workspace:*",
+    "@open-agent-docs/client": "workspace:*",
+    "@open-agent-docs/server": "workspace:*",
     "express": "^5.1.0"
   }
 }

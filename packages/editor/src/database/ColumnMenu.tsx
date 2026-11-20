@@ -4,7 +4,7 @@ import { useDb } from './cells'
 import { FormulaEditor } from './FormulaEditor'
 import { DATE_FORMAT_NAMES, FORMAT_NAMES, t, TOTAL_NAMES, TYPE_NAMES } from './strings'
 import { getLocale } from '../i18n'
-import type { Prop, PropType, SelectOption, View } from '@oad/client'
+import type { Prop, PropType, SelectOption, View } from '@open-agent-docs/client'
 import { ADDABLE_TYPES, COLOR_NAMES, COLORS, condsFor, optId, Pill, Popover, randomColor, TypeIcon, type Anchor } from './ui'
 
 interface Props {

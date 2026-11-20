@@ -20,7 +20,7 @@ const outPath = fileURLToPath(new URL('../src/openapi.ts', import.meta.url))
 export async function generate() {
   const spec = JSON.parse(readFileSync(specPath, 'utf8'))
   const ast = await openapiTS(spec, { alphabetize: false, exportType: false, emptyObjectsUnknown: true })
-  return '// 由 scripts/gen-types.mjs 从 docs/openapi.json 生成，不要手改（pnpm --filter @oad/client gen:types）\n' + astToString(ast)
+  return '// 由 scripts/gen-types.mjs 从 docs/openapi.json 生成，不要手改（pnpm --filter @open-agent-docs/client gen:types）\n' + astToString(ast)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -33,7 +33,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       /* 还没生成 */
     }
     if (cur !== code) {
-      console.error('src/openapi.ts 和 docs/openapi.json 对不上：pnpm --filter @oad/client gen:types')
+      console.error('src/openapi.ts 和 docs/openapi.json 对不上：pnpm --filter @open-agent-docs/client gen:types')
       process.exit(1)
     }
     console.log('src/openapi.ts 是最新的')

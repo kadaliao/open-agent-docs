@@ -1,5 +1,5 @@
 {
-  "name": "@oad/web",
+  "name": "@open-agent-docs/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,9 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@oad/client": "workspace:*",
-    "@oad/db": "workspace:*",
-    "@oad/editor": "workspace:*",
+    "@open-agent-docs/client": "workspace:*",
+    "@open-agent-docs/db": "workspace:*",
+    "@open-agent-docs/editor": "workspace:*",
     "@tanstack/react-virtual": "^3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

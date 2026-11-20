@@ -158,8 +158,8 @@ describe('HTTP 方法', () => {
 
   it('没登记协作文档 / 数据库时说清楚要怎么做', () => {
     const c = createClient({ fetch: fakeFetch(() => json({})).fetch })
-    expect(() => c.openPage('p')).toThrow(/@oad\/client\/page/)
-    expect(() => c.database('d')).toThrow(/@oad\/client\/db/)
+    expect(() => c.openPage('p')).toThrow(/@open-agent-docs\/client\/page/)
+    expect(() => c.database('d')).toThrow(/@open-agent-docs\/client\/db/)
   })
   it('上传（Node 里没有 XMLHttpRequest）：multipart，token 也带上', async () => {
     const { fetch, calls } = fakeFetch(() => json({ url: '/api/v1/files/f1/a.txt', name: 'a.txt', mime: 'text/plain', size: 3 }, 201))

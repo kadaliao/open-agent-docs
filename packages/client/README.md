@@ -1,13 +1,13 @@
-# @oad/client
+# @open-agent-docs/client
 
 Open Agent Docs 的 JS 客户端。浏览器和 Node 18+ 都能用。
 
 ```sh
-pnpm add @oad/client yjs
+pnpm add @open-agent-docs/client yjs
 ```
 
 ```ts
-import { createClient } from '@oad/client'
+import { createClient } from '@open-agent-docs/client'
 
 // 浏览器里同源：不用 token，靠登录的 cookie；服务端 / Agent：给 token
 const client = createClient({ baseUrl: 'https://docs.example.com', token: process.env.OAD_TOKEN })
@@ -38,10 +38,10 @@ db.subscribe(() => render()) // 有变化
 - 分页的列表（`versions`、`dbHistory`、`trash`、`inbox`、`agentNotifications`）返回一页（带 `next_cursor`）；
   要全部的用 `for await (const v of client.eachVersion(pageId))`（还有 `eachDbHistory`、`eachTrash`、`eachInbox`、`eachAgentNotification`），
   按游标一页页取，`break` 了就不再取。
-- 类型（`Page`、`Me`、`Thread`、`DbRow`、`Version`……）是 `src/openapi.ts` 里生成的（`pnpm --filter @oad/client gen:types`；
+- 类型（`Page`、`Me`、`Thread`、`DbRow`、`Version`……）是 `src/openapi.ts` 里生成的（`pnpm --filter @open-agent-docs/client gen:types`；
   过期了 `test/openapi-fresh.test.ts` 会失败）。文档里只写了 `object` 的（表结构 `Schema`、视图 `View` 等）在 `src/types.ts` 手写。
   `OAD_BIN=… pnpm test` 还会起真服务器，把 60 多个接口的响应按文档检查一遍（`test/contract.test.ts`）。
-- 只要 HTTP、想让包小一点：`import { createClient } from '@oad/client/core'`（没有 Yjs、没有 WASM）；
-  用到协作文档 / 数据库时 `import { openPage } from '@oad/client/page'`、`import { databasePlugin } from '@oad/client/db'`，
+- 只要 HTTP、想让包小一点：`import { createClient } from '@open-agent-docs/client/core'`（没有 Yjs、没有 WASM）；
+  用到协作文档 / 数据库时 `import { openPage } from '@open-agent-docs/client/page'`、`import { databasePlugin } from '@open-agent-docs/client/db'`，
   再 `registerPlugin('openPage', openPage)` / `registerPlugin('database', databasePlugin)`。
 - Node 18–21 没有全局 WebSocket：`createClient({ WebSocket: (await import('ws')).WebSocket })`。Node 里 WASM 从磁盘读，不用配。

@@ -1,13 +1,13 @@
 // 端到端：拿旧版数据（默认是 fixture/docs.db，当初用旧版自己的代码造的），起一个新版服务器，先 --dry-run（不能写任何东西），
 // 再真导一遍、逐项核对，再跑一遍（什么都不该多出来）。
 //   OAD_BIN=/path/to/open-agent-docs node test-e2e.mjs [旧版数据目录]
-// 先 pnpm --filter @oad/client build。
+// 先 pnpm --filter @open-agent-docs/client build。
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createClient } from '@oad/client/core'
+import { createClient } from '@open-agent-docs/client/core'
 
 const here = new URL('.', import.meta.url).pathname
 const root = join(here, '../..')

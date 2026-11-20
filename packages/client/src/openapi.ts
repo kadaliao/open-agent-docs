@@ -1,4 +1,4 @@
-// 由 scripts/gen-types.mjs 从 docs/openapi.json 生成，不要手改（pnpm --filter @oad/client gen:types）
+// 由 scripts/gen-types.mjs 从 docs/openapi.json 生成，不要手改（pnpm --filter @open-agent-docs/client gen:types）
 export interface paths {
     "/agent/notifications": {
         parameters: {

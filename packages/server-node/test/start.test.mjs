@@ -1,14 +1,14 @@
-// 起服务器、用 @oad/client 建页面、挂到 Node http 上转发、关掉。
+// 起服务器、用 @open-agent-docs/client 建页面、挂到 Node http 上转发、关掉。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createClient } from '@oad/client'
+import { createClient } from '@open-agent-docs/client'
 import { start } from '../index.js'
 
-test('start, create a page with @oad/client, proxy through node http, close', async () => {
+test('start, create a page with @open-agent-docs/client, proxy through node http, close', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'oad-node-'))
   const oad = await start({ dataDir: dir, auth: 'none' })
   try {

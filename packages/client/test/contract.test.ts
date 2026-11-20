@@ -1,6 +1,6 @@
 // 契约：起一个真的服务器（OAD_BIN），经客户端把大部分接口走一遍，每个 JSON 响应按 docs/openapi.json 里那个操作的响应结构检查。
 // 文档和服务器对不上就失败（哪一边错了看报错的位置）。没有 OAD_BIN 时跳过。
-//   OAD_BIN=target/release/open-agent-docs pnpm --filter @oad/client test
+//   OAD_BIN=target/release/open-agent-docs pnpm --filter @open-agent-docs/client test
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

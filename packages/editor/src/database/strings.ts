@@ -1,6 +1,6 @@
 // 数据库界面的文字（和数据库的代码一起按需加载，不进主包）：中文 zh、英文 en，按当前语言取。
 import { getLocale, makeT } from '../i18n'
-import type { PropType, ViewType } from '@oad/client'
+import type { PropType, ViewType } from '@open-agent-docs/client'
 
 const zh = {
   newRow: '新建',

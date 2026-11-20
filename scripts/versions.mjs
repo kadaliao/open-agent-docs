@@ -23,7 +23,7 @@ if (want) {
   for (const p of pkgs)
     for (const k of ['dependencies', 'peerDependencies'])
       for (const [n, v] of Object.entries(p.j[k] ?? {}))
-        if (n.startsWith('@oad/') && v !== 'workspace:*') {
+        if (n.startsWith('@open-agent-docs/') && v !== 'workspace:*') {
           console.error(`${p.j.name} 的 ${k}.${n} 应该是 workspace:*`)
           process.exit(1)
         }

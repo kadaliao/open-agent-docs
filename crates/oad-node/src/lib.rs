@@ -1,4 +1,4 @@
-//! Node 绑定（@oad/server）：在 Node 进程里起 Open Agent Docs 服务器（自己的线程和 tokio 运行时），
+//! Node 绑定（@open-agent-docs/server）：在 Node 进程里起 Open Agent Docs 服务器（自己的线程和 tokio 运行时），
 //! 配置项和命令行程序一样（`OAD_*`，可以写成 `dataDir` 这样）。JS 那边的包装在 packages/server-node/index.js。
 use napi::bindgen_prelude::*;
 use napi_derive::napi;

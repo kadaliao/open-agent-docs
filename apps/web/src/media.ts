@@ -1,6 +1,6 @@
 // 编辑器用到的外部服务：链接解析（GET /api/v1/unfurl，结果在内存和 IndexedDB 里各存一份，离线、再打开时直接画）、
 // 上传（POST /api/v1/workspaces/{ws}/files，带进度）、Markdown 解析（WASM 版 oad-markdown，按需加载）。
-import type { MediaServices, Unfurl, Uploaded } from '@oad/editor'
+import type { MediaServices, Unfurl, Uploaded } from '@open-agent-docs/editor'
 import { API, client } from './api'
 
 const mem = new Map<string, Unfurl>()
@@ -82,7 +82,7 @@ export function uploader(ws: string) {
 type MdModule = { default?: unknown; parse?: (md: string) => unknown; available?: boolean }
 let md: Promise<MdModule | null> | null = null
 export async function parseMarkdown(text: string) {
-  md ??= import('@oad/markdown').then(
+  md ??= import('@open-agent-docs/markdown').then(
     async (m: MdModule) => {
       if (m.available === false) return null
       // wasm-bindgen 打的包要先 init

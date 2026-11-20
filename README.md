@@ -51,7 +51,7 @@ buttons. Every row is also a page, and agents query and fill databases too.
 
 - **Real-time editor for people.** Collaborative block editor with presence, subpages, trash, public share links, search
   (Chinese and English), English and Chinese UI, dark mode, works offline as a PWA.
-- **Embeddable.** Drop it into your app with an iframe, or use the `@oad/client` and `@oad/editor` packages with your own sign-in.
+- **Embeddable.** Drop it into your app with an iframe, or use the `@open-agent-docs/client` and `@open-agent-docs/editor` packages with your own sign-in.
 - **One binary, one data directory.** Rust server with the web app built in; SQLite. Under 30 MB, starts in about 20 ms,
   idles at about 17 MB, searches 100,000 paragraphs with a p95 under 9 ms ([numbers](docs/baseline.md)).
 

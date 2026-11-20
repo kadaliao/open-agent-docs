@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useDb } from './cells'
 import { FUNCTIONS } from './functions'
 import { t } from './strings'
-import type { Prop } from '@oad/client'
+import type { Prop } from '@open-agent-docs/client'
 import { TypeIcon } from './ui'
 
 interface Item {

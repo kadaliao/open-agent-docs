@@ -33,7 +33,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm --filter @oad/web build
+      - run: pnpm --filter @open-agent-docs/web build
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist

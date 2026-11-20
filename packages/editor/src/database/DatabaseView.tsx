@@ -1,15 +1,15 @@
 // 一个库：视图标签、工具栏、当前视图、行的侧边面板。整页和页面里的内嵌都用它。
 import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import type { EventsLike, Me, OadClient, Person } from '@oad/client'
+import type { EventsLike, Me, OadClient, Person } from '@open-agent-docs/client'
 import type { MediaServices } from '../extensions/media'
 import { useAgents } from '../react/people'
 import { DbContext, useDb as useDbCtx, type DbCtx } from './cells'
 import { RowPanel } from './RowPanel'
-import { safeQuery } from '@oad/client'
+import { safeQuery } from '@open-agent-docs/client'
 import { t, VIEW_NAMES } from './strings'
 import { TableView } from './TableView'
 import { FilterChips, Toolbar } from './Toolbar'
-import type { QueryResult, View, ViewType } from '@oad/client'
+import type { QueryResult, View, ViewType } from '@open-agent-docs/client'
 import { Popover, rectOf, ViewIcon, type Anchor } from './ui'
 import { BoardView, CalendarView, GalleryView, ListView } from './views'
 

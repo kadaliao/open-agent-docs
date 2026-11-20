@@ -3,7 +3,7 @@
 [English](../en/configuration.md) · [文档目录](README.md)
 
 都是环境变量；`serve` 的前几项也能写成命令行参数（`open-agent-docs serve --help`）。
-进程内启动时（Node 的 `@oad/server`、Python 的 `open_agent_docs`）同样的名字写成选项，`OAD_DATA_DIR` 也可以写成 `dataDir` / `data_dir`，
+进程内启动时（Node 的 `@open-agent-docs/server`、Python 的 `open_agent_docs`）同样的名字写成选项，`OAD_DATA_DIR` 也可以写成 `dataDir` / `data_dir`，
 选项里没给的再看环境变量（见[嵌入](embedding.md#进程内启动node--python)）。
 空值等于没设。下表是代码里读到的全部 `OAD_*`（`crates/` 下）。
 

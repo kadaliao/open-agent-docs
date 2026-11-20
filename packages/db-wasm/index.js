@@ -1,4 +1,4 @@
-// @oad/db：数据库计算引擎（crates/oad-db 编的 WASM，和服务器同一份 Rust 代码）。接口见 docs/phase4-contract.md「计算引擎」。
+// @open-agent-docs/db：数据库计算引擎（crates/oad-db 编的 WASM，和服务器同一份 Rust 代码）。接口见 docs/phase4-contract.md「计算引擎」。
 // 进出 WASM 都是 JSON 字符串（一次解析最快）；这里包成对象。行、表结构、改动、视图也可以直接给 JSON 字符串（比如 fetch 来的原文），省一次转换。
 import init, { initSync, RawEngine } from './dist/oad_db.js'
 

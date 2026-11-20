@@ -1,9 +1,9 @@
-// 冒烟测试：起 Express 宿主、经它用 @oad/client 建页面、宿主自己的路由也在、关掉。
+// 冒烟测试：起 Express 宿主、经它用 @open-agent-docs/client 建页面、宿主自己的路由也在、关掉。
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createClient } from '@oad/client'
+import { createClient } from '@open-agent-docs/client'
 import { createApp } from './server.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'oad-express-'))

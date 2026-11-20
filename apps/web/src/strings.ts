@@ -601,4 +601,4 @@ export const en: AppStrings = {
 }
 
 export const t = makeT<AppStrings>({ zh, en })
-// 编辑器自己的文字在 @oad/editor 的 strings.ts，换语言时 setEditorLocale 一起换
+// 编辑器自己的文字在 @open-agent-docs/editor 的 strings.ts，换语言时 setEditorLocale 一起换

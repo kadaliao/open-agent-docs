@@ -1,7 +1,7 @@
 // 工作区里认识的人和 Agent：@ 候选、评论作者名字。人从成员列表（/workspaces/{ws}/members）、页面作者、评论作者里攒；
 // Agent 从 /workspaces/{ws}/agents 拉。
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import type { Agent, Me, OadClient, Person, Thread } from '@oad/client/core'
+import type { Agent, Me, OadClient, Person, Thread } from '@open-agent-docs/client/core'
 import type { Candidate } from '../comments/Composer'
 
 const agentCache = new Map<string, { list: Agent[]; at: number }>()

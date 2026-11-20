@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { getLocale } from '../i18n'
-import type { Color, Prop, PropType, SelectOption } from '@oad/client'
+import type { Color, Prop, PropType, SelectOption } from '@open-agent-docs/client'
 
 // ---------- 浮层 ----------
 export interface Anchor {

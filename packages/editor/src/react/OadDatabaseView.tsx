@@ -1,5 +1,5 @@
 // <OadDatabaseView>：数据库视图的按需加载版（第一次用到时才下载表格、看板这些代码和样式）。
-// 想直接打进包里就 import { DatabaseView } from '@oad/editor/database'。
+// 想直接打进包里就 import { DatabaseView } from '@open-agent-docs/editor/database'。
 import { lazy, Suspense } from 'react'
 import type { DatabaseViewProps } from '../database/DatabaseView'
 import { useOadClient } from './context'

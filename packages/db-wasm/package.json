@@ -1,5 +1,5 @@
 {
-  "name": "@oad/db",
+  "name": "@open-agent-docs/db",
   "version": "0.2.0",
   "description": "oad-db 的 WASM 版：数据库的筛选、排序、分组、公式、汇总，和服务器同一份代码",
   "type": "module",

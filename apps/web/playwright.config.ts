@@ -1,5 +1,5 @@
 // 端到端测试：默认自己起一个真服务器（cargo run -p oad-bin -- serve，OAD_AUTH=none，临时数据目录），网页用 apps/web/dist。
-// 先 `pnpm --filter @oad/web build`。已经有服务器在跑：OAD_URL=http://127.0.0.1:8848 pnpm e2e。
+// 先 `pnpm --filter @open-agent-docs/web build`。已经有服务器在跑：OAD_URL=http://127.0.0.1:8848 pnpm e2e。
 // 有编好的二进制：OAD_BIN=/path/to/open-agent-docs，省掉 cargo run。
 import { defineConfig, devices } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'

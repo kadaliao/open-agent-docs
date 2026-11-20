@@ -1,8 +1,8 @@
 // 数据库整页（PageView 按 kind 切过来，单独一个包）：标题 + 库。也带出行页面用的属性头、内嵌用的挂载函数。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { registerPlugin } from '@oad/client/core'
-import { databasePlugin, preloadEngine } from '@oad/client/db'
-import { DatabaseView, dbT as t, readDbSnapshot, saveDbSnapshot, takeDbSnapshot } from '@oad/editor/database'
+import { registerPlugin } from '@open-agent-docs/client/core'
+import { databasePlugin, preloadEngine } from '@open-agent-docs/client/db'
+import { DatabaseView, dbT as t, readDbSnapshot, saveDbSnapshot, takeDbSnapshot } from '@open-agent-docs/editor/database'
 import { api, client, type Me } from '../api'
 import { post } from '../embed'
 import { navigate, pagePath } from '../lib'
@@ -12,7 +12,7 @@ import { usePages, type PageStore } from '../store'
 // 登记 client.database（本机缓存、增量同步、WASM 引擎）
 registerPlugin('database', databasePlugin)
 
-export { RowHeader } from '@oad/editor/database'
+export { RowHeader } from '@open-agent-docs/editor/database'
 export { mountDatabaseEmbed } from './embed'
 
 export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me: Me; store: PageStore; canWrite: boolean }) {

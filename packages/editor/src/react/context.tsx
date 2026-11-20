@@ -1,5 +1,5 @@
 // 组件共用的客户端：<OadProvider client={client}> 包一层，里面的组件（评论栏、数据库视图……）就不用一个个传 client。
-import type { OadClient } from '@oad/client/core'
+import type { OadClient } from '@open-agent-docs/client/core'
 import { createContext, useContext, type ReactNode } from 'react'
 
 const Ctx = createContext<OadClient | null>(null)
@@ -12,6 +12,6 @@ export function OadProvider({ client, children }: { client: OadClient; children:
 export function useOadClient(explicit?: OadClient | null): OadClient {
   const c = useContext(Ctx)
   const client = explicit ?? c
-  if (!client) throw new Error('@oad/editor：组件外面要包一层 <OadProvider client={createClient(...)}>，或者直接传 client')
+  if (!client) throw new Error('@open-agent-docs/editor：组件外面要包一层 <OadProvider client={createClient(...)}>，或者直接传 client')
   return client
 }

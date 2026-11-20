@@ -11,7 +11,7 @@
 2. 启动新版（[快速开始](quickstart.md)），建好管理员。
 3. 在仓库里准备好迁移工具（要 Node 22.5 以上）：
    ```sh
-   pnpm install && pnpm --filter @oad/client build
+   pnpm install && pnpm --filter @open-agent-docs/client build
    ```
 4. 先看看会导什么（不写任何东西）：
    ```sh

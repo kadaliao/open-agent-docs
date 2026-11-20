@@ -1,8 +1,8 @@
 // 宿主应用：自己的页面框架里放 Open Agent Docs 的编辑器、评论栏、数据库视图。
 // 登录由宿主的 server.mjs 管（它转发 /api 时带上用户），这里只管用同源的客户端。
-import { createClient, type Me, type Page } from '@oad/client'
-import { OadComments, OadDatabaseView, OadEditor, OadProvider, OadTitle, colorFor, focusStart, useOadPage, usePageComments, usePeople, type CommentAnchor } from '@oad/editor'
-import '@oad/editor/style.css'
+import { createClient, type Me, type Page } from '@open-agent-docs/client'
+import { OadComments, OadDatabaseView, OadEditor, OadProvider, OadTitle, colorFor, focusStart, useOadPage, usePageComments, usePeople, type CommentAnchor } from '@open-agent-docs/editor'
+import '@open-agent-docs/editor/style.css'
 import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './host.css'
@@ -19,7 +19,7 @@ function Doc({ page, me, ws, onTitle }: { page: Page; me: Me; ws: string; onTitl
   const people = usePeople(client, ws, me, {}, threads)
   const [draft, setDraft] = useState<CommentAnchor | null>(null)
   const [active, setActive] = useState<string | null>(null)
-  const [editor, setEditor] = useState<import('@oad/editor').Editor | null>(null)
+  const [editor, setEditor] = useState<import('@open-agent-docs/editor').Editor | null>(null)
 
   if (page.kind === 'database')
     return (

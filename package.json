@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @oad/web dev",
-    "build": "pnpm --filter @oad/web build",
+    "dev": "pnpm --filter @open-agent-docs/web dev",
+    "build": "pnpm --filter @open-agent-docs/web build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "e2e": "pnpm --filter @oad/web e2e",
+    "e2e": "pnpm --filter @open-agent-docs/web e2e",
     "versions": "node scripts/versions.mjs",
     "pack:all": "node scripts/versions.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack --pack-destination ../../dist-packs"
   }
