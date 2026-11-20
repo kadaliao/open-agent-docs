@@ -181,7 +181,8 @@ with oad.start(data_dir="./data", auth="header", header_secret="dev") as server:
 - Python 装了 `open-agent-docs[server]` 就在进程内跑；Node 用 `@open-agent-docs/server`，同样在进程内跑。
 - 其他情况（包括 Go、Rust 的 `launcher` feature）会去发布页下载同版本的二进制，用 `SHA256SUMS` 校验，然后作为子进程启动。
   设了 `OAD_BINARY` 就直接用它。
-- 支持 macOS 和 Linux（x86_64、arm64），别的平台请用 Docker。
+- 支持 macOS 11+ 和 Linux（x86_64、arm64，**glibc 2.34 起**，即 Ubuntu 22.04+、Debian 12+、RHEL 9+），更老的系统和 Windows 请用 Docker，见[系统要求](quickstart.md#系统要求)。
+  SDK 本身（只连服务器）没有这个限制。
 
 ## 各语言都一样的地方
 

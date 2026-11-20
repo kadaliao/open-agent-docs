@@ -195,7 +195,7 @@ client := oad.NewClient(oad.WithBaseURL(srv.URL), oad.WithHeaderSecret("dev"))
 ```
 
 - Binary lookup: `StartOptions.Binary` → `OAD_BINARY` → cache (`os.UserCacheDir()/open-agent-docs/v<version>/`) → download the tar.gz from the GitHub release, verified with that release's `SHA256SUMS`.
-  macOS (arm64, x86_64) and Linux (x86_64, arm64) are supported; use Docker elsewhere. The default version matches the SDK (`oad.Version`).
+  macOS 11+ (arm64, x86_64) and Linux (x86_64, arm64, glibc 2.34+: Ubuntu 22.04+, Debian 12+, RHEL 9+) are supported; use Docker on older systems and elsewhere ([system requirements](../../docs/en/quickstart.md#system-requirements)). The default version matches the SDK (`oad.Version`).
 - Keys in `Env` become `OAD_<KEY>` (`"public_url"` → `OAD_PUBLIC_URL`). Without `Port` a free port is picked.
 - Waits for `GET /api/v1/auth/config` to return 200 (up to 30 s); if the process exits first, the error includes the tail of its stderr.
 - `Close()`: SIGTERM so open pages are saved; killed if still running after 10 s.

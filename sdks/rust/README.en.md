@@ -220,7 +220,7 @@ server.shutdown().await?;   // SIGTERM, waits for pages to be saved; dropping al
 
 Any `set("rate_limit", "0")` becomes the environment variable `OAD_RATE_LIMIT`. The binary is looked up in order:
 `.binary(path)` → `OAD_BINARY` → cache (`<user cache dir>/open-agent-docs/v<version>/`) → downloaded from the GitHub release
-and checked against `SHA256SUMS`. Prebuilt for macOS and Linux (x86_64, aarch64); use Docker elsewhere.
+and checked against `SHA256SUMS`. Prebuilt for macOS 11+ and Linux (x86_64, aarch64, glibc 2.34+: Ubuntu 22.04+, Debian 12+, RHEL 9+); use Docker on older systems and elsewhere ([system requirements](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/quickstart.md#system-requirements)).
 
 ## Development
 

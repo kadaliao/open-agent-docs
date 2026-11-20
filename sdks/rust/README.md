@@ -218,8 +218,8 @@ server.shutdown().await?;   // SIGTERM，等页面存好；drop 也会尽力关
 ```
 
 `set("rate_limit", "0")` 这样的任意一项转成环境变量 `OAD_RATE_LIMIT`。二进制按顺序找：`.binary(path)` → `OAD_BINARY` →
-缓存（`<用户缓存目录>/open-agent-docs/v<版本>/`）→ 从 GitHub 发布页下载并用 `SHA256SUMS` 校验。支持 macOS、Linux（x86_64、aarch64），
-别的平台用 Docker。
+缓存（`<用户缓存目录>/open-agent-docs/v<版本>/`）→ 从 GitHub 发布页下载并用 `SHA256SUMS` 校验。支持 macOS 11+、Linux（x86_64、aarch64，glibc 2.34 起：Ubuntu 22.04+、Debian 12+、RHEL 9+），
+更老的系统和别的平台用 Docker，见[系统要求](../../docs/zh/quickstart.md#系统要求)。
 
 ## 开发
 

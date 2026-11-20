@@ -195,7 +195,7 @@ client := oad.NewClient(oad.WithBaseURL(srv.URL), oad.WithHeaderSecret("dev"))
 ```
 
 - 二进制从哪来：`StartOptions.Binary` → 环境变量 `OAD_BINARY` → 缓存（`os.UserCacheDir()/open-agent-docs/v<版本>/`）→ 从 GitHub release 下载 tar.gz，用同一个 release 的 `SHA256SUMS` 校验。
-  支持 macOS（arm64、x86_64）、Linux（x86_64、arm64）；别的平台用 Docker。默认下载和 SDK 同版本（`oad.Version`）的。
+  支持 macOS 11+（arm64、x86_64）、Linux（x86_64、arm64，glibc 2.34 起：Ubuntu 22.04+、Debian 12+、RHEL 9+）；更老的系统和别的平台用 Docker，见[系统要求](../../docs/zh/quickstart.md#系统要求)。默认下载和 SDK 同版本（`oad.Version`）的。
 - `Env` 里的键转成 `OAD_<键大写>`（`"public_url"` → `OAD_PUBLIC_URL`）。`Port` 不给时挑一个空端口。
 - 等 `GET /api/v1/auth/config` 回 200（最多 30 秒）；没起来就退出了，错误里带它 stderr 的末尾。
 - `Close()`：SIGTERM，等它把页面存好；10 秒内没退出再强制结束。

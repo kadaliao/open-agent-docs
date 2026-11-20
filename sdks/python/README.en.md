@@ -208,7 +208,7 @@ with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server
 - With `open-agent-docs[server]` installed it runs inside the Python process (Rust, its own threads, doesn't hold the GIL).
 - Otherwise it runs the binary: `binary=` → `OAD_BINARY` → cache (`~/Library/Caches/open-agent-docs/v<version>/`,
   `~/.cache/open-agent-docs/v<version>/`) → download from the GitHub release (checked against that release's `SHA256SUMS`).
-  macOS (arm64, x86_64) and Linux (x86_64, aarch64) are supported; use Docker elsewhere.
+  macOS 11+ (arm64, x86_64) and Linux (x86_64, aarch64, glibc 2.34+: Ubuntu 22.04+, Debian 12+, RHEL 9+) are supported; use Docker on older systems and elsewhere ([system requirements](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/quickstart.md#system-requirements)). The `[server]` in-process server has the same requirements; on older Linux pip finds no wheel to install.
 
 ## Errors
 

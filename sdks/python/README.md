@@ -202,7 +202,7 @@ with oad.start(data_dir="./data", auth="header", header_secret=SECRET) as server
 - 关键字参数转成环境变量：`data_dir` → `OAD_DATA_DIR`、`auth` → `OAD_AUTH`……（和命令行一样，见 docs/zh/configuration.md）；不给 `port` 挑一个空端口。
 - 装了 `open-agent-docs[server]` 就在进程里跑（Rust，自己的线程，不占 GIL）。
 - 没装就跑二进制：`binary=` → 环境变量 `OAD_BINARY` → 缓存（`~/Library/Caches/open-agent-docs/v<版本>/`、`~/.cache/open-agent-docs/v<版本>/`）→
-  从 GitHub 发布页下载（用同一个 release 的 `SHA256SUMS` 校验）。支持 macOS（arm64、x86_64）和 Linux（x86_64、aarch64），别的平台用 Docker。
+  从 GitHub 发布页下载（用同一个 release 的 `SHA256SUMS` 校验）。支持 macOS 11+（arm64、x86_64）和 Linux（x86_64、aarch64，glibc 2.34 起：Ubuntu 22.04+、Debian 12+、RHEL 9+），更老的系统和别的平台用 Docker，见[系统要求](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/quickstart.md#系统要求)。`[server]` 的进程内服务器要求一样；更老的 Linux 上 pip 找不到能装的包。
 
 ## 错误
 

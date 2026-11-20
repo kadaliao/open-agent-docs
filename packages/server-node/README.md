@@ -1,9 +1,9 @@
 # @open-agent-docs/server
 
 在 Node 进程里起 [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) 服务器（Rust，napi-rs）。服务器跑在自己的线程和运行时上，不占 Node 的事件循环。
-支持 macOS（arm64、x64）和 Linux（glibc，arm64、x64）；装的时候 npm 只下载当前平台的原生模块。
+支持 macOS 11+（arm64、x64）和 Linux（arm64、x64，glibc 2.34 起：Ubuntu 22.04+、Debian 12+、RHEL 9+）；装的时候 npm 只下载当前平台的原生模块。[系统要求](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/quickstart.md#系统要求)
 
-Run an Open Agent Docs server inside your Node process (Rust via napi-rs). macOS (arm64, x64) and Linux (glibc, arm64, x64).
+Run an Open Agent Docs server inside your Node process (Rust via napi-rs). macOS 11+ (arm64, x64) and Linux (arm64, x64, glibc 2.34+: Ubuntu 22.04+, Debian 12+, RHEL 9+). [System requirements](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/quickstart.md#system-requirements)
 
 ```sh
 npm i @open-agent-docs/server @open-agent-docs/client
@@ -27,6 +27,6 @@ await server.close()                    // 页面都存好后 resolve
 ```
 
 配置项和命令行一样（`OAD_*`，写成 `dataDir`、`auth` 也行），见[配置](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/configuration.md)。
-别的平台（Windows 等）请单独跑服务器：Docker 镜像 `ghcr.io/kadaliao/open-agent-docs` 或发布页的二进制。
+更老的 Linux（glibc 低于 2.34）、Windows 等请单独跑服务器，用 Docker 镜像 `ghcr.io/kadaliao/open-agent-docs`（发布页的二进制和这个包的要求一样）。
 
 更多：[嵌入到自己的应用](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/embedding.md) · [SDK](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/sdks.md) · [English docs](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md)

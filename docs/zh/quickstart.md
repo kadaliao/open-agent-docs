@@ -4,6 +4,22 @@
 
 服务器默认监听 `127.0.0.1:8848`，数据放在当前目录的 `./data`。
 
+## 系统要求
+
+在本机跑服务器的几种方式（发布页的二进制、Homebrew、Python 的 `open-agent-docs[server]`、Node 的 `@open-agent-docs/server`、
+各 SDK 的 `start()`）用的是同一份编好的程序，要求一样：
+
+| 系统 | 要求 |
+| --- | --- |
+| macOS | 11 起，Apple Silicon 和 Intel |
+| Linux | x86_64、arm64，**glibc 2.34 起**：Ubuntu 22.04+、Debian 12+、RHEL / Rocky / AlmaLinux 9+、Fedora 35+、Amazon Linux 2023 |
+| Windows | 没有原生版本，用 Docker 或 WSL2（Ubuntu 22.04+） |
+
+`ldd --version` 第一行能看到本机的 glibc 版本。Ubuntu 20.04、Debian 11、CentOS 7 / 8、RHEL 8、Amazon Linux 2 的 glibc 太老，
+Alpine 用的是 musl，这些系统上请用 [Docker](#docker)（镜像自带运行环境，不挑系统）。
+
+只是**连**服务器的话没有这个要求：各语言的 SDK 本身（Python、Go、Rust、JS 客户端）走 HTTP，哪里都能跑。
+
 ## Homebrew
 
 macOS、Linux（arm64 和 x86_64）：

@@ -4,6 +4,22 @@
 
 By default the server listens on `127.0.0.1:8848` and keeps its data in `./data`.
 
+## System requirements
+
+Every way of running the server locally (the release binaries, Homebrew, Python's `open-agent-docs[server]`, Node's
+`@open-agent-docs/server`, and each SDK's `start()`) uses the same compiled program, so the requirements are the same:
+
+| System | Requirement |
+| --- | --- |
+| macOS | 11 or later, Apple Silicon and Intel |
+| Linux | x86_64 or arm64 with **glibc 2.34 or later**: Ubuntu 22.04+, Debian 12+, RHEL / Rocky / AlmaLinux 9+, Fedora 35+, Amazon Linux 2023 |
+| Windows | No native build; use Docker or WSL2 (Ubuntu 22.04+) |
+
+The first line of `ldd --version` shows your glibc version. Ubuntu 20.04, Debian 11, CentOS 7 / 8, RHEL 8 and Amazon Linux 2 ship an older glibc,
+and Alpine uses musl; on those systems use [Docker](#docker) (the image brings its own runtime and runs anywhere).
+
+This only applies to **running** the server. The SDKs themselves (the Python, Go, Rust and JS clients) talk HTTP and run anywhere.
+
 ## Homebrew
 
 macOS and Linux (arm64 and x86_64):

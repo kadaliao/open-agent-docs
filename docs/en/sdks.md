@@ -186,7 +186,8 @@ with oad.start(data_dir="./data", auth="header", header_secret="dev") as server:
 - In Python with `open-agent-docs[server]` installed, the server runs inside your process. In Node, `@open-agent-docs/server` does the same.
 - Otherwise (including Go, and Rust with the `launcher` feature), the SDK downloads the same-version binary from the release page,
   checks it against `SHA256SUMS`, and runs it as a child process. If `OAD_BINARY` is set, that binary is used instead.
-- Supported on macOS and Linux (x86_64, arm64). On other platforms, use Docker.
+- Supported on macOS 11+ and Linux (x86_64, arm64, **glibc 2.34 or later**, i.e. Ubuntu 22.04+, Debian 12+, RHEL 9+). On older systems and Windows, use Docker;
+  see [System requirements](quickstart.md#system-requirements). The SDKs themselves (just connecting to a server) have no such limit.
 
 ## Shared across languages
 
