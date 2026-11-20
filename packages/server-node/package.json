@@ -33,7 +33,7 @@
     "build": "node scripts/build.mjs --release",
     "build:debug": "node scripts/build.mjs",
     "prepack": "node scripts/build.mjs --release",
-    "test": "node scripts/build.mjs --if-missing && node --test test/"
+    "test": "node scripts/build.mjs --if-missing && node --test 'test/*.test.mjs'"
   },
   "devDependencies": {
     "@open-agent-docs/client": "workspace:*"

@@ -1232,10 +1232,10 @@ impl Engine {
         let old = &t.schema.props[p];
         let mut ids = vec![];
         let mut vals = vec![];
-        for r in 0..t.rows.len() {
+        for (r, row) in t.rows.iter().enumerate() {
             let v = self.value_at(0, r, p);
             if !v.is_null() {
-                ids.push(t.rows[r].data.id.clone());
+                ids.push(row.data.id.clone());
                 vals.push(v);
             }
         }
