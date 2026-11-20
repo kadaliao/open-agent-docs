@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "open-agent-docs-server"
-version = "0.2.0"
+version = "0.3.0"
 description = "Open Agent Docs 服务器（Rust，PyO3）：在 Python 进程里起。一般经 pip install \"open-agent-docs[server]\" 装，用 open_agent_docs.start()"
 license = { text = "MIT OR Apache-2.0" }
 requires-python = ">=3.9"

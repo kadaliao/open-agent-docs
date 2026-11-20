@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/elements",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Open Agent Docs 的 Web Components：<oad-editor>、<oad-viewer>、<oad-database>。宿主不用 React，一个 <script type=\"module\"> 就能用（React、编辑器都打在包里）",
   "license": "MIT",
   "repository": {

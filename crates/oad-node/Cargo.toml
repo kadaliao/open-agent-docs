@@ -14,7 +14,7 @@ doctest = false
 [dependencies]
 napi = { version = "3.16.2", default-features = false, features = ["napi6", "dyn-symbols"] }
 napi-derive = "3.7.1"
-oad-bin = { version = "0.2.0", path = "../oad-bin" }
+oad-bin = { version = "0.3.0", path = "../oad-bin" }
 
 [build-dependencies]
 napi-build = "2.6.0"

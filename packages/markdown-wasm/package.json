@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/markdown",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "oad-markdown 的 WASM 版：Markdown 和文档（ProseMirror JSON）互转、转只读 HTML（带 content.css），和服务器同一份代码",
   "type": "module",
   "main": "dist/oad_markdown.js",

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-agent-docs"
-version = "0.2.0"
+version = "0.3.0"
 description = "Open Agent Docs 的 Python SDK：同步 / 异步客户端、事件流、webhook 验签、JWT、本地起服务器"
 readme = "README.md"
 license = "MIT"
@@ -19,7 +19,7 @@ classifiers = [
 
 [project.optional-dependencies]
 # 进程内跑服务器（Rust，PyO3）：oad.start() 就不用下载二进制了
-server = ["open-agent-docs-server==0.2.0"]
+server = ["open-agent-docs-server==0.3.0"]
 
 [dependency-groups]
 # 跑测试和类型检查用（uv run 默认带上）

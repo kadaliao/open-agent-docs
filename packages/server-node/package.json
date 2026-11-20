@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "在 Node 进程里起 Open Agent Docs 服务器（Rust，napi-rs）：start() 返回 { url, port, close() }，还能挂到 Node http / Express 上",
   "license": "MIT",
   "repository": {

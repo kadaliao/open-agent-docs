@@ -11,7 +11,7 @@
 
 ```toml
 [dependencies]
-open-agent-docs = "0.2"
+open-agent-docs = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 futures-util = "0.3"   # 用 list_all、事件流时要 StreamExt / TryStreamExt
 ```
@@ -207,7 +207,7 @@ let src = oad::embed_url("https://docs.example.com", &page_id, &oad::EmbedOption
 ## 本地启动（feature `launcher`）
 
 ```toml
-open-agent-docs = { version = "0.2", features = ["launcher"] }
+open-agent-docs = { version = "0.3", features = ["launcher"] }
 ```
 
 ```rust

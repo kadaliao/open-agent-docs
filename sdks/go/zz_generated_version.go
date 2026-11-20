@@ -5,4 +5,4 @@ package oad
 
 // Version 是这个 SDK 的版本，和服务器同一个版本号（docs/openapi.json 的 info.version）。
 // Start 默认下载这个版本的服务器；请求头 User-Agent 也带它。
-const Version = "0.2.0"
+const Version = "0.3.0"

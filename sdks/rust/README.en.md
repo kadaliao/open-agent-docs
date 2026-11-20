@@ -13,7 +13,7 @@ same names, same behavior, same errors.
 
 ```toml
 [dependencies]
-open-agent-docs = "0.2"
+open-agent-docs = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 futures-util = "0.3"   # StreamExt / TryStreamExt for list_all and event streams
 ```
@@ -208,7 +208,7 @@ hands out a fresh token when the old one is about to expire).
 ## Running a server locally (feature `launcher`)
 
 ```toml
-open-agent-docs = { version = "0.2", features = ["launcher"] }
+open-agent-docs = { version = "0.3", features = ["launcher"] }
 ```
 
 ```rust
