@@ -1,12 +1,14 @@
 # @open-agent-docs/elements
 
-Open Agent Docs 的 Web Components：`<oad-editor>`、`<oad-viewer>`、`<oad-database>`。宿主不用 React（React、编辑器、Yjs 都打在包里），
-Vue、Svelte、Angular、纯 HTML、后端模板都能用。[English](README.en.md)
+English | [简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/packages/elements/README.zh-CN.md)
 
-## 引进来
+Web Components for Open Agent Docs: `<oad-editor>`, `<oad-viewer>`, `<oad-database>`. The host doesn't need React (React, the editor and Yjs are bundled),
+so they work with Vue, Svelte, Angular, plain HTML or server-rendered templates.
+
+## Install
 
 ```html
-<!-- 不用打包工具：直接从 CDN 引，引进来就注册好了 -->
+<!-- No bundler: load it from a CDN; the elements are registered on import -->
 <script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.3.0/dist/elements.js"></script>
 
 <oad-editor base-url="https://docs.example.com" page-id="Qj1y9Gufp11" token="eyJ…"></oad-editor>
@@ -17,46 +19,47 @@ npm i @open-agent-docs/elements
 ```
 
 ```ts
-import '@open-agent-docs/elements' // 注册三个元素；TS 里 document.querySelector('oad-editor') 就有类型
+import '@open-agent-docs/elements' // registers the three elements; document.querySelector('oad-editor') is typed
 ```
 
-`dist/elements.js` 是入口（gzip 后约 13 KB）。编辑器、数据库视图、代码高亮、公式、图表这些按需加载的部分在 `dist/chunks/` 下，
-第一次用到时按 `elements.js` 的地址去取（CDN 上也一样）：页面上有 `<oad-editor>` 时再下载约 290 KB；`<oad-database>` 约 570 KB（含约 250 KB 的 WASM 计算引擎，和编辑器共用的部分只下载一次）；
-只有 `<oad-viewer>` 的页面不用下载编辑器。
+`dist/elements.js` is the entry (about 13 KB gzipped). The editor, database view, code highlighting, math and diagrams live in `dist/chunks/` and are
+fetched relative to `elements.js` the first time they're needed (works from a CDN too): about 290 KB more once there's an `<oad-editor>` on the page,
+about 570 KB for `<oad-database>` (including the ~250 KB WASM query engine; code shared with the editor is downloaded once). A page with only `<oad-viewer>` never downloads the editor.
 
-## 三个元素
+## Elements
 
-| 元素 | 属性 | 说明 |
+| Element | Attributes | |
 | --- | --- | --- |
-| `<oad-editor>` | `page-id`、`comments`、`readonly` | 标题 + 协作编辑器（WebSocket 实时同步，别人的光标也看得到）。`comments`：右边加评论栏（窄了放到下面）；`readonly`：只读（只有查看权限时自动只读） |
-| `<oad-viewer>` | `page-id`、`content-css` | 只读正文，最轻：一次 `GET /pages/{id}/content?format=html`，不连 WebSocket、不加载编辑器。样式表默认 `<base-url>/embed/content.css`，`content-css` 可以换。服务器太旧、没有 `format=html` 时取 Markdown 在浏览器里转（`@open-agent-docs/markdown`，用到才下载） |
-| `<oad-database>` | `db-id`、`view-id`、`readonly` | 数据库视图：表格、看板、日历、画廊、列表。`view-id` 只显示这一个视图 |
+| `<oad-editor>` | `page-id`, `comments`, `readonly` | Title + collaborative editor (real-time over WebSocket, with other people's cursors). `comments` adds the comments panel (moves below when narrow); `readonly` (automatic for viewers) |
+| `<oad-viewer>` | `page-id`, `content-css` | Read-only and lightest: one `GET /pages/{id}/content?format=html`, no WebSocket, no editor code. Stylesheet defaults to `<base-url>/embed/content.css`. On servers without `format=html` it converts Markdown in the browser (`@open-agent-docs/markdown`, loaded on demand) |
+| `<oad-database>` | `db-id`, `view-id`, `readonly` | Database view: table, board, calendar, gallery, list. `view-id` shows just that view |
 
-三个都有：
+Shared by all three:
 
-| 属性 / JS 属性 | 说明 |
+| Attribute / property | |
 | --- | --- |
-| `base-url` / `el.baseUrl` | 服务器地址；不给是同源（宿主把 `/api` 转给 Open Agent Docs 时） |
-| `token` / `el.token` | JWT 或 Agent token，请求带 `Authorization: Bearer`，WebSocket 带 `?token=`。不给就靠 cookie（同源、登录过） |
-| `el.getToken = async () => …` | 换 token：没有 token、JWT 离过期不到 60 秒、收到 401 时调它（同时只调一次），WebSocket 重连时用新的 |
-| `theme` | `light` / `dark` / 不给跟系统 |
-| `lang` | `zh` / `en`：界面语言（不给跟浏览器） |
-| `el.client` | 元素用的 `@open-agent-docs/client` 客户端（登录方式一样），想自己调接口时用 |
-| `el.reload()` | 断开重来（比如 `<oad-viewer>` 想看最新的正文） |
+| `base-url` / `el.baseUrl` | Server URL; empty means same origin (the host proxies `/api` to Open Agent Docs) |
+| `token` / `el.token` | JWT or Agent token: `Authorization: Bearer` for requests, `?token=` for the WebSocket. Without it, cookies are used (same origin, signed in) |
+| `el.getToken = async () => …` | Called when there's no token, when the JWT expires in under 60 seconds, or on a 401 (one call at a time); WebSocket reconnects use the new token |
+| `theme` | `light` / `dark` / omit to follow the system |
+| `lang` | `zh` / `en`: UI language (defaults to the browser's) |
+| `el.client` | The `@open-agent-docs/client` client the element uses (same auth), for your own API calls |
+| `el.reload()` | Tear down and start again (e.g. to refresh an `<oad-viewer>`) |
 
-`page-id`、`db-id`、`base-url` 变了会断开重连；`comments`、`readonly`、`view-id` 变了只重画。元素从页面上拿掉时关掉 WebSocket、事件流，释放 Y.Doc；
-在页面里挪位置（先移除再加上）不会重连。元素定义之前就设了 `el.token` / `el.getToken`（脚本后加载）也没关系。
+Changing `page-id`, `db-id` or `base-url` reconnects; `comments`, `readonly` and `view-id` only re-render. Removing an element closes its WebSocket and
+event stream and frees the Y.Doc; moving it within the page (remove + append) doesn't reconnect. Setting `el.token` / `el.getToken` before the script
+has loaded is fine too.
 
-## 事件
+## Events
 
-都是 `CustomEvent`，冒泡、穿过 Shadow DOM，数据在 `detail` 里：
+All are `CustomEvent`s that bubble and cross the shadow boundary, with data in `detail`:
 
-| 事件 | `detail` | 什么时候 |
+| Event | `detail` | When |
 | --- | --- | --- |
-| `oad-ready` | `{ id, title }` | 内容到了（编辑器：本机缓存或服务器同步完；只读：画好了；数据库：数据到了） |
-| `oad-change` | `{ id, kind: 'title' \| 'content', title, local }` | 标题、正文变了（正文合并 300 毫秒内的改动）。`local`：自己改的还是别人（协作者、Agent）改的 |
-| `oad-navigate` | `{ href, pageId? }` | 要去另一页（点了内部链接、数据库里打开一行）。可以 `preventDefault()` 自己处理，不拦就跳过去 |
-| `oad-error` | `{ error, status?, code?, message }` | 出错（401、403、404……），界面上也会写一行 |
+| `oad-ready` | `{ id, title }` | Content is there (editor: local cache or first server sync; viewer: rendered; database: data loaded) |
+| `oad-change` | `{ id, kind: 'title' \| 'content', title, local }` | Title or body changed (body changes are batched per 300 ms). `local`: this user vs. a collaborator or Agent |
+| `oad-navigate` | `{ href, pageId? }` | Going to another page (internal link, opening a database row). Call `preventDefault()` to handle it yourself; otherwise the browser navigates |
+| `oad-error` | `{ error, status?, code?, message }` | Something failed (401, 403, 404…); a short message is also shown in place |
 
 ```js
 const el = document.querySelector('oad-editor')
@@ -68,56 +71,64 @@ el.addEventListener('oad-navigate', (e) => {
 })
 ```
 
-## 登录
+## Auth
 
-- **JWT**（推荐，`OAD_AUTH=jwt`）：宿主后端用 `@open-agent-docs/client/node` 的 `signJwt(secret, userId, { name, email })` 签，经 `getToken` 给元素；元素带着它直连服务器（见下面的跨域直连）。
-- **同源 + 宿主转发**：宿主把 `/api/*`（含 WebSocket）转给 Open Agent Docs，转发时加上 `X-OAD-User-*`（`OAD_AUTH=header`）；元素不用给 token，`base-url` 也不用给。
-- **Agent token**：`token="oad_…"`，适合内部工具。
+- **JWT** (recommended, `OAD_AUTH=jwt`): your backend signs with `signJwt(secret, userId, { name, email })` from `@open-agent-docs/client/node` and hands it to the element through `getToken`; the element uses it to talk to the server directly (see below).
+- **Same origin + proxy**: the host proxies `/api/*` (including the WebSocket) and adds `X-OAD-User-*` (`OAD_AUTH=header`); no token or `base-url` needed.
+- **Agent token**: `token="oad_…"`, for internal tools.
 
-**跨域直连**（`base-url` 是别的域名）：服务器的 `OAD_ALLOWED_ORIGINS` 写上宿主页面的 origin，接口（CORS）、事件流、WebSocket 握手（Origin 检查）就都放行了：
+**Direct cross-origin** (`base-url` on a different domain): add the host page's origin to the server's `OAD_ALLOWED_ORIGINS` and the API (CORS),
+event streams and WebSocket handshakes (Origin check) all let it through:
 
 ```sh
 OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
 ```
 
-**图片和文件**：`<img>`、`<video>`、链接带不了 token。用 token 登录时，元素显示前先把服务器上的地址交给 `POST /api/v1/files/sign` 换成签名地址
-（`?exp=…&sig=…`，一批一起签，缓存到过期前 60 秒；过期了、加载失败了重签），跨域时再拼上 `base-url`；`<oad-viewer>` 拿到的 `format=html` 里本来就是签名地址。
-签名地址在有效期内（默认 24 小时，`OAD_SIGNED_URL_TTL`）谁拿到都能打开，见[嵌入文档](../../docs/zh/embedding.md#只读-html)。
+**Images and files**: `<img>`, `<video>` and links can't carry a token. With token sign-in, the element first trades server URLs for signed URLs
+via `POST /api/v1/files/sign` (`?exp=…&sig=…`, batched, cached until 60 seconds before expiry, re-signed when expired or when loading fails) and
+prefixes `base-url` when cross-origin; the `format=html` that `<oad-viewer>` gets already has signed URLs. Anyone holding a signed URL can open it
+until it expires (24 hours by default, `OAD_SIGNED_URL_TTL`); see the [embedding docs](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md#read-only-html).
 
-不想让浏览器直连（服务器只听内网）：宿主把 `/api/*`（含 WebSocket）转发到自己的域名下，`base-url` 不给。
-完整的例子见仓库里的 `examples/embed-elements`（纯 HTML + 一个小 Node 服务签 JWT，元素直连；`PROXY=1` 是转发的写法）。
+If the browser shouldn't talk to the server directly (it only listens internally), have the host forward `/api/*` (WebSocket included) under
+its own domain and leave `base-url` out. See `examples/embed-elements` in the repo (plain HTML + a small Node server that signs JWTs; the elements
+connect directly, `PROXY=1` shows the forwarding variant).
 
-## 换样式
+## Styling
 
-样式都在 Shadow DOM 里，宿主页面的 CSS 进不去，元素的 CSS 也不会漏出来。颜色、字体用 CSS 变量改，**写在元素上**（不是 `:root` 上）：
+Styles live inside the Shadow DOM: the host page's CSS doesn't leak in and ours doesn't leak out. Change colors and fonts with CSS variables,
+**set on the element** (not on `:root`):
 
 ```css
 oad-editor, oad-viewer, oad-database {
   --oad-accent: #7c3aed;
   --oad-accent-soft: rgba(124, 58, 237, 0.14);
-  --oad-font: 'Inter', -apple-system, 'PingFang SC', sans-serif;
+  --oad-font: 'Inter', -apple-system, sans-serif;
   --oad-fg: #1f1e1c; --oad-bg: #fff; --oad-radius: 8px;
 }
 ```
 
-变量名和 `@open-agent-docs/editor` 的一样（`--oad-fg`、`--oad-fg-2`、`--oad-bg-2`、`--oad-line`……）。深色：`theme="dark"`，或者不给跟系统。
-`::part(root)` 能选到元素里最外层的那个 `div`。
+The variables are the same as in `@open-agent-docs/editor` (`--oad-fg`, `--oad-fg-2`, `--oad-bg-2`, `--oad-line`…). Dark mode: `theme="dark"`, or omit it to
+follow the system. `::part(root)` selects the outermost `div` inside the element.
 
-## 和 React 版的区别
+## Differences from the React components
 
-`@open-agent-docs/editor` 是 React 组件，宿主自己管 React、样式表；这个包是同一套组件包了一层：
+`@open-agent-docs/editor` is the React version, where the host manages React and the stylesheet; this package wraps the same components:
 
-- 弹出来的东西（数据库的弹出菜单、公式编辑器、图片的大图预览）都挂在元素自己的 Shadow DOM 里，样式跟着进去，不往宿主页面里插；代码块的语言提示也在 Shadow DOM 里。
-- 界面语言整个页面只有一份：一个元素改了 `lang`，页面上别的元素（还有宿主自己用 `@open-agent-docs/editor` 画的组件）都跟着换，同一页上没法一个中文一个英文。
-  编辑器、数据库视图里几百处文字按全局语言取，不少在 ProseMirror 的节点视图里（不归 React 管），按元素分开改动太大，先不做。
-  另外设了 `lang` 也会改宿主页面的 `<html lang>`，并记进本机 localStorage 的 `oad:locale`。
+- Everything that pops up (database popovers, the formula editor, the image lightbox) is mounted inside the element's own shadow root, so it gets
+  its styles and nothing is inserted into the host page; the code-block language hint list lives in the shadow root too.
+- There is one UI language per page: setting `lang` on one element switches every element on the page (and any `@open-agent-docs/editor`
+  components the host renders itself), so you can't have one element in Chinese and another in English on the same page.
+  Several hundred strings in the editor and database view read the global language, many of them from ProseMirror node views outside React,
+  so making it per-element would be a large change; it isn't done for now.
+  Setting `lang` also sets the host page's `<html lang>` and stores the choice in localStorage (`oad:locale`).
 
-## 开发
+## Development
 
 ```sh
-pnpm --filter @open-agent-docs/elements build   # dist/：vite 库模式 + 类型声明（scripts/dts.mjs）
-pnpm --filter @open-agent-docs/elements size    # 看各部分 gzip 后多大
-pnpm --filter @open-agent-docs/elements test    # jsdom：注册、属性变化、事件、token、断开
+pnpm --filter @open-agent-docs/elements build   # dist/: vite library mode + type declarations (scripts/dts.mjs)
+pnpm --filter @open-agent-docs/elements size    # gzipped sizes of each part
+pnpm --filter @open-agent-docs/elements test    # jsdom: registration, attribute changes, events, tokens, disconnect
 ```
 
-打包时每个 `import './x.css'` 都换成 `addCss(样式文字)`（`vite.config.ts` 里的插件，`src/styles.ts`），`:root` 改成 `:host`，放进各个元素的 Shadow DOM。
+At build time each `import './x.css'` becomes `addCss(cssText)` (a plugin in `vite.config.ts`, see `src/styles.ts`), with `:root` rewritten to `:host`,
+and is adopted into every element's shadow root.

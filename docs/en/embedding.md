@@ -152,7 +152,7 @@ el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // documen
 
 When the host doesn't use React (Vue, Svelte, Angular, plain HTML, server templates) but wants the full editor, use `@open-agent-docs/elements`:
 three custom elements with React, the editor and Yjs bundled, styles inside Shadow DOM so the host and the elements don't affect each other.
-Full reference: [packages/elements/README.en.md](../../packages/elements/README.en.md).
+Full reference: [packages/elements/README.md](../../packages/elements/README.md).
 
 ```html
 <!-- No bundler: load from a CDN and the elements are registered (or npm i @open-agent-docs/elements and import '@open-agent-docs/elements') -->

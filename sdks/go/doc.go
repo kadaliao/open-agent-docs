@@ -1,49 +1,49 @@
-// Package oad 是 Open Agent Docs 的 Go 客户端：人和 Agent 一起写的文档服务器（HTTP 接口 /api/v1）。
+// Package oad is the Go client for Open Agent Docs: a document server that people and AI agents write in together (HTTP API under /api/v1).
 //
-// 只用标准库。接口和模型从 docs/openapi.json 生成（zz_generated_*.go），名字按 sdks/operations.json：
-// 点路径 pages.versions.list 在这里是 client.Pages.Versions.List(ctx, …)。
+// Standard library only. Endpoints and models are generated from docs/openapi.json (zz_generated_*.go) and named after sdks/operations.json:
+// the dotted path pages.versions.list is client.Pages.Versions.List(ctx, …) here.
 //
-// # 建客户端
+// # Create a client
 //
 //	client := oad.NewClient(
 //		oad.WithBaseURL("https://docs.example.com"),
-//		oad.WithToken(os.Getenv("OAD_TOKEN")), // Agent token、会话令牌或 JWT
+//		oad.WithToken(os.Getenv("OAD_TOKEN")), // an agent token, a session token or a JWT
 //	)
-//	// oad.NewClient() 读环境变量 OAD_BASE_URL、OAD_TOKEN
+//	// oad.NewClient() reads the environment variables OAD_BASE_URL and OAD_TOKEN
 //
-// # 调接口
+// # Call endpoints
 //
-// 路径参数是位置参数，查询参数和请求体字段放在最后一个参数 XxxParams 里（全是可选的可以传零值）：
+// Path parameters are positional; query parameters and request-body fields go in the last argument, XxxParams (all optional, the zero value is fine):
 //
 //	page, err := client.Pages.Create(ctx, ws, oad.PagesCreateParams{
-//		Title:    oad.Some("周报"),
-//		Markdown: "# 本周\n\n- 上线了 SDK",
+//		Title:    oad.Some("Weekly"),
+//		Markdown: "# This week\n\n- Shipped the SDK",
 //	})
 //	content, err := client.Pages.Content.Get(ctx, page.ID, oad.PagesContentGetParams{})
 //
-// 可选字段用 Opt[T]：零值是“没设置”（不发），oad.Some(v) 发值，oad.Null[T]() 明确发 null。
-// 响应里不是必填、或者可以是 null 的字段也是 Opt，用 Get / Or / Value 取。
+// Optional fields use Opt[T]: the zero value means "not set" (not sent), oad.Some(v) sends a value and oad.Null[T]() sends an explicit null.
+// Response fields that aren't required, or can be null, are Opt too; read them with Get / Or / Value.
 //
-// # 错误
+// # Errors
 //
-// 服务器回的错误是 *APIError，可以用哨兵判断：
+// An error returned by the server is an *APIError; check it with the sentinels:
 //
 //	if errors.Is(err, oad.ErrNotFound) { … }
 //	var ae *oad.APIError
 //	if errors.As(err, &ae) { log.Println(ae.StatusCode, ae.Code, ae.Message) }
 //
-// 连不上、超时是 *ConnectionError（ErrConnection、ErrTimeout，超时也是 context.DeadlineExceeded）。
-// 429、GET/PUT/DELETE 的 502/503/504 和断线会自动重试（WithMaxRetries，默认 2 次）。
+// Failing to connect or timing out is a *ConnectionError (ErrConnection, ErrTimeout; a timeout is also context.DeadlineExceeded).
+// 429, 502/503/504 on GET/PUT/DELETE, and dropped connections are retried automatically (WithMaxRetries, 2 by default).
 //
-// # 翻页、事件
+// # Pagination and events
 //
 //	for v, err := range client.Pages.Versions.ListAll(ctx, page.ID, oad.PagesVersionsListParams{}) { … }
-//	for ev, err := range client.Workspaces.Events(ctx, ws) { … } // ctx 取消就停
+//	for ev, err := range client.Workspaces.Events(ctx, ws) { … } // stops when ctx is cancelled
 //
-// # 宿主后端
+// # Host backends
 //
-// WithUser 替自己系统里登录的用户调（服务器 OAD_AUTH=header 或 jwt）；SignJWT、EmbedURL 拼 iframe 地址；
-// VerifyWebhook、WebhookHandler 收 Agent 的 webhook；Start 在本机起一个服务器（开发、测试用）。
+// WithUser calls on behalf of a user logged in to your own system (server with OAD_AUTH=header or jwt); SignJWT and EmbedURL build the iframe URL;
+// VerifyWebhook and WebhookHandler receive an agent's webhooks; Start runs a server on this machine (for development and tests).
 package oad
 
 //go:generate go run ./internal/codegen

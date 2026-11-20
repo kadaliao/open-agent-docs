@@ -1,10 +1,12 @@
 # @open-agent-docs/editor
 
-Open Agent Docs 的编辑器和组件：协作编辑器（Tiptap + Yjs）、标题、评论栏、数据库视图，加一个 `useOadPage` hook。
-React 19，样式是一个单独的 CSS 文件。
+English | [简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/packages/editor/README.zh-CN.md)
+
+The editor and components for [Open Agent Docs](https://github.com/kadaliao/open-agent-docs): a collaborative editor (Tiptap + Yjs), a title,
+a comments sidebar, database views, and a `useOadPage` hook. React 19; the styles are a single CSS file.
 
 ```sh
-pnpm add @open-agent-docs/editor @open-agent-docs/client react react-dom yjs
+npm i @open-agent-docs/editor @open-agent-docs/client react react-dom yjs
 ```
 
 ```tsx
@@ -12,7 +14,7 @@ import { createClient } from '@open-agent-docs/client'
 import { OadComments, OadDatabaseView, OadEditor, OadProvider, OadTitle, useOadPage } from '@open-agent-docs/editor'
 import '@open-agent-docs/editor/style.css'
 
-const client = createClient({ baseUrl: '' }) // 同源（宿主把 /api 转给 Open Agent Docs）
+const client = createClient({ baseUrl: '' }) // same origin (the host forwards /api to Open Agent Docs)
 
 function Doc({ id, me }) {
   const user = { id: me.user.id, name: me.user.name, color: '#3e63dd' }
@@ -28,34 +30,40 @@ function Doc({ id, me }) {
 
 <OadProvider client={client}>
   <Doc id={pageId} me={me} />
-  <OadDatabaseView dbId={dbId} me={me} ws={ws} canWrite />   {/* 用到时才下载表格、看板的代码 */}
+  <OadDatabaseView dbId={dbId} me={me} ws={ws} canWrite />   {/* table and board code is only downloaded when used */}
 </OadProvider>
 ```
 
-| 组件 / 函数 | 说明 |
+| Component / function | Description |
 | --- | --- |
-| `OadEditor` | 正文编辑器（`ydoc`、`provider`、`user`、`editable`、`onComment`、`media`……） |
-| `OadTitle` | 标题（`ydoc` 里的 `title`） |
-| `OadComments` | 评论栏；配 `usePageComments(client, pageId, events)`、`usePeople(...)` |
-| `OadDatabaseView` | 数据库：表格、看板、日历、画廊、列表（按需加载；`@open-agent-docs/editor/database` 里有不按需加载的版本） |
-| `useOadPage(client, id)` | 打开一页的协作文档，卸载时关掉 |
-| `OadProvider` / `useOadClient` | 把客户端放进上下文，组件就不用一个个传 `client` |
-| `setLocale('zh' \| 'en' \| 'auto')` | 界面语言（默认跟浏览器），换了不用刷新（`@open-agent-docs/editor/i18n`） |
+| `OadEditor` | The body editor (`ydoc`, `provider`, `user`, `editable`, `onComment`, `media`…) |
+| `OadTitle` | The title (`title` in the `ydoc`) |
+| `OadComments` | The comments sidebar; use it with `usePageComments(client, pageId, events)` and `usePeople(...)` |
+| `OadDatabaseView` | Databases: table, board, calendar, gallery and list (loaded on demand; `@open-agent-docs/editor/database` has a version that isn't) |
+| `useOadPage(client, id)` | Opens a page's collaborative document and closes it on unmount |
+| `OadProvider` / `useOadClient` | Puts the client in context so you don't pass `client` to every component |
+| `setLocale('zh' \| 'en' \| 'auto')` | UI language (follows the browser by default); takes effect without a reload (`@open-agent-docs/editor/i18n`) |
 
-## 换主题
+## Theming
 
-颜色、字体都是 CSS 变量，在宿主自己的样式里覆盖就行；深色模式跟着 `prefers-color-scheme`，或者在 `<html data-theme="dark">` 上指定。
+Colors and fonts are CSS variables; override them in the host's own styles. Dark mode follows `prefers-color-scheme`, or set it explicitly with
+`<html data-theme="dark">`.
 
 ```css
 :root {
-  --oad-accent: #7c3aed;           /* 强调色：选中、链接、按钮 */
+  --oad-accent: #7c3aed;           /* accent: selection, links, buttons */
   --oad-accent-soft: rgba(124, 58, 237, 0.14);
   --oad-font: 'Inter', -apple-system, 'PingFang SC', sans-serif;
-  --oad-fg: #1f1e1c; --oad-fg-2: #5f5e5b; --oad-fg-3: #9b9a97;   /* 文字：主 / 次 / 弱 */
-  --oad-bg: #fff; --oad-bg-2: #f7f7f5; --oad-bg-3: #efeeeb;       /* 背景 */
-  --oad-line: #e9e8e5; --oad-line-2: #dcdbd7;                     /* 线 */
+  --oad-fg: #1f1e1c; --oad-fg-2: #5f5e5b; --oad-fg-3: #9b9a97;   /* text: primary / secondary / faint */
+  --oad-bg: #fff; --oad-bg-2: #f7f7f5; --oad-bg-3: #efeeeb;       /* backgrounds */
+  --oad-line: #e9e8e5; --oad-line-2: #dcdbd7;                     /* lines */
   --oad-radius: 8px;
 }
 ```
 
-组件里的通用控件（按钮、头像、弹窗）的样式只在 `.oad-root` 里面生效，不会影响宿主页面里同名的 class。
+The styles of the shared controls inside the components (buttons, avatars, popovers) only apply within `.oad-root`, so they don't affect classes of the same name in the host page.
+
+## More
+
+- [Embedding in your own app](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md) ([简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/embedding.md))
+- [`@open-agent-docs/elements`](https://www.npmjs.com/package/@open-agent-docs/elements): the same editor as Web Components, for hosts that don't use React

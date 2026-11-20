@@ -1,7 +1,7 @@
-//! [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) 的 Rust 客户端：人和 Agent 一起写的文档。
+//! Rust client for [Open Agent Docs](https://github.com/kadaliao/open-agent-docs): docs that people and AI agents write together.
 //!
-//! 接口都是 async 的（tokio + reqwest）。建一个 [`Client`]，按资源调：
-//! `client.pages().versions().list(id)`。每个接口返回一个请求构造器，可选参数链式设，`.await` 发出去。
+//! Every call is async (tokio + reqwest). Build a [`Client`] and call by resource:
+//! `client.pages().versions().list(id)`. Each call returns a request builder: set optional parameters by chaining, then `.await` to send it.
 //!
 //! ```no_run
 //! use open_agent_docs as oad;
@@ -9,37 +9,38 @@
 //! use futures_util::TryStreamExt;
 //!
 //! # async fn run() -> oad::Result<()> {
-//! // 读环境变量 OAD_BASE_URL、OAD_TOKEN（Agent 的 token，oad_…）
+//! // reads OAD_BASE_URL and OAD_TOKEN (an agent token, oad_…) from the environment
 //! let client = oad::Client::from_env()?;
 //! let ws = client.default_workspace().await?;
 //!
-//! // 建页面，顺手写进 Markdown 正文
+//! // create a page and write its Markdown body in one go
 //! let page = client
 //!     .pages()
-//!     .create_with_markdown(&ws, CreatePage { title: "周报".into(), ..Default::default() }, "# 本周\n\n- 上线了 SDK")
+//!     .create_with_markdown(&ws, CreatePage { title: "Weekly".into(), ..Default::default() }, "# This week\n\n- Shipped the SDK")
 //!     .await?;
 //!
-//! // 读正文
+//! // read the body
 //! let content = client.pages().content().get(&page.id).await?;
 //! println!("{}", content.markdown.unwrap_or_default());
 //!
-//! // 翻页：list 是一页，list_all 逐条取完
+//! // pagination: list returns one page, list_all walks every item
 //! let versions: Vec<_> = client.pages().versions().list_all(&page.id).limit(50).try_collect().await?;
-//! println!("{} 个版本", versions.len());
+//! println!("{} versions", versions.len());
 //!
-//! // 404 之类的错误
+//! // errors such as 404
 //! match client.pages().get("nope").await {
-//!     Err(e) if e.is_not_found() => println!("没有这一页"),
+//!     Err(e) if e.is_not_found() => println!("no such page"),
 //!     other => { other?; }
 //! }
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! # 替用户调（宿主后端）
+//! # Calling on behalf of a user (host backends)
 //!
-//! 宿主自己做登录，后端用 [`Client::with_user`] 以当前用户的身份调：服务器是 `OAD_AUTH=header` 时配
-//! [`header_secret`](ClientBuilder::header_secret)，是 `OAD_AUTH=jwt` 时配 [`jwt_secret`](ClientBuilder::jwt_secret)。
+//! The host does its own login; its backend calls as the current user with [`Client::with_user`]. Set
+//! [`header_secret`](ClientBuilder::header_secret) when the server runs with `OAD_AUTH=header`, or
+//! [`jwt_secret`](ClientBuilder::jwt_secret) with `OAD_AUTH=jwt`.
 //!
 //! ```no_run
 //! # use open_agent_docs as oad;
@@ -48,38 +49,38 @@
 //!     .base_url("https://docs.example.com")
 //!     .jwt_secret(std::env::var("OAD_JWT_SECRET").unwrap())
 //!     .build()?;
-//! let u = admin.with_user(oad::User::new("u-42").name("王小明").email("x@example.com"))?;
+//! let u = admin.with_user(oad::User::new("u-42").name("Ming Wang").email("x@example.com"))?;
 //! let pages = u.pages().list(u.default_workspace().await?).await?;
 //! # let _ = pages;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! # 请求体：不发、发 null、发值
+//! # Request bodies: omit, send null, send a value
 //!
-//! 请求体是实现了 `Default` 的结构体，没写的字段不发。可空可省的字段（比如 [`PatchPage`](types::PatchPage) 的 `after`）
-//! 是 [`Nullable`]：`Nullable::Omit`（默认，不发）、`Nullable::Null`（发 `null`）、`Nullable::Value(v)`（发值，
-//! 也可以写 `v.into()`）。只能省、不能为 null 的字段是 `Option`。
+//! A request body is a struct that implements `Default`; fields you don't set aren't sent. Fields that can be omitted or null (such as `after` on
+//! [`PatchPage`](types::PatchPage)) are [`Nullable`]: `Nullable::Omit` (the default, not sent), `Nullable::Null` (sends `null`) and
+//! `Nullable::Value(v)` (sends the value; `v.into()` works too). Fields that can be omitted but never null are `Option`.
 //!
 //! ```
 //! use open_agent_docs::{Nullable, types::PatchPage};
-//! // 挪到最前：after 发 null
+//! // move to the top: send null for after
 //! let p = PatchPage { after: Nullable::Null, ..Default::default() };
 //! assert_eq!(serde_json::to_string(&p).unwrap(), r#"{"after":null}"#);
-//! // 改标题，别的不动
-//! let p = PatchPage { title: "新标题".into(), ..Default::default() };
-//! assert_eq!(serde_json::to_string(&p).unwrap(), r#"{"title":"新标题"}"#);
+//! // change the title and nothing else
+//! let p = PatchPage { title: "New title".into(), ..Default::default() };
+//! assert_eq!(serde_json::to_string(&p).unwrap(), r#"{"title":"New title"}"#);
 //! ```
 //!
-//! # 事件、webhook、嵌入
+//! # Events, webhooks, embedding
 //!
-//! - [`workspaces().events(ws)`](resources::WorkspacesApi::events)：工作区的实时事件（SSE），断了自动重连；
-//!   [`agent().notifications().stream()`](resources::AgentNotificationsApi::stream)：Agent 的通知。
-//! - [`verify_webhook`]：验 Agent webhook 的签名。
-//! - [`sign_jwt`]、[`embed_url`]：宿主签 JWT、拼 iframe 的地址。
-//! - feature `launcher`：`oad::start(...)` 在本机拉起一个服务器（测试、桌面应用用）。
+//! - [`workspaces().events(ws)`](resources::WorkspacesApi::events): a workspace's real-time events (SSE), reconnecting automatically;
+//!   [`agent().notifications().stream()`](resources::AgentNotificationsApi::stream): an agent's notifications.
+//! - [`verify_webhook`]: verify the signature of an agent webhook.
+//! - [`sign_jwt`], [`embed_url`]: the host signs a JWT and builds the iframe URL.
+//! - feature `launcher`: `oad::start(...)` starts a server on this machine (for tests and desktop apps).
 //!
-//! 和其它语言 SDK 共用的契约见仓库里的 `docs/sdk-contract.md`。
+//! The contract shared with the SDKs in the other languages is `docs/sdk-contract.md` in the repository.
 
 mod client;
 mod embed;
@@ -107,9 +108,9 @@ pub use webhook::{
     DEFAULT_TOLERANCE, WebhookHeaders, verify_webhook, verify_webhook_at, verify_webhook_signature,
 };
 
-/// 这个 SDK 的版本（和服务器同一个版本号）
+/// The version of this SDK (the same version number as the server).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// 重新导出用到的 crate，免得版本对不上：`oad::reqwest::Client`、`oad::bytes::Bytes`。
+/// Re-exports of the crates used in the API, so versions can't drift apart: `oad::reqwest::Client`, `oad::bytes::Bytes`.
 pub use bytes;
 pub use reqwest;

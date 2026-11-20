@@ -7,10 +7,10 @@ Python、Go、Rust、JS/TS 四种语言的官方 SDK。四个 SDK 遵守同一�
 
 | 语言 | 安装 | 说明 |
 | --- | --- | --- |
-| Python | `pip install open-agent-docs` | 同步、异步各一套客户端，pydantic 模型，Python 3.9 起。[README](../../sdks/python/README.md) |
-| Go | `go get github.com/kadaliao/open-agent-docs/sdks/go` | 只用标准库，Go 1.23 起。[README](../../sdks/go/README.md) |
-| Rust | `cargo add open-agent-docs` | async（tokio + reqwest），Rust 1.85 起。[README](../../sdks/rust/README.md) |
-| JS / TS | `npm i @open-agent-docs/client` | 浏览器和 Node 18+；协作文档、本地数据库只有它有。[README](../../packages/client/README.md) |
+| Python | `pip install open-agent-docs` | 同步、异步各一套客户端，pydantic 模型，Python 3.9 起。[README](../../sdks/python/README.zh-CN.md) |
+| Go | `go get github.com/kadaliao/open-agent-docs/sdks/go` | 只用标准库，Go 1.23 起。[README](../../sdks/go/README.zh-CN.md) |
+| Rust | `cargo add open-agent-docs` | async（tokio + reqwest），Rust 1.85 起。[README](../../sdks/rust/README.zh-CN.md) |
+| JS / TS | `npm i @open-agent-docs/client` | 浏览器和 Node 18+；协作文档、本地数据库只有它有。[README](../../packages/client/README.zh-CN.md) |
 
 前端的包：`@open-agent-docs/elements` 是 Web Component，任何前端框架都能用；`@open-agent-docs/editor` 是 React 组件；
 `@open-agent-docs/markdown` 把文档转成只读 HTML。见[嵌入到自己的应用](embedding.md)。

@@ -1,19 +1,19 @@
 # @open-agent-docs/markdown
 
-[Open Agent Docs](https://github.com/kadaliao/open-agent-docs) 的 Markdown 引擎（WASM）：Markdown 和文档（ProseMirror JSON）互转，文档转成只读 HTML。
-和服务器是同一份 Rust 代码，输出逐字一样。
+English | [简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/packages/markdown-wasm/README.zh-CN.md)
 
-The Open Agent Docs Markdown engine as WASM: Markdown ⇄ document JSON, and document → read-only HTML, byte-for-byte identical to the server.
+The [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) Markdown engine as WASM: Markdown ⇄ document (ProseMirror JSON), and document → read-only HTML.
+It's the same Rust code as the server, and the output is byte-for-byte identical.
 
 ```js
 import init, { toHtml } from '@open-agent-docs/markdown'
-import '@open-agent-docs/markdown/content.css'   // 和服务器 /embed/content.css 同一份样式
+import '@open-agent-docs/markdown/content.css'   // the same stylesheet as the server's /embed/content.css
 
 await init()
-el.innerHTML = toHtml('# 标题\n\n正文', { baseUrl: 'https://docs.example.com' })   // 外面包着 <div class="oad-content">
+el.innerHTML = toHtml('# Title\n\nBody text', { baseUrl: 'https://docs.example.com' })   // wrapped in <div class="oad-content">
 ```
 
-`toHtml(input, options?)`：`input` 是 Markdown 字符串或文档 JSON；`baseUrl` 给了时，以 `/` 开头的链接（文件、页面）拼成完整地址。
-输出只有白名单里的标签和属性，不会有脚本。
+`toHtml(input, options?)`: `input` is a Markdown string or document JSON; when `baseUrl` is given, links that start with `/` (files, pages) are expanded to full URLs.
+The output only contains allow-listed tags and attributes, never scripts.
 
-更多：[嵌入到自己的应用](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/embedding.md) · [English](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md)
+More: [Embedding in your own app](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md) ([简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/docs/zh/embedding.md))

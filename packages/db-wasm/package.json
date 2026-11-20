@@ -1,7 +1,7 @@
 {
   "name": "@open-agent-docs/db",
   "version": "0.3.0",
-  "description": "oad-db 的 WASM 版：数据库的筛选、排序、分组、公式、汇总，和服务器同一份代码",
+  "description": "oad-db as WASM: database filters, sorts, groups, formulas and totals, the same code as the server",
   "type": "module",
   "main": "index.js",
   "module": "index.js",

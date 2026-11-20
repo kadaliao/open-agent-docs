@@ -101,7 +101,7 @@
     "vitest": "^5.1.1",
     "yjs": "^13.6.33"
   },
-  "description": "Open Agent Docs 的编辑器和组件：协作编辑器（Tiptap + Yjs）、标题、评论栏、数据库视图，useOadPage hook",
+  "description": "Editor and components for Open Agent Docs: collaborative editor (Tiptap + Yjs), title, comments sidebar, database views and a useOadPage hook",
   "license": "MIT",
   "repository": {
     "type": "git",

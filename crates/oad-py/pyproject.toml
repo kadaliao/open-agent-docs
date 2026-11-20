@@ -5,10 +5,16 @@ build-backend = "maturin"
 [project]
 name = "open-agent-docs-server"
 version = "0.3.0"
-description = "Open Agent Docs 服务器（Rust，PyO3）：在 Python 进程里起。一般经 pip install \"open-agent-docs[server]\" 装，用 open_agent_docs.start()"
+description = "Open Agent Docs server (Rust, PyO3) that runs inside a Python process. Normally installed via pip install \"open-agent-docs[server]\" and used through open_agent_docs.start()"
+readme = "README.md"
 license = { text = "MIT OR Apache-2.0" }
 requires-python = ">=3.9"
 classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3"]
+
+[project.urls]
+Homepage = "https://github.com/kadaliao/open-agent-docs"
+Source = "https://github.com/kadaliao/open-agent-docs/tree/main/crates/oad-py"
+"简体中文 (Chinese)" = "https://github.com/kadaliao/open-agent-docs/blob/main/crates/oad-py/README.zh-CN.md"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "httpx>=0.27"]

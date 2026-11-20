@@ -1,7 +1,7 @@
 {
   "name": "@open-agent-docs/elements",
   "version": "0.3.0",
-  "description": "Open Agent Docs 的 Web Components：<oad-editor>、<oad-viewer>、<oad-database>。宿主不用 React，一个 <script type=\"module\"> 就能用（React、编辑器都打在包里）",
+  "description": "Web Components for Open Agent Docs: <oad-editor>, <oad-viewer>, <oad-database>. No React needed in the host: one <script type=\"module\"> (React and the editor are bundled in)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -24,8 +24,7 @@
   },
   "files": [
     "dist",
-    "README.md",
-    "README.en.md"
+    "README.md"
   ],
   "sideEffects": true,
   "engines": {

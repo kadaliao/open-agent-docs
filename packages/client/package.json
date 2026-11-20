@@ -1,7 +1,7 @@
 {
   "name": "@open-agent-docs/client",
   "version": "0.3.0",
-  "description": "Open Agent Docs 的 JS 客户端：HTTP 接口、实时事件、协作文档（Yjs）、本地数据库（WASM 引擎）。浏览器和 Node 18+ 都能用",
+  "description": "JS client for Open Agent Docs: HTTP API, real-time events, collaborative documents (Yjs) and a local database (WASM engine). Works in browsers and Node 18+",
   "license": "MIT",
   "repository": {
     "type": "git",

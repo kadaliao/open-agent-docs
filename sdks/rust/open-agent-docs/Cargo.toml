@@ -8,7 +8,7 @@ version.workspace = true
 repository.workspace = true
 homepage = "https://github.com/kadaliao/open-agent-docs"
 documentation = "https://docs.rs/open-agent-docs"
-readme = "../README.en.md"
+readme = "../README.md"
 keywords = ["open-agent-docs", "docs", "agents", "api-client", "sdk"]
 categories = ["api-bindings", "web-programming::http-client", "asynchronous"]
 

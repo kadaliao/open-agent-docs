@@ -140,7 +140,7 @@ el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // 文档 
 ## Web Component
 
 宿主不用 React（Vue、Svelte、Angular、纯 HTML、后端模板都行）、又想要完整的编辑器时，用 `@open-agent-docs/elements`：三个自定义元素，
-React、编辑器、Yjs 都打在包里，样式在 Shadow DOM 里，和宿主互不影响。完整的说明：[packages/elements/README.md](../../packages/elements/README.md)。
+React、编辑器、Yjs 都打在包里，样式在 Shadow DOM 里，和宿主互不影响。完整的说明：[packages/elements/README.zh-CN.md](../../packages/elements/README.zh-CN.md)。
 
 ```html
 <!-- 不用打包工具：从 CDN 引，引进来就注册好了（npm i @open-agent-docs/elements 后 import '@open-agent-docs/elements' 也行） -->

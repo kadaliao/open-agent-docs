@@ -29,7 +29,7 @@ for (const f of files) {
   const pkg = {
     name,
     version: main.version,
-    description: `${main.name} 的 ${plat} 原生模块（不用直接装，装 ${main.name} 会自动带上）`,
+    description: `Native ${plat} module of ${main.name}. Don't install it directly: installing ${main.name} pulls in the right one`,
     license: main.license,
     repository: main.repository,
     main: 'oad-server.node',

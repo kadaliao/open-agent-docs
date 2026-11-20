@@ -1,8 +1,8 @@
 # Open Agent Docs Go SDK
 
-[English](README.en.md)
+English | [简体中文](https://github.com/kadaliao/open-agent-docs/blob/main/sdks/go/README.zh-CN.md)
 
-Open Agent Docs 的 Go 客户端。只用标准库，Go 1.23 起。
+The Go client for Open Agent Docs. Standard library only, Go 1.23+.
 
 ```sh
 go get github.com/kadaliao/open-agent-docs/sdks/go
@@ -13,58 +13,58 @@ import oad "github.com/kadaliao/open-agent-docs/sdks/go"
 
 client := oad.NewClient(
 	oad.WithBaseURL("https://docs.example.com"),
-	oad.WithToken(os.Getenv("OAD_TOKEN")), // Agent token（oad_…）、会话令牌或 JWT
+	oad.WithToken(os.Getenv("OAD_TOKEN")), // agent token (oad_…), session token or JWT
 )
-// oad.NewClient() 读环境变量 OAD_BASE_URL、OAD_TOKEN
+// oad.NewClient() reads OAD_BASE_URL and OAD_TOKEN
 
-ws, err := client.DefaultWorkspace(ctx) // /me 里第一个工作区
+ws, err := client.DefaultWorkspace(ctx) // first workspace in /me
 page, err := client.Pages.Create(ctx, ws, oad.PagesCreateParams{
-	Title:    oad.Some("周报"),
-	Markdown: "# 本周\n\n- 上线了 Go SDK", // 建好以后顺手写正文
+	Title:    oad.Some("Weekly"),
+	Markdown: "# This week\n\n- Shipped the Go SDK", // written as the body right after creating
 })
 content, err := client.Pages.Content.Get(ctx, page.ID, oad.PagesContentGetParams{})
 fmt.Println(content.Markdown.Value())
 ```
 
-完整的例子在 [`examples/`](examples)：`basic`（建页面写 Markdown）、`embed-host`（宿主登录后签 JWT、返回 iframe 地址）、`webhook`（收 Agent 的 webhook）。
-godoc 里每个主要功能都有 `Example`。
+Full examples live in [`examples/`](https://github.com/kadaliao/open-agent-docs/tree/main/sdks/go/examples): `basic` (create a page with Markdown), `embed-host` (sign a JWT after the host's own login and return an iframe URL), `webhook` (receive agent webhooks).
+Every major feature has an `Example` in godoc.
 
-## 名字
+## Names
 
-接口的名字按 [`sdks/operations.json`](../operations.json)：点路径 `pages.versions.list` 是 `client.Pages.Versions.List(ctx, …)`，只有一段的（`search`）挂在客户端上：`client.Search(ctx, ws, …)`。
-缩写按 Go 的习惯：`ID`、`URL`、`CSV`、`HTML`（`Databases.ImportCSV`、`Files.DownloadNamed`）。模型和 openapi.json 里同名（`oad.Page`、`oad.CreatePage`）。
+Operation names follow [`sdks/operations.json`](https://github.com/kadaliao/open-agent-docs/blob/main/sdks/operations.json): the dotted path `pages.versions.list` becomes `client.Pages.Versions.List(ctx, …)`; single-segment names (`search`) live on the client: `client.Search(ctx, ws, …)`.
+Initialisms follow Go style: `ID`, `URL`, `CSV`, `HTML` (`Databases.ImportCSV`, `Files.DownloadNamed`). Models keep their openapi.json names (`oad.Page`, `oad.CreatePage`).
 
-- 路径参数是位置参数；查询参数和请求体字段放进最后一个参数 `XxxParams`（名字是点路径拼起来：`PagesVersionsListParams`）。全是可选的可以传零值 `oad.XxxParams{}`；没有参数的接口没有这个参数。
-- 查询参数是普通类型，零值不发（`Limit: 2`）。
-- 返回解析好的模型（`*oad.Page`）；204 只返回 `error`；`pages.list` 这类只包一层的直接返回数组；`pages.share.get` 没分享时返回 `nil, nil`；下载返回 `io.ReadCloser`（用完 `Close`）。
-- 上传：`client.Files.Upload(ctx, ws, "a.txt", r)`、`client.Databases.ImportCSV(ctx, ws, r, oad.DatabasesImportCSVParams{Title: "表"})`。
-- 请求体不是对象的（库的视图）用 `Body` 字段，整个当 JSON 发。
+- Path parameters are positional; query parameters and body fields go into the last argument, `XxxParams` (named after the dotted path: `PagesVersionsListParams`). When everything is optional, pass the zero value `oad.XxxParams{}`; operations without parameters have no such argument.
+- Query parameters are plain types; zero values are not sent (`Limit: 2`).
+- Results are parsed models (`*oad.Page`); 204 returns just `error`; single-field wrappers like `pages.list` return the array; `pages.share.get` returns `nil, nil` when not shared; downloads return an `io.ReadCloser` (close it).
+- Uploads: `client.Files.Upload(ctx, ws, "a.txt", r)`, `client.Databases.ImportCSV(ctx, ws, r, oad.DatabasesImportCSVParams{Title: "Table"})`.
+- Bodies that are not objects (database views) use a `Body` field sent as the whole JSON body.
 
-## 可选字段：`Opt[T]`
+## Optional fields: `Opt[T]`
 
-请求里要分清“没给”（不发这个字段）和“明确给 null”，所以可选字段是 `oad.Opt[T]`：
+Requests must distinguish "not given" (field omitted) from "explicitly null", so optional fields are `oad.Opt[T]`:
 
 ```go
 oad.PagesUpdateParams{}                              // {}
-oad.PagesUpdateParams{Title: oad.Some("新标题")}      // {"title":"新标题"}
-oad.PagesUpdateParams{After: oad.Null[string]()}     // {"after":null}：挪到最前
+oad.PagesUpdateParams{Title: oad.Some("New title")}  // {"title":"New title"}
+oad.PagesUpdateParams{After: oad.Null[string]()}     // {"after":null}: move to the top
 ```
 
-响应的模型也是同一套写法（全包一致）：必填的字段是普通类型，不是必填或者可以是 null 的字段是 `Opt[T]`：
+Response models use the same convention everywhere: required fields are plain types; fields that are optional or nullable are `Opt[T]`:
 
 ```go
-page.Title                 // string，必填
-page.ParentID.Get()        // (string, bool)：有值才是 true
-page.ParentID.Or("")       // 没有就用默认值
-page.ParentID.IsNull()     // 服务器给的是 null
-page.ParentID.IsSet()      // 服务器给了这个字段（值或 null）
-page.ParentID.Ptr()        // *string，没有值是 nil
+page.Title                 // string, required
+page.ParentID.Get()        // (string, bool): true only when there is a value
+page.ParentID.Or("")       // value or a default
+page.ParentID.IsNull()     // server sent null
+page.ParentID.IsSet()      // server sent the field (value or null)
+page.ParentID.Ptr()        // *string, nil without a value
 ```
 
-选 `Opt` 不选指针：指针分不出“没设置”和“null”，而且请求、响应里嵌套的模型（`AddRow`、`DocNode`、`Anchor`）要能来回用。
-Go 1.24 以后 `Opt` 也配合 `json:",omitzero"`。
+Why `Opt` and not pointers: pointers cannot tell "unset" from "null", and nested models (`AddRow`, `DocNode`, `Anchor`) are used both in requests and responses.
+On Go 1.24+ `Opt` also works with `json:",omitzero"`.
 
-## 错误
+## Errors
 
 ```go
 _, err := client.Pages.Get(ctx, "nope")
@@ -76,40 +76,40 @@ if errors.As(err, &ae) {
 }
 ```
 
-| 情况 | 怎么判断 |
+| Case | How to check |
 | --- | --- |
-| 服务器回的错误 | `*oad.APIError{StatusCode, Code, Message, RetryAfter}`；`ErrBadRequest` `ErrUnauthorized` `ErrForbidden` `ErrNotFound` `ErrConflict` `ErrGone` `ErrTooLarge` `ErrRateLimited` `ErrServer`（≥500） |
-| 连不上、连接断了 | `*oad.ConnectionError`，`errors.Is(err, oad.ErrConnection)` |
-| 超时（`WithTimeout`） | 再加上 `oad.ErrTimeout`、`context.DeadlineExceeded` |
-| 调用方取消 ctx | `context.Canceled` |
-| 配置不对（`WithUser` 没配密钥之类） | `oad.ErrConfig` |
-| webhook 验签失败 | `*oad.WebhookError{Kind}`；`ErrWebhook`，`ErrWebhookSignature` / `ErrWebhookStale` / `ErrWebhookMalformed` |
+| Server returned an error | `*oad.APIError{StatusCode, Code, Message, RetryAfter}`; `ErrBadRequest` `ErrUnauthorized` `ErrForbidden` `ErrNotFound` `ErrConflict` `ErrGone` `ErrTooLarge` `ErrRateLimited` `ErrServer` (≥500) |
+| Cannot connect / connection dropped | `*oad.ConnectionError`, `errors.Is(err, oad.ErrConnection)` |
+| Timeout (`WithTimeout`) | additionally `oad.ErrTimeout` and `context.DeadlineExceeded` |
+| Caller cancelled ctx | `context.Canceled` |
+| Bad configuration (`WithUser` without a secret, …) | `oad.ErrConfig` |
+| Webhook verification failed | `*oad.WebhookError{Kind}`; `ErrWebhook`, `ErrWebhookSignature` / `ErrWebhookStale` / `ErrWebhookMalformed` |
 
-`Code` 取响应的 `error.code`，响应不是 JSON 时是 `http_<状态码>`。
+`Code` is the response's `error.code`, or `http_<status>` when the body is not JSON.
 
-## 客户端选项
+## Client options
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Notes |
 | --- | --- | --- |
-| `WithBaseURL` | `OAD_BASE_URL`，再没有是 `http://127.0.0.1:8848` | `/api/v1` 由 SDK 拼 |
-| `WithToken` | `OAD_TOKEN` | 带成 `Authorization: Bearer` |
-| `WithHeaderSecret` | | `OAD_AUTH=header` 的服务器，配合 `WithUser` |
-| `WithJWTSecret`、`WithJWTIssuer`、`WithJWTAudience`、`WithJWTTTL` | ttl 1 小时 | `OAD_AUTH=jwt` 的服务器，配合 `WithUser` |
-| `WithTimeout` | 60 秒 | 单个请求；事件流和下载只管到收到响应头 |
-| `WithMaxRetries` | 2 | 见下 |
-| `WithLocale` | | `zh` / `en`：服务器错误信息的语言 |
-| `WithHeader` | | 每个请求多带的头 |
-| `WithHTTPClient` | `&http.Client{}` | 代理、自定义 Transport |
+| `WithBaseURL` | `OAD_BASE_URL`, then `http://127.0.0.1:8848` | the SDK appends `/api/v1` |
+| `WithToken` | `OAD_TOKEN` | sent as `Authorization: Bearer` |
+| `WithHeaderSecret` | | servers with `OAD_AUTH=header`, used by `WithUser` |
+| `WithJWTSecret`, `WithJWTIssuer`, `WithJWTAudience`, `WithJWTTTL` | ttl 1 hour | servers with `OAD_AUTH=jwt`, used by `WithUser` |
+| `WithTimeout` | 60 s | per request; event streams and downloads only until response headers |
+| `WithMaxRetries` | 2 | see below |
+| `WithLocale` | | `zh` / `en`: language of server error messages |
+| `WithHeader` | | extra header on every request |
+| `WithHTTPClient` | `&http.Client{}` | proxies, custom transports |
 
-**重试**：429；GET、PUT、DELETE 遇到 502、503、504 或连接断了；连不上（请求还没发出去，什么方法都行）。
-有 `Retry-After` 照它等（最多 60 秒），没有就 0.5 秒 × 2^n（最多 8 秒）加 0–25% 的随机。POST、PATCH 遇到 5xx 不重试（可能已经生效了）。
-上传的 `io.Reader` 能 `Seek` 的才会重发，不能的不重试。
+**Retries**: 429; 502, 503, 504 or a dropped connection for GET, PUT, DELETE; connection refused (request never sent, any method).
+Waits follow `Retry-After` (capped at 60 s), otherwise 0.5 s × 2^n (capped at 8 s) plus 0–25% jitter. POST and PATCH are not retried on 5xx (they may have taken effect).
+Upload readers are only re-sent when they implement `io.Seeker`.
 
-gzip 由 Go 的 HTTP 库自动处理（不声明 br：标准库解不了）。每个请求带 `User-Agent: open-agent-docs-go/<版本>`。
+gzip is handled by Go's HTTP stack (br is not advertised: the standard library cannot decode it). Every request sends `User-Agent: open-agent-docs-go/<version>`.
 
-## 翻页
+## Pagination
 
-带 `next_cursor` 的列表（版本、库的历史、回收站、收件箱、Agent 通知）：`List` 返回一页，`ListAll` 逐条取完所有页：
+Lists with `next_cursor` (versions, database history, trash, inbox, agent notifications): `List` returns one page, `ListAll` iterates every item across pages:
 
 ```go
 for v, err := range client.Pages.Versions.ListAll(ctx, pageID, oad.PagesVersionsListParams{Limit: 50}) {
@@ -118,75 +118,75 @@ for v, err := range client.Pages.Versions.ListAll(ctx, pageID, oad.PagesVersions
 }
 ```
 
-`break` 出循环就不再取。`next_cursor` 是空、这页没有条目、或者游标没变时停。
+Breaking out of the loop stops fetching. Iteration stops when `next_cursor` is empty, a page is empty, or the cursor does not advance.
 
-## 事件
+## Events
 
 ```go
-for ev, err := range client.Workspaces.Events(ctx, ws) { // ctx 取消就停
-	if err != nil { return err }                          // 401、403、404 不重连，给一个错误后停
+for ev, err := range client.Workspaces.Events(ctx, ws) { // stops when ctx is cancelled
+	if err != nil { return err }                          // 401/403/404: no reconnect, one error then stop
 	switch d := ev.Data.(type) {
-	case *oad.Page:           fmt.Println(ev.Name, d.Title) // page.created、page.updated……
+	case *oad.Page:           fmt.Println(ev.Name, d.Title) // page.created, page.updated, …
 	case *oad.DbChangedEvent: fmt.Println(d.DbID.Value())
 	}
-	if ev.Name == oad.EventResync { /* 落下了，重新拉一遍 */ }
+	if ev.Name == oad.EventResync { /* missed events: reload */ }
 }
 ```
 
-`Data` 按事件名解析成模型（表在 `EventPageCreated` 那组常量的注释里，从 openapi.json 的 `webhooks` 生成），不认识的事件名是 `json.RawMessage`；`Raw` 总是原始 JSON。
-断了自动重连：1 秒起翻倍、最多 30 秒，连上后重置，带 `Last-Event-ID`。
+`Data` is decoded by event name (the table is in the comment on the `EventPageCreated` constants, generated from openapi.json `webhooks`); unknown names give `json.RawMessage`; `Raw` is always the original JSON.
+Reconnects automatically: 1 s doubling up to 30 s, reset after connecting, with `Last-Event-ID`.
 
-Agent 的通知：取 → 处理 → 确认。没确认的断线重连、重启以后都会再收到：
+Agent notifications: fetch → handle → ack. Unacked notifications are redelivered after reconnects and restarts:
 
 ```go
 for note, err := range agent.Agent.Notifications.Stream(ctx, oad.AgentNotificationsStreamParams{}) {
 	if err != nil { return err }
-	handle(note) // note.Prompt、note.Comment.Body、note.Page……
+	handle(note) // note.Prompt, note.Comment.Body, note.Page, …
 	agent.Agent.Notifications.Ack(ctx, oad.AgentNotificationsAckParams{IDs: oad.Some([]int64{note.ID})})
 }
 ```
 
-## 替用户调（宿主后端）
+## Acting as a user (host backends)
 
-宿主自己做登录，后端替当前用户调：
+The host does its own login and calls Open Agent Docs on behalf of the current user:
 
 ```go
-admin := oad.NewClient(oad.WithBaseURL(base), oad.WithHeaderSecret(secret)) // 或 oad.WithJWTSecret(secret)
-u, err := admin.WithUser("u-42", oad.UserName("王小明"), oad.UserEmail("x@example.com"))
+admin := oad.NewClient(oad.WithBaseURL(base), oad.WithHeaderSecret(secret)) // or oad.WithJWTSecret(secret)
+u, err := admin.WithUser("u-42", oad.UserName("Ming Wang"), oad.UserEmail("x@example.com"))
 ws, _ := u.DefaultWorkspace(ctx)
 pages, _ := u.Pages.List(ctx, ws)
 ```
 
-- header 模式带 `X-OAD-Secret`、`X-OAD-User-Id`、`X-OAD-User-Name`（UTF-8 百分号编码）、`X-OAD-User-Email`；不支持 `UserWorkspaces`。
-- JWT 模式用 `SignJWT` 签，缓存到过期前 60 秒再换；`UserWorkspaces(oad.WorkspaceGrant{ID: "ws1", Role: "viewer"})` 写进 `workspaces`。
-- `WithUser` 返回新的客户端，和原来的共享连接池、配置；原来的不变。两个密钥都配了或都没配时返回 `ErrConfig`。
+- Header mode sends `X-OAD-Secret`, `X-OAD-User-Id`, `X-OAD-User-Name` (UTF-8 percent-encoded), `X-OAD-User-Email`; `UserWorkspaces` is not supported.
+- JWT mode signs with `SignJWT` and caches the token until 60 s before expiry; `UserWorkspaces(oad.WorkspaceGrant{ID: "ws1", Role: "viewer"})` goes into `workspaces`.
+- `WithUser` returns a new client sharing the connection pool and configuration; the original is unchanged. Configuring both secrets or neither returns `ErrConfig`.
 
-## 嵌入
+## Embedding
 
 ```go
-tok, _ := oad.SignJWT(secret, "u-42", oad.JWTOptions{Name: "王小明", TTL: 15 * time.Minute})
-src := oad.EmbedURL("https://docs.example.com", pageID, oad.EmbedOptions{Theme: "dark", Lang: "zh", Token: tok})
-// https://docs.example.com/p/<id>?embed=1&theme=dark&lang=zh#token=…  放进 <iframe src>
+tok, _ := oad.SignJWT(secret, "u-42", oad.JWTOptions{Name: "Ming Wang", TTL: 15 * time.Minute})
+src := oad.EmbedURL("https://docs.example.com", pageID, oad.EmbedOptions{Theme: "dark", Lang: "en", Token: tok})
+// https://docs.example.com/p/<id>?embed=1&theme=dark&lang=en#token=…  put it in <iframe src>
 ```
 
-token 放在 `#` 后面：不进服务器日志、不进 Referer。`SignJWT` 只做 HS256（claims：`sub`、`name`、`email`、`workspaces`、`iat`、`exp`、`iss`、`aud`）；
-要 RS256 / ES256 的用自己的 JWT 库签同样的 claims，服务器配 `OAD_JWT_JWKS_URL`。跨域 iframe 的换 token 流程见 [`docs/zh/embedding.md`](../../docs/zh/embedding.md) 和 `examples/embed-host`。
+The token goes after `#`: it never reaches server logs or the Referer. `SignJWT` only does HS256 (claims: `sub`, `name`, `email`, `workspaces`, `iat`, `exp`, `iss`, `aud`);
+for RS256 / ES256 sign the same claims with your own JWT library and set `OAD_JWT_JWKS_URL` on the server. The cross-origin iframe token refresh is described in [`docs/en/embedding.md`](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/embedding.md) and shown in `examples/embed-host`.
 
-## Webhook
+## Webhooks
 
 ```go
 http.Handle("/oad/webhook", oad.WebhookHandler(secret, func(ctx context.Context, n *oad.AgentNotification) error {
 	log.Println(n.Comment.Body)
-	return nil // 返回错误时回 500，服务器过一会儿重发
+	return nil // returning an error responds 500 and the server retries later
 }))
 ```
 
-自己处理请求的用 `oad.VerifyWebhook(secret, r.Header, body)`（body 是原始字节）；时间差超过 5 分钟算 stale，测试时用 `oad.VerifyWebhookAt` 给“现在”。
-验签失败：malformed 回 400，signature / stale 回 401；成功回 204。
+To handle requests yourself use `oad.VerifyWebhook(secret, r.Header, body)` (raw body bytes); a timestamp more than 5 minutes off is stale; tests can pass "now" with `oad.VerifyWebhookAt`.
+Verification failures respond 400 (malformed) or 401 (signature / stale); success responds 204.
 
-## 本地启动
+## Running a server locally
 
-开发、测试时在本机起一个服务器：
+For development and tests:
 
 ```go
 srv, err := oad.Start(ctx, oad.StartOptions{DataDir: dir, Auth: "header", HeaderSecret: "dev"})
@@ -194,19 +194,19 @@ defer srv.Close()
 client := oad.NewClient(oad.WithBaseURL(srv.URL), oad.WithHeaderSecret("dev"))
 ```
 
-- 二进制从哪来：`StartOptions.Binary` → 环境变量 `OAD_BINARY` → 缓存（`os.UserCacheDir()/open-agent-docs/v<版本>/`）→ 从 GitHub release 下载 tar.gz，用同一个 release 的 `SHA256SUMS` 校验。
-  支持 macOS 11+（arm64、x86_64）、Linux（x86_64、arm64，glibc 2.34 起：Ubuntu 22.04+、Debian 12+、RHEL 9+）；更老的系统和别的平台用 Docker，见[系统要求](../../docs/zh/quickstart.md#系统要求)。默认下载和 SDK 同版本（`oad.Version`）的。
-- `Env` 里的键转成 `OAD_<键大写>`（`"public_url"` → `OAD_PUBLIC_URL`）。`Port` 不给时挑一个空端口。
-- 等 `GET /api/v1/auth/config` 回 200（最多 30 秒）；没起来就退出了，错误里带它 stderr 的末尾。
-- `Close()`：SIGTERM，等它把页面存好；10 秒内没退出再强制结束。
+- Binary lookup: `StartOptions.Binary` → `OAD_BINARY` → cache (`os.UserCacheDir()/open-agent-docs/v<version>/`) → download the tar.gz from the GitHub release, verified with that release's `SHA256SUMS`.
+  macOS 11+ (arm64, x86_64) and Linux (x86_64, arm64, glibc 2.34+: Ubuntu 22.04+, Debian 12+, RHEL 9+) are supported; use Docker on older systems and elsewhere ([system requirements](https://github.com/kadaliao/open-agent-docs/blob/main/docs/en/quickstart.md#system-requirements)). The default version matches the SDK (`oad.Version`).
+- Keys in `Env` become `OAD_<KEY>` (`"public_url"` → `OAD_PUBLIC_URL`). Without `Port` a free port is picked.
+- Waits for `GET /api/v1/auth/config` to return 200 (up to 30 s); if the process exits first, the error includes the tail of its stderr.
+- `Close()`: SIGTERM so open pages are saved; killed if still running after 10 s.
 
-## 开发
+## Development
 
 ```sh
 cd sdks/go
-go generate ./...   # openapi.json / operations.json 改了以后重新生成 zz_generated_*.go（生成的代码要提交）
-go test ./...       # 单元测试；TestGeneratedUpToDate 检查生成结果是最新的
-OAD_BINARY=../../target/debug/open-agent-docs go test ./... -run Conformance   # 统一测试的场景 S1–S15
+go generate ./...   # regenerate zz_generated_*.go after openapi.json / operations.json change (commit the output)
+go test ./...       # unit tests; TestGeneratedUpToDate checks the generated code is current
+OAD_BINARY=../../target/debug/open-agent-docs go test ./... -run Conformance   # conformance scenarios S1–S15
 ```
 
-生成器在 `internal/codegen`，手写的运行时（客户端、重试、事件流、webhook、启动）和生成的代码分开放。
+The generator is in `internal/codegen`; the hand-written runtime (client, retries, event streams, webhooks, launcher) is kept separate from generated code.

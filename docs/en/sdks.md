@@ -7,9 +7,9 @@ against a real server ([contract](../sdk-contract.md), Chinese).
 
 | Language | Install | Notes |
 | --- | --- | --- |
-| Python | `pip install open-agent-docs` | Sync and async clients, pydantic models, Python 3.9+. [README](../../sdks/python/README.en.md) |
-| Go | `go get github.com/kadaliao/open-agent-docs/sdks/go` | Standard library only, Go 1.23+. [README](../../sdks/go/README.en.md) |
-| Rust | `cargo add open-agent-docs` | Async (tokio + reqwest), Rust 1.85+. [README](../../sdks/rust/README.en.md) |
+| Python | `pip install open-agent-docs` | Sync and async clients, pydantic models, Python 3.9+. [README](../../sdks/python/README.md) |
+| Go | `go get github.com/kadaliao/open-agent-docs/sdks/go` | Standard library only, Go 1.23+. [README](../../sdks/go/README.md) |
+| Rust | `cargo add open-agent-docs` | Async (tokio + reqwest), Rust 1.85+. [README](../../sdks/rust/README.md) |
 | JS / TS | `npm i @open-agent-docs/client` | Browsers and Node 18+; the only SDK with live collaborative documents and the local database engine. [README](../../packages/client/README.md) |
 
 For the front end: `@open-agent-docs/elements` provides Web Components (any framework), `@open-agent-docs/editor` provides React components,
