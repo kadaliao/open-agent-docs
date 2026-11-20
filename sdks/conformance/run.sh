@@ -17,7 +17,7 @@ if [ -z "${OAD_BINARY:-}" ]; then
   cp target/debug/open-agent-docs "$TMP/open-agent-docs"
   export OAD_BINARY="$TMP/open-agent-docs"
 fi
-echo "服务器：$OAD_BINARY（$("$OAD_BINARY" --version)）"
+echo "服务器：${OAD_BINARY}（$("$OAD_BINARY" --version)）"
 
 langs=("$@")
 [ ${#langs[@]} -eq 0 ] && langs=(python go rust js)
@@ -28,7 +28,8 @@ for lang in "${langs[@]}"; do
   echo "━━━━━━━━ $lang ━━━━━━━━"
   case "$lang" in
     python)
-      (cd sdks/python && uv run --extra test pytest -q tests/conformance) || failed+=("$lang") ;;
+      (cd sdks/python && { [ -x .venv/bin/pytest ] || { uv venv -q && uv pip install -q -e . --group dev; }; } \
+        && .venv/bin/pytest -q tests/conformance) || failed+=("$lang") ;;
     go)
       (cd sdks/go && go test -count=1 -run Conformance ./...) || failed+=("$lang") ;;
     rust)

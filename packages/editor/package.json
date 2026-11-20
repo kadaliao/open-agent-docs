@@ -98,9 +98,19 @@
   },
   "description": "Open Agent Docs 的编辑器和组件：协作编辑器（Tiptap + Yjs）、标题、评论栏、数据库视图，useOadPage hook",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadaliao/open-agent-docs.git",
+    "directory": "packages/editor"
+  },
+  "homepage": "https://github.com/kadaliao/open-agent-docs#readme",
+  "bugs": "https://github.com/kadaliao/open-agent-docs/issues",
   "module": "dist/index.js",
   "files": [
     "dist",
     "README.md"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

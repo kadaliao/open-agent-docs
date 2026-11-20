@@ -1,0 +1,137 @@
+# 推到 main / next 和提 PR 时：服务器、网页和 JS 包、各语言 SDK 的测试，加上 SDK 对着真服务器跑的统一场景（docs/sdk-contract.md §14）。
+name: ci
+
+on:
+  push:
+    branches: [main, next]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # 服务器的二进制留给 conformance 用（网页没构建也能编，只是不带网页）
+      - run: cargo build --locked -p oad-bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oad-debug
+          path: target/debug/open-agent-docs
+          if-no-files-found: error
+
+  js:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: node scripts/versions.mjs
+      - run: node sdks/check-operations.mjs
+      - run: pnpm -r typecheck
+      # server-node 的测试要先编原生模块，放在 conformance 里跑
+      - run: pnpm -r --filter '!@open-agent-docs/server' test
+
+  python:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.13']
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python codegen/generate.py --check
+      # 不用 uv run：它会连 [server] 一起解析，而 open-agent-docs-server 要等发版才在 PyPI 上
+      - run: uv venv && uv pip install -e . --group dev
+      - run: .venv/bin/pytest -q tests
+      - run: .venv/bin/pyright src
+        if: matrix.python == '3.13'
+
+  go:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdks/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sdks/go/go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  rust-sdk:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdks/rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdks/rust
+      - run: cargo fmt --all --check
+      - run: cargo run -q -p codegen -- --check
+      - run: cargo clippy --all-features --all-targets --locked -- -D warnings
+      - run: cargo test --all-features --locked
+
+  # 各语言 SDK 对着同一个真服务器跑统一场景
+  conformance:
+    needs: rust
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: oad-debug
+          path: bin
+      - run: chmod +x bin/open-agent-docs && echo "OAD_BINARY=$PWD/bin/open-agent-docs" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sdks/go/go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdks/rust
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: sdks/conformance/run.sh

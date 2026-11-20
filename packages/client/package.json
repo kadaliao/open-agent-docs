@@ -3,6 +3,13 @@
   "version": "0.2.0",
   "description": "Open Agent Docs 的 JS 客户端：HTTP 接口、实时事件、协作文档（Yjs）、本地数据库（WASM 引擎）。浏览器和 Node 18+ 都能用",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadaliao/open-agent-docs.git",
+    "directory": "packages/client"
+  },
+  "homepage": "https://github.com/kadaliao/open-agent-docs#readme",
+  "bugs": "https://github.com/kadaliao/open-agent-docs/issues",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -75,5 +82,8 @@
     "ws": "^8.18.0",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.33"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

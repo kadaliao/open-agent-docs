@@ -1,7 +1,9 @@
 # 推 v* 标签时发版：网页构建一次，四个平台各编一个二进制，打包传到 GitHub 发布页，
 # 再用 Linux 的两个二进制做多架构镜像推到 ghcr.io/kadaliao/open-agent-docs。
+# 同一个版本号的 SDK 一起发：PyPI（open-agent-docs、open-agent-docs-server）、npm（@open-agent-docs/*）、
+# crates.io（open-agent-docs）、Go（标签 sdks/go/vX.Y.Z）。各平台要先配好，见 docs/sdk-contract.md §15。
 #   git tag v0.1.0 && git push origin v0.1.0
-# 标签必须和 Cargo.toml 里的 workspace 版本号一致。
+# 标签必须和 Cargo.toml 里的 workspace 版本号一致（各 SDK 的版本号也是：node scripts/versions.mjs 检查）。
 name: release
 
 on:
@@ -32,6 +34,8 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: 各 SDK、JS 包、openapi.json 的版本号都一致
+        run: node scripts/versions.mjs
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @open-agent-docs/web build
       - uses: actions/upload-artifact@v4
@@ -46,11 +50,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: aarch64-apple-darwin, os: macos-15 }
-          - { target: x86_64-apple-darwin, os: macos-15 }
+          # node：Node 原生模块的平台名（process.platform-process.arch）；lib：cargo 编出来的动态库
+          - { target: aarch64-apple-darwin, os: macos-15, node: darwin-arm64, lib: liboad_node.dylib }
+          - { target: x86_64-apple-darwin, os: macos-15, node: darwin-x64, lib: liboad_node.dylib }
           # 22.04 的 glibc 2.35：老一点的发行版也能跑，镜像（Debian 12）也用这份
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
-          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04, node: linux-x64, lib: liboad_node.so }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm, node: linux-arm64, lib: liboad_node.so }
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
@@ -78,6 +83,25 @@ jobs:
         with:
           name: bin-${{ matrix.target }}
           path: dist/*.tar.gz
+          if-no-files-found: error
+      # 同一台机器上接着编 Node 原生模块和 Python 的进程内服务器（依赖都编过了，只差链接）
+      - name: Node 原生模块（@open-agent-docs/server）
+        run: |
+          cargo build --release --locked -p oad-node --target ${{ matrix.target }}
+          mkdir -p native
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}" "native/oad-server.${{ matrix.node }}.node"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node-${{ matrix.node }}
+          path: native/*.node
+          if-no-files-found: error
+      - uses: astral-sh/setup-uv@v6
+      - name: Python wheel（open-agent-docs-server，abi3）
+        run: uvx --from 'maturin>=1.9,<2' maturin build --release --locked --target ${{ matrix.target }} -m crates/oad-py/Cargo.toml --out wheels
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: wheels/*.whl
           if-no-files-found: error
 
   release:
@@ -145,3 +169,116 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  # ---------- SDK ----------
+  # 都排在 release 后面：SDK 的 start() 会去发布页下载同版本的二进制，先有二进制再发包。
+  # 已经发过的版本跳过（重跑这个 workflow 不会失败）。
+
+  pypi:
+    needs: release
+    runs-on: ubuntu-24.04
+    # PyPI 的 trusted publishing：两个项目都把 kadaliao/open-agent-docs、release.yml、环境 pypi 加成 publisher，不用密钥
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: open-agent-docs（纯 Python 的 SDK）
+        run: uv build sdks/python --out-dir dist
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: dist
+      - run: ls -l dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
+
+  npm:
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # npm 的来源证明（provenance）
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # db-wasm、markdown-wasm 的 dist 在仓库里，不用编
+      - run: pnpm --filter @open-agent-docs/client --filter @open-agent-docs/editor --filter @open-agent-docs/elements build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: node-*
+          merge-multiple: true
+          path: native
+      - name: 原生模块拆成按平台的包
+        run: node packages/server-node/scripts/platform-packages.mjs native npm-platform
+      - name: 打包（workspace:* 换成真的版本号）
+        env:
+          # 不跑 prepack：上面已经编好了；server-node 的 prepack 会在这台机器上重编原生模块
+          npm_config_ignore_scripts: 'true'
+        run: |
+          mkdir -p npm-dist
+          for d in db-wasm markdown-wasm client editor elements server-node; do
+            (cd "packages/$d" && pnpm pack --pack-destination ../../npm-dist)
+          done
+          for d in npm-platform/*/; do (cd "$d" && npm pack --pack-destination ../../npm-dist); done
+          ls -l npm-dist
+      - name: 发布
+        env:
+          # 第一次发包要 token（npm 上的包还不存在，没法配 trusted publishing）；之后可以换成 trusted publishing、删掉这个 secret
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # 先发平台包，再发别的（主包的 optionalDependencies 指向平台包）
+          plat=$(ls npm-dist/open-agent-docs-server-darwin-*.tgz npm-dist/open-agent-docs-server-linux-*.tgz)
+          rest=$(ls npm-dist/*.tgz | grep -v -e '-server-darwin-' -e '-server-linux-')
+          for f in $plat $rest; do
+            name=$(tar -xOzf "$f" package/package.json | node -p 'const j=JSON.parse(require("fs").readFileSync(0));j.name+"@"+j.version')
+            if npm view "$name" version >/dev/null 2>&1; then echo "跳过（已经有了）：$name"; continue; fi
+            npm publish "$f" --access public --provenance
+            echo "发布了：$name"
+          done
+
+  crates:
+    needs: release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: 发布 open-agent-docs
+        working-directory: sdks/rust/open-agent-docs
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          if curl -fsS -A 'open-agent-docs-release' "https://crates.io/api/v1/crates/open-agent-docs/$v" >/dev/null 2>&1; then
+            echo "crates.io 上已经有 $v，跳过"; exit 0
+          fi
+          cargo publish --locked
+
+  go:
+    needs: release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: 打标签 sdks/go/vX.Y.Z（Go 的子目录模块按这个认版本）
+        run: |
+          tag="sdks/go/${GITHUB_REF_NAME}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then echo "已经有 $tag"; exit 0; fi
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: 让 proxy.golang.org 先缓存（go get 马上就能拿到）
+        run: GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go list -m "github.com/kadaliao/open-agent-docs/sdks/go@${GITHUB_REF_NAME}" || true

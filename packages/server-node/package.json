@@ -3,6 +3,13 @@
   "version": "0.2.0",
   "description": "在 Node 进程里起 Open Agent Docs 服务器（Rust，napi-rs）：start() 返回 { url, port, close() }，还能挂到 Node http / Express 上",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadaliao/open-agent-docs.git",
+    "directory": "packages/server-node"
+  },
+  "homepage": "https://github.com/kadaliao/open-agent-docs#readme",
+  "bugs": "https://github.com/kadaliao/open-agent-docs/issues",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
@@ -30,5 +37,8 @@
   },
   "devDependencies": {
     "@open-agent-docs/client": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -3,6 +3,13 @@
   "version": "0.2.0",
   "description": "Open Agent Docs 的 Web Components：<oad-editor>、<oad-viewer>、<oad-database>。宿主不用 React，一个 <script type=\"module\"> 就能用（React、编辑器都打在包里）",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadaliao/open-agent-docs.git",
+    "directory": "packages/elements"
+  },
+  "homepage": "https://github.com/kadaliao/open-agent-docs#readme",
+  "bugs": "https://github.com/kadaliao/open-agent-docs/issues",
   "type": "module",
   "main": "dist/elements.js",
   "module": "dist/elements.js",
@@ -46,5 +53,8 @@
     "vite": "^8.3.8",
     "vitest": "^5.1.1",
     "yjs": "^13.6.33"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

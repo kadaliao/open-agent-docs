@@ -16,7 +16,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "sideEffects": [
     "*.css"
@@ -25,5 +26,15 @@
     "build": "sh build.sh",
     "test": "cargo test -p oad-markdown --test wasm"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadaliao/open-agent-docs.git",
+    "directory": "packages/markdown-wasm"
+  },
+  "homepage": "https://github.com/kadaliao/open-agent-docs#readme",
+  "bugs": "https://github.com/kadaliao/open-agent-docs/issues",
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -21,6 +21,10 @@ classifiers = [
 # 进程内跑服务器（Rust，PyO3）：oad.start() 就不用下载二进制了
 server = ["open-agent-docs-server==0.2.0"]
 
+[dependency-groups]
+# 跑测试和类型检查用（uv run 默认带上）
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "pyright>=1.1.400"]
+
 [project.urls]
 Homepage = "https://github.com/kadaliao/open-agent-docs"
 Source = "https://github.com/kadaliao/open-agent-docs/tree/main/sdks/python"
