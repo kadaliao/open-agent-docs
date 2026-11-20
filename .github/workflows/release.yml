@@ -174,10 +174,12 @@ jobs:
   # 都排在 release 后面：SDK 的 start() 会去发布页下载同版本的二进制，先有二进制再发包。
   # 已经发过的版本跳过（重跑这个 workflow 不会失败）。
 
+  # PyPI 的 trusted publishing，不用密钥。两个项目的 publisher 不能配成一样的，所以各用一个 environment：
+  #   open-agent-docs        → kadaliao/open-agent-docs、release.yml、环境 pypi
+  #   open-agent-docs-server → kadaliao/open-agent-docs、release.yml、环境 pypi-server
   pypi:
     needs: release
     runs-on: ubuntu-24.04
-    # PyPI 的 trusted publishing：两个项目都把 kadaliao/open-agent-docs、release.yml、环境 pypi 加成 publisher，不用密钥
     environment: pypi
     permissions:
       id-token: write
@@ -186,6 +188,19 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: open-agent-docs（纯 Python 的 SDK）
         run: uv build sdks/python --out-dir dist
+      - run: ls -l dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
+
+  pypi-server:
+    needs: release
+    runs-on: ubuntu-24.04
+    environment: pypi-server
+    permissions:
+      id-token: write
+    steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: wheel-*

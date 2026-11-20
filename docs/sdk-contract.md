@@ -249,7 +249,7 @@ Python `sdks/python/tests/conformance/`（pytest），Go `go test ./... -run Con
 | 任务 | 怎么发 | 用户要做的（一次） |
 | --- | --- | --- |
 | PyPI：`open-agent-docs`（纯 Python wheel + sdist） | `pypa/gh-action-pypi-publish`，trusted publishing | 在 PyPI 加 pending publisher：仓库 `kadaliao/open-agent-docs`，workflow `release.yml`，environment `pypi` |
-| PyPI：`open-agent-docs-server`（四个平台的 abi3 wheel） | `PyO3/maturin-action` 编，同上发 | 同上，再加一个项目名 |
+| PyPI：`open-agent-docs-server`（四个平台的 abi3 wheel） | `maturin build` 编，同上发（单独的任务） | 同上，但 environment 用 `pypi-server`（PyPI 不让两个 pending publisher 配成一样的） |
 | npm：`@open-agent-docs/*` + 四个 `@open-agent-docs/server-<平台>` | `npm publish --provenance --access public` | 建 npm org `open-agent-docs`；仓库 secret `NPM_TOKEN`（第一次必须用 token：包还不存在时没法配 trusted publishing；之后可以换） |
 | crates.io：`open-agent-docs` | `cargo publish` | crates.io 的 API token → secret `CARGO_REGISTRY_TOKEN`（第一次必须用 token，之后可以换 trusted publishing） |
 | Go | 推标签 `sdks/go/v<版本>` | 无 |
