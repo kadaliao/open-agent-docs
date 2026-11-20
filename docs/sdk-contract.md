@@ -120,7 +120,7 @@ u.pages.list(u.default_workspace())
   请求体不是对象的（数组、任意 JSON），Python 用 `body=`。
 - **返回**：解析好的模型；204 返回 None / 无；`unwrap` 的直接返回数组；`download` 返回字节。
 - **翻页**（`paginate`）：
-  - Python：`list(...)` 返回 `Page[T]`，可以直接 `for x in page:` 逐条取完所有页（自动带 `cursor` 取下一页），`.items` 是这一页，`.next_cursor`、`.has_next_page()`、`.next_page()`；
+  - Python：`list(...)` 返回 `CursorPage[T]`（异步 `AsyncCursorPage[T]`；不叫 `Page` 是为了不和文档模型 `oad.Page` 重名），可以直接 `for x in page:` 逐条取完所有页（自动带 `cursor` 取下一页），`.items` 是这一页，`.next_cursor`、`.has_next_page()`、`.next_page()`；
     响应里的其它字段（`unread`、`seq`）也能取到。异步版是 `async for`。
   - Go：`List(ctx, ...)` 返回这一页（`*InboxPage` 之类）；`ListAll(ctx, ...)` 返回 `iter.Seq2[T, error]`。
   - Rust：`list(...)` 返回这一页；`list_all(...)` 返回 `impl Stream<Item = Result<T>>`。
@@ -250,13 +250,28 @@ Python `sdks/python/tests/conformance/`（pytest），Go `go test ./... -run Con
 | --- | --- | --- |
 | PyPI：`open-agent-docs`（纯 Python wheel + sdist） | `pypa/gh-action-pypi-publish`，trusted publishing | 在 PyPI 加 pending publisher：仓库 `kadaliao/open-agent-docs`，workflow `release.yml`，environment `pypi` |
 | PyPI：`open-agent-docs-server`（四个平台的 abi3 wheel） | `PyO3/maturin-action` 编，同上发 | 同上，再加一个项目名 |
-| npm：`@open-agent-docs/*` | `npm publish --provenance --access public` | 建 npm org `open-agent-docs`；仓库 secret `NPM_TOKEN`（或者 npm 的 trusted publishing） |
-| crates.io：`open-agent-docs` | `cargo publish` | crates.io 的 API token → secret `CARGO_REGISTRY_TOKEN`（或 trusted publishing） |
+| npm：`@open-agent-docs/*` + 四个 `@open-agent-docs/server-<平台>` | `npm publish --provenance --access public` | 建 npm org `open-agent-docs`；仓库 secret `NPM_TOKEN`（第一次必须用 token：包还不存在时没法配 trusted publishing；之后可以换） |
+| crates.io：`open-agent-docs` | `cargo publish` | crates.io 的 API token → secret `CARGO_REGISTRY_TOKEN`（第一次必须用 token，之后可以换 trusted publishing） |
 | Go | 推标签 `sdks/go/v<版本>` | 无 |
 
 发版前检查：各 SDK 的版本号和标签一致（`scripts/versions.mjs` 一起改 Python、Rust SDK 的版本）。
 
-## 16. 文档
+## 16. 落地时的调整
+
+做出来以后和上面不一样、已经认可的地方（各 SDK 的 README 里有细节）：
+
+- **事件流**：400、410 也不重连（不只 401、403、404）。Rust 的 `events()` 和 Go 的迭代器在第一次连上之后才开始给数据，第一次就 401 的直接报错。
+- **Agent 通知流重连**：服务器先看 `?after=` 再看 `Last-Event-ID`，所以重连时要把 `after` 换成最后收到的编号（Go），或者去掉 `after` 只带头（Python）。两种都对。
+- **webhook 用例**：vectors.json 里的正文不是完整的 AgentNotification。只验签名用 Rust 的 `verify_webhook_signature`；Python 签名对但模型不全时返回不校验的模型。
+- **重试**：读超时不重试（请求可能已经到了服务器）。
+- **Go**：`WithUser` 返回 `(*Client, error)`；查询参数用普通类型，零值不发；只声明 gzip（标准库解不了 br）。
+- **Rust**：三态字段是 `Nullable<T>`（只在请求模型里）；响应模型宽松解析（缺字段给默认值，枚举有 `Other`）；上传用原始正文加 `X-Filename`，不用 multipart。
+- **Python**：配置错误叫 `ConfigurationError`；`verify_webhook` 的 `now=` 用秒；每个方法另有 `extra_headers`、`extra_query`、`extra_body`、`timeout`。
+- **JS**：错误按函数判断（`isNotFound(e)`），不用子类；`@open-agent-docs/elements` 是一个入口文件加按需加载的块（全部打进一个文件会有几 MB）。
+- **只读 HTML 和嵌入里的文件地址带签名**（`OAD_SIGNED_URL_TTL`，默认 24 小时）：不登录也能打开。宿主缓存 HTML 不能超过有效期；拿到 HTML 的人在有效期内都能打开文件。文档里要写明。
+- **CORS**：`OAD_ALLOWED_ORIGINS`（加上 `OAD_PUBLIC_URL`）里的 origin 可以跨域直接调 `/api`，Web Component 不用宿主转发。
+
+## 17. 文档
 
 - `docs/zh/sdks.md`、`docs/en/sdks.md`：每种语言一节：安装、建客户端、建页面写 Markdown、替用户调、收事件、验 webhook、本地启动；一张接口对照表（点路径 → 各语言写法，由 operations.json 生成）。
 - 每个 SDK 目录有 README（中英）；README、docs/README 的目录加链接；embedding.md 加 Web Component 和跨域 iframe。
