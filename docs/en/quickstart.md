@@ -4,6 +4,19 @@
 
 By default the server listens on `127.0.0.1:8848` and keeps its data in `./data`.
 
+## Homebrew
+
+macOS and Linux (arm64 and x86_64):
+
+```sh
+brew install kadaliao/tap/open-agent-docs
+# Create an admin first (you'll be asked for the password); the data directory matches the service below
+open-agent-docs user add --email me@example.com --name Me --role owner --data-dir "$(brew --prefix)/var/open-agent-docs"
+brew services start open-agent-docs      # runs as a service and starts at login; data lives in $(brew --prefix)/var/open-agent-docs
+```
+
+Open http://127.0.0.1:8848 and sign in. Logs go to `$(brew --prefix)/var/log/open-agent-docs.log`; upgrade with `brew upgrade open-agent-docs`.
+
 ## Binary
 
 Download the archive for your platform from the [releases page](https://github.com/kadaliao/open-agent-docs/releases/latest)

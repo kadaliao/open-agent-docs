@@ -4,6 +4,19 @@
 
 服务器默认监听 `127.0.0.1:8848`，数据放在当前目录的 `./data`。
 
+## Homebrew
+
+macOS、Linux（arm64 和 x86_64）：
+
+```sh
+brew install kadaliao/tap/open-agent-docs
+# 先建管理员（密码在终端里输入），数据目录和下面的服务一致
+open-agent-docs user add --email me@example.com --name 我 --role owner --data-dir "$(brew --prefix)/var/open-agent-docs"
+brew services start open-agent-docs      # 当服务跑，开机自启；数据在 $(brew --prefix)/var/open-agent-docs
+```
+
+打开 http://127.0.0.1:8848 登录。日志在 `$(brew --prefix)/var/log/open-agent-docs.log`，升级用 `brew upgrade open-agent-docs`。
+
 ## 二进制
 
 从[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)下载对应平台的压缩包（macOS、Linux，arm64 和 x86_64 都有），或者[从源码编](#从源码编)。

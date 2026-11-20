@@ -63,7 +63,8 @@ docker run -d -p 8848:8848 -v oad-data:/data \
 ```
 
 Open http://127.0.0.1:8848. No source checkout needed; the image is published for amd64 and arm64. For Docker Compose, just
-download [docker-compose.yml](docker-compose.yml). For the binaries ([releases page](https://github.com/kadaliao/open-agent-docs/releases/latest))
+download [docker-compose.yml](docker-compose.yml). On macOS and Linux you can also `brew install kadaliao/tap/open-agent-docs` and run it as a service with
+`brew services start open-agent-docs`. For the binaries ([releases page](https://github.com/kadaliao/open-agent-docs/releases/latest))
 and building from source, see [Quick start](docs/en/quickstart.md).
 
 Connect Claude Code (create the agent and its token under **Agents** in the web app):

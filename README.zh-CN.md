@@ -56,7 +56,7 @@ docker run -d -p 8848:8848 -v oad-data:/data \
 ```
 
 打开 http://127.0.0.1:8848 。不用下源码，镜像有 amd64 和 arm64 两种；用 Docker Compose 的话下载
-[docker-compose.yml](docker-compose.yml) 就行。直接用二进制（[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)）、从源码编，见[快速开始](docs/zh/quickstart.md)。
+[docker-compose.yml](docker-compose.yml) 就行。macOS、Linux 也可以 `brew install kadaliao/tap/open-agent-docs`，再 `brew services start open-agent-docs` 当服务跑。直接用二进制（[发布页](https://github.com/kadaliao/open-agent-docs/releases/latest)）、从源码编，见[快速开始](docs/zh/quickstart.md)。
 
 接上 Claude Code（在网页的 **Agent** 里建一个，拿到 token）：
 
