@@ -12,6 +12,8 @@ export const client = createClient({
   baseUrl: '',
   locale: () => getLocale(),
   token: () => getToken(),
+  // 断网、服务器没开：马上报错，不白等一秒多的重试；429、503 还是会重试
+  retryConnectionErrors: false,
   ...(EMBED_AUTH ? { fetch: watch401() } : {}),
 })
 

@@ -7,7 +7,9 @@
 //!
 //! 需要脚本才画得出来的块（公式、链接卡片、内嵌库）出成带 `data-*` 的占位，文字留着：宿主想画就照着 `data-*` 自己画。
 //! 根相对的地址（`/api/v1/files/…`、`/p/…`）在给了 `base_url` 时拼成完整地址（嵌在别的域名下也打得开）。
+//! 服务器还会给本站的文件、图片带上签名（`signed`，`?exp=…&sig=…`），不登录也打得开；浏览器里转的没有签名。
 use crate::node::{Mark, Node, mark_rank};
+use std::collections::HashMap;
 
 /// 转 HTML 的选项。
 #[derive(Clone, Debug, Default, serde::Deserialize)]
@@ -16,6 +18,10 @@ pub struct HtmlOptions {
     /// 对外的地址（如 `https://docs.example.com`）：`/` 开头的地址前面拼上它。不给就保持相对地址。
     #[serde(default)]
     pub base_url: Option<String>,
+    /// 本站文件、图片的签名（只有服务器给）：文件 id 或媒体 hash → `exp=…&sig=…`。
+    /// 根相对的 `/api/v1/files/<id>…`、`/api/v1/media/<hash>` 在这里查得到的就把它加到地址后面。
+    #[serde(skip)]
+    pub signed: HashMap<String, String>,
 }
 
 /// 整个文档 → `<div class="oad-content">…</div>`。传进来的不是 `doc` 也行（当成一个块）。
@@ -25,7 +31,10 @@ pub fn to_html(doc: &Node, opts: &HtmlOptions) -> String {
         .as_deref()
         .map(|b| b.trim().trim_end_matches('/'))
         .filter(|b| !b.is_empty() && safe_url(b, Kind::Image, None).is_some());
-    let cx = Cx { base };
+    let cx = Cx {
+        base,
+        signed: &opts.signed,
+    };
     let mut out = String::from("<div class=\"oad-content\">");
     if doc.ty == "doc" {
         blocks(&doc.content, &cx, &mut out);
@@ -38,6 +47,54 @@ pub fn to_html(doc: &Node, opts: &HtmlOptions) -> String {
 
 struct Cx<'a> {
     base: Option<&'a str>,
+    signed: &'a HashMap<String, String>,
+}
+
+impl Cx<'_> {
+    /// 能放进 href / src 的地址：[`safe_url`]，本站文件有签名的带上签名，根相对的拼上 base。
+    fn url(&self, raw: &str, kind: Kind) -> Option<String> {
+        if self.signed.is_empty() {
+            return safe_url(raw, kind, self.base);
+        }
+        let u = safe_url(raw, kind, None)?;
+        let u = match own_asset(&u).and_then(|k| self.signed.get(k)) {
+            Some(q) => with_query(&u, q),
+            None => u,
+        };
+        Some(match self.base {
+            Some(b) if root_relative(&u) => format!("{b}{u}"),
+            _ => u,
+        })
+    }
+}
+
+fn root_relative(u: &str) -> bool {
+    u.starts_with('/') && !u[1..].starts_with(['/', '\\'])
+}
+
+/// 根相对的 `/api/v1/files/<id>…` → id；`/api/v1/media/<hash>` → hash。
+fn own_asset(u: &str) -> Option<&str> {
+    if !root_relative(u) {
+        return None;
+    }
+    let rest = u
+        .strip_prefix("/api/v1/files/")
+        .or_else(|| u.strip_prefix("/api/v1/media/"))?;
+    let key = rest.split(['/', '?', '#']).next()?;
+    (!key.is_empty()).then_some(key)
+}
+
+/// 地址后面加查询参数（`#…` 之前）。
+fn with_query(u: &str, q: &str) -> String {
+    let (main, frag) = match u.split_once('#') {
+        Some((m, f)) => (m, Some(f)),
+        None => (u, None),
+    };
+    let sep = if main.contains('?') { '&' } else { '?' };
+    match frag {
+        Some(f) => format!("{main}{sep}{q}#{f}"),
+        None => format!("{main}{sep}{q}"),
+    }
 }
 
 const CALLOUT_KINDS: &[(&str, &str)] = &[
@@ -224,10 +281,7 @@ fn image(n: &Node, cx: &Cx, out: &mut String) {
         )),
         None => out.push_str("<figure class=\"oad-image\">"),
     }
-    match n
-        .attr_str("src")
-        .and_then(|s| safe_url(s, Kind::Image, cx.base))
-    {
+    match n.attr_str("src").and_then(|s| cx.url(s, Kind::Image)) {
         Some(src) => {
             out.push_str(&format!("<img src=\"{}\" alt=\"{}\"", esc(&src), esc(alt)));
             if let Some(t) = n.attr_str("title").filter(|t| !t.is_empty()) {
@@ -254,7 +308,7 @@ fn embed(n: &Node, cx: &Cx, out: &mut String) {
     } else {
         "embed"
     };
-    let Some(url) = safe_url(raw, Kind::Link, cx.base) else {
+    let Some(url) = cx.url(raw, Kind::Link) else {
         out.push_str(&format!(
             "<div class=\"oad-embed\" data-type=\"embed\" data-view=\"{view}\"><span>{}</span></div>",
             esc(raw)
@@ -328,7 +382,7 @@ fn mark_tags(m: &Mark, cx: &Cx) -> Option<(String, &'static str)> {
         "highlight" => ("<mark>".into(), "</mark>"),
         "code" => ("<code>".into(), "</code>"),
         "link" => {
-            let href = safe_url(m.attr_str("href")?, Kind::Link, cx.base)?;
+            let href = cx.url(m.attr_str("href")?, Kind::Link)?;
             let mut s = format!("<a href=\"{}\"", esc(&href));
             if let Some(t) = m.attr_str("title").filter(|t| !t.is_empty()) {
                 s.push_str(&format!(" title=\"{}\"", esc(t)));
@@ -392,7 +446,7 @@ fn inline_node(n: &Node, cx: &Cx, out: &mut String) {
         }
         "linkMention" => {
             let raw = n.attr_str("url").unwrap_or("");
-            match safe_url(raw, Kind::Link, cx.base) {
+            match cx.url(raw, Kind::Link) {
                 Some(u) => {
                     let u = esc(&u);
                     out.push_str(&format!(
@@ -692,6 +746,7 @@ mod tests {
             &doc,
             &HtmlOptions {
                 base_url: Some("https://docs.example.com/".into()),
+                ..Default::default()
             },
         );
         assert!(
@@ -713,10 +768,40 @@ mod tests {
             &doc,
             &HtmlOptions {
                 base_url: Some("javascript:alert(1)//".into()),
+                ..Default::default()
             },
         );
         assert_safe(&bad);
         assert!(bad.contains("src=\"/api/v1/files/abc123/a.png\""), "{bad}");
+        // 签名：本站的文件带上（在 base 之前加），别的地址不动
+        let signed = to_html(
+            &doc,
+            &HtmlOptions {
+                base_url: Some("https://docs.example.com".into()),
+                signed: [
+                    ("abc123".to_string(), "exp=9&sig=s1".to_string()),
+                    ("def456".to_string(), "exp=9&sig=s2".to_string()),
+                ]
+                .into(),
+            },
+        );
+        assert!(
+            signed.contains(
+                "src=\"https://docs.example.com/api/v1/files/abc123/a.png?exp=9&amp;sig=s1\""
+            ),
+            "{signed}"
+        );
+        assert!(
+            signed.contains("data-url=\"https://docs.example.com/api/v1/files/def456/%E6%8A%A5%E5%91%8A.pdf?exp=9&amp;sig=s2\""),
+            "{signed}"
+        );
+        assert!(
+            signed.contains("href=\"https://docs.example.com/p/xyz\""),
+            "{signed}"
+        );
+        assert_eq!(with_query("/a?w=1#x", "exp=1"), "/a?w=1&exp=1#x");
+        assert_eq!(own_asset("/api/v1/media/ff00?w=3"), Some("ff00"));
+        assert_eq!(own_asset("//evil/api/v1/files/abc"), None);
     }
 
     #[test]

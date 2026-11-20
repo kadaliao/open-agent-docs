@@ -1,23 +1,30 @@
-// 宿主的 Node 服务（示意）：宿主自己管登录，给浏览器发 Open Agent Docs 的 JWT；页面上的 <oad-editor> / <oad-viewer> 带着 JWT 调接口。
-// Open Agent Docs 用 JWT 登录跑：OAD_AUTH=jwt OAD_JWT_SECRET=<密钥> open-agent-docs serve
+// 宿主的 Node 服务（示意）：宿主自己管登录，给浏览器发 Open Agent Docs 的 JWT；页面上的 <oad-editor> / <oad-viewer> 带着 JWT 直接调 Open Agent Docs。
+// Open Agent Docs 用 JWT 登录跑，并且允许宿主的 origin 跨域（CORS、WebSocket 的 Origin 检查、图片的签名地址都靠它）：
+//   OAD_AUTH=jwt OAD_JWT_SECRET=<密钥> OAD_ALLOWED_ORIGINS=http://localhost:5184 open-agent-docs serve
 //
-//   浏览器 ──► 本服务（:5184）── /api/*（原样转发，带着浏览器的 Authorization / ?token=）──► Open Agent Docs（:8848）
-//              ├ /token：当前用户的 JWT（signJwt）
-//              ├ /host/page：宿主后端替当前用户找（没有就建）一页（withUser）
-//              ├ /oad/*：@open-agent-docs/elements 的 dist（真实项目用 CDN）
-//              └ /：宿主页面（index.html）
+//   浏览器 ──► 本服务（:5184）  ├ /token：当前用户的 JWT（signJwt）
+//      │                        ├ /host/page：宿主后端替当前用户找（没有就建）一页（withUser），顺便告诉页面 Open Agent Docs 在哪
+//      │                        ├ /oad/*：@open-agent-docs/elements 的 dist（真实项目用 CDN）
+//      │                        └ /：宿主页面（index.html）
+//      └──── 直连（CORS）──────► Open Agent Docs（:8848）：/api/*、协作编辑的 WebSocket、图片（签名地址）
 //
-// 为什么要转发 /api：浏览器跨域直接调 Open Agent Docs 要服务器开 CORS；放在同一个域名下最省事。
-// 环境变量：PORT（默认 5184）、OAD_URL（默认 http://127.0.0.1:8848）、OAD_JWT_SECRET（必填，和服务器一样）
+// 第二种写法（PROXY=1）：本服务把 /api/*（含 WebSocket）原样转给 Open Agent Docs，页面只和宿主同一个域名打交道（base-url 不给）。
+// 不想让浏览器看到 Open Agent Docs 的地址、或者服务器只听内网时用。
+// 环境变量：PORT（默认 5184）、OAD_URL（默认 http://127.0.0.1:8848，后端调它）、OAD_PUBLIC_URL（浏览器连的地址，默认同 OAD_URL）、
+// OAD_JWT_SECRET（必填，和服务器一样）、PROXY（1：转发 /api）
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
+import zlib from 'node:zlib'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize } from 'node:path'
 import { createClient, signJwt } from '@open-agent-docs/client/node'
 
 const PORT = Number(process.env.PORT ?? 5184)
 const OAD = new URL(process.env.OAD_URL ?? 'http://127.0.0.1:8848')
+const PROXY = process.env.PROXY === '1'
+// 页面上元素的 base-url：直连时是浏览器能连到的 Open Agent Docs 地址；转发时空（同源）
+const BASE_URL = PROXY ? '' : (process.env.OAD_PUBLIC_URL ?? OAD.origin).replace(/\/+$/, '')
 const SECRET = process.env.OAD_JWT_SECRET
 if (!SECRET) throw new Error('要设 OAD_JWT_SECRET（和 Open Agent Docs 服务器的一样）')
 const here = new URL('.', import.meta.url).pathname
@@ -36,12 +43,38 @@ async function demoPage(user) {
   const ws = await u.defaultWorkspace()
   shared ??= (async () => {
     const page = await u.createPage(ws, { title: '宿主里的共享页' })
+    // 一张图：<img> 带不了 JWT，元素会换成签名地址（POST /files/sign）
+    const img = await u.upload(ws, png(), { name: '示意图.png' })
+    await u.putContent(page.id, { markdown: `宿主后端写的第一段。\n\n![示意图](${img.url})` })
     const db = await u.createDatabase(ws, { title: '任务', schema: { props: [{ name: '状态', type: 'select', options: ['要做', '在做', '做完'] }] } })
     const title = db.schema.props.find((p) => p.type === 'title').key
     await u.addRows(db.page.id, [{ props: { [title]: '写周报' } }, { props: { [title]: '看评论' } }])
     return { pageId: page.id, dbId: db.page.id }
   })()
   return shared
+}
+
+/** 一张 64×40 的渐变 PNG（演示用，不带图片库） */
+function png() {
+  const { deflateSync, crc32 } = zlib
+  const W = 64
+  const H = 40
+  const raw = Buffer.alloc((W * 3 + 1) * H)
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) raw.set([124 + x, 58 + y * 3, 237], y * (W * 3 + 1) + 1 + x * 3)
+  const chunk = (t, d) => {
+    const b = Buffer.alloc(12 + d.length)
+    b.writeUInt32BE(d.length, 0)
+    b.write(t, 4, 'latin1')
+    d.copy(b, 8)
+    b.writeUInt32BE(crc32(Buffer.concat([Buffer.from(t, 'latin1'), d])), 8 + d.length)
+    return b
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(W, 0)
+  ihdr.writeUInt32BE(H, 4)
+  ihdr.set([8, 2, 0, 0, 0], 8)
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
 }
 
 const send = (res, status, body, type = 'application/json') => res.writeHead(status, { 'content-type': type }).end(typeof body === 'string' ? body : JSON.stringify(body))
@@ -67,10 +100,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/host/page') {
       const u = userOf(req)
-      return send(res, 200, { ...(await demoPage(u)), user: u })
+      return send(res, 200, { ...(await demoPage(u)), user: u, baseUrl: BASE_URL })
     }
-    if (url.pathname.startsWith('/api/')) {
-      // 原样转发（JWT 在浏览器发来的 Authorization 里）
+    if (PROXY && url.pathname.startsWith('/api/')) {
+      // 第二种写法：原样转发（JWT 在浏览器发来的 Authorization 里）
       const up = http.request({ host: OAD.hostname, port: OAD.port, path: req.url, method: req.method, headers: { ...req.headers, host: OAD.host } }, (r) => {
         res.writeHead(r.statusCode ?? 502, r.headers)
         r.pipe(res)
@@ -89,9 +122,9 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-// 协作编辑的 WebSocket（/api/v1/sync/<页>?token=<JWT>）：原样转过去
+// 第二种写法：协作编辑的 WebSocket（/api/v1/sync/<页>?token=<JWT>）也原样转过去
 server.on('upgrade', (req, sock, head) => {
-  if (!req.url.startsWith('/api/')) return sock.destroy()
+  if (!PROXY || !req.url.startsWith('/api/')) return sock.destroy()
   const up = net.connect(Number(OAD.port), OAD.hostname, () => {
     const headers = { ...req.headers, host: OAD.host }
     up.write([`${req.method} ${req.url} HTTP/1.1`, ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`), '', ''].join('\r\n'))
@@ -103,4 +136,4 @@ server.on('upgrade', (req, sock, head) => {
   sock.on('error', () => up.destroy())
 })
 
-server.listen(PORT, () => console.log(`宿主应用：http://localhost:${PORT}（转发到 ${OAD.origin}）`))
+server.listen(PORT, () => console.log(`宿主应用：http://localhost:${PORT}（${PROXY ? '/api 转发到 ' + OAD.origin : '浏览器直连 ' + BASE_URL}）`))

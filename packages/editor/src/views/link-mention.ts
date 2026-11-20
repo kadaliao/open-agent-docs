@@ -3,6 +3,7 @@ import type { NodeViewRenderer } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { media } from '../extensions/media'
 import { host } from '../media/dom'
+import { resolveDeep } from '../media/resolve'
 import type { Unfurl } from '../media/types'
 
 function label(d: Unfurl | null, url: string) {
@@ -33,14 +34,28 @@ export const linkMentionView: NodeViewRenderer = (p) => {
 
   const show = (d: Unfurl | null) => {
     const url = node.attrs.url || ''
-    dom.href = /^(https?:|\/)/i.test(url) ? url : '#'
     text.textContent = label(d, url)
-    const fav = d?.favicon ?? (/^https?:/i.test(url) ? `${new URL(url).origin}/favicon.ico` : '')
-    if (fav) {
-      ico.style.display = ''
-      ico.src = fav
-    } else ico.removeAttribute('src')
     dom.title = d?.title ? `${d.title}\n${url}` : url
+    let fav = d?.favicon ?? ''
+    if (!fav && /^https?:/i.test(url)) {
+      try {
+        fav = `${new URL(url).origin}/favicon.ico`
+      } catch {
+        fav = ''
+      }
+    }
+    // 本站的文件、转存的图标：跨域、token 登录时换成能直接打开的地址
+    const got = resolveDeep({ href: /^(https?:|\/)/i.test(url) ? url : '#', fav }, media(p.editor).resolveUrl)
+    const apply = (x: { href: string; fav: string }) => {
+      if (!alive || node.attrs.url !== url) return
+      dom.href = x.href
+      if (x.fav) {
+        ico.style.display = ''
+        ico.src = x.fav
+      } else ico.removeAttribute('src')
+    }
+    if (got instanceof Promise) got.then(apply, () => {})
+    else apply(got)
   }
   const start = () => {
     const url = node.attrs.url || ''

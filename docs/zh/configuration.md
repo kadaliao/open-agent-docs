@@ -18,10 +18,22 @@
 | `OAD_PUBLIC_URL` | `--public-url` | 无 | 对外的地址，如 `https://docs.example.com`。通知、webhook、分享里的链接用它；它的 Host 和 Origin 自动允许 |
 | `OAD_COOKIE_SECURE` | `--cookie-secure` | 关 | 会话 cookie 加 `Secure`。走 HTTPS 时打开（`true` / `1`） |
 | `OAD_ALLOWED_HOSTS` | `--allowed-hosts` | 无 | 额外允许的 Host，逗号分隔；`*` 表示不检查。见下面的“请求来源” |
-| `OAD_ALLOWED_ORIGINS` | `--allowed-origins` | 无 | 允许跨源的 Origin（嵌入到别的域名时），逗号分隔，如 `https://app.example.com` |
-| `OAD_RATE_LIMIT` | | `1200` | 每个 token / 会话（没有就按 IP）每分钟最多多少个请求；`0` 不限 |
+| `OAD_ALLOWED_ORIGINS` | `--allowed-origins` | 无 | 允许跨源的 Origin（嵌入到别的域名时），逗号分隔，如 `https://app.example.com`。同一个列表（加上 `OAD_PUBLIC_URL` 的 origin）管三件事：写请求和 WebSocket 的 Origin 检查、`/api/v1` 的 CORS（别的域名的页面直连接口、事件流）、嵌入的 iframe 认不认宿主发来的 `oad:token`。见下面的“请求来源” |
+| `OAD_SIGNED_URL_TTL` | | `86400` | 文件签名地址（`?exp=&sig=`，`format=html` 里的图片、`POST /files/sign`）的有效期，秒。往后凑整到一个刻度（有效期的 1/24，最多一小时）。见下面的提示 |
+| `OAD_RATE_LIMIT` | | `1200` | 每个 token / 会话（没有就按 IP；不登录取签名地址的按签名算）每分钟最多多少个请求；`0` 不限 |
 | `OAD_MAX_UPLOAD_MB` | | `100` | 上传文件的大小上限（MB） |
 | `OAD_TZ` | | 系统时区 | 服务器时区，IANA 名字，如 `Asia/Shanghai`。数据库里的“今天”、相对日期、时间的显示按它算；认不出时用系统的 |
+
+> [!WARNING]
+> **`OAD_SIGNED_URL_TTL` 的两个后果**：
+>
+> 1. `format=html` 返回的 HTML 里，图片和文件地址带的签名有有效期（默认 24 小时）。宿主把 HTML 缓存起来（知识库前台常这么做）的话，
+>    缓存时间不要超过有效期：过期前重新取一次，或者按响应里的 `assets_expire_at`（毫秒时间戳）安排刷新。
+> 2. 拿到这段 HTML（或者签名地址）的任何人，在有效期内不登录也能打开里面的图片和文件。文档不该外泄的场景就把有效期调短；
+>    要长期公开的内容用分享链接。
+>
+> 签名的密钥第一次启动时随机生成、存在数据库里（多租户每个租户一把）。想让已经发出去的签名地址全部作废：删掉 `settings` 表里的
+> `url_signing_key` 再重启。
 
 ## 存储
 
@@ -74,4 +86,6 @@
   `localhost`、`127.0.0.1`、`[::1]`。用别的域名或 IP 访问 `none` 模式的服务器时，要把它写进 `OAD_ALLOWED_HOSTS`。
 - **Origin**：改数据的请求（POST / PUT / PATCH / DELETE）和 WebSocket 握手，带了 Origin 的必须同源、在 `OAD_ALLOWED_ORIGINS` 里，
   或者是 `OAD_PUBLIC_URL`。不带 Origin 的（Agent、curl、服务器之间）照常放行。
+- **CORS**：`/api/v1` 只对同一个列表里的 Origin 回 CORS 头（处理预检；允许 `Authorization`、`Content-Type`、`Last-Event-ID`、`Accept-Language`、
+  `X-Filename` 等请求头和带 cookie；露出 `RateLimit-*`、`Retry-After`、`ETag`），别的 Origin 不回，浏览器就拦下了。事件流（SSE）一样。
 - 反向代理后面：设 `OAD_PUBLIC_URL`，代理要传原来的 `Host`（或 `X-Forwarded-Host`）。见[部署](deployment.md)。

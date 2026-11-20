@@ -831,9 +831,15 @@ type FilesService struct {
 
 // FilesDownloadParams 是 client.Files.Download 的参数。都是可选的，可以传零值。
 type FilesDownloadParams struct {
+	// Exp 签名地址的过期时间（unix 秒），见 `POST /files/sign`
+	// 查询参数 exp，零值不发。
+	Exp int64
 	// Range `bytes=a-b`，只认一段
 	// 请求头 Range，空字符串不发。
 	Range string
+	// Sig 签名，和 `exp` 一起给；有效就不用登录
+	// 查询参数 sig，零值不发。
+	Sig string
 	// W 缩略图宽度（图片才有，给 WebP）
 	// 查询参数 w，零值不发。
 	W int32
@@ -845,6 +851,12 @@ type FilesDownloadParams struct {
 func (r *FilesService) Download(ctx context.Context, id string, params FilesDownloadParams) (io.ReadCloser, error) {
 	req := &request{method: "GET", path: "/files/" + url.PathEscape(id)}
 	q := url.Values{}
+	if params.Exp != 0 {
+		q.Set("exp", strconv.FormatInt(params.Exp, 10))
+	}
+	if params.Sig != "" {
+		q.Set("sig", params.Sig)
+	}
 	if params.W != 0 {
 		q.Set("w", strconv.FormatInt(int64(params.W), 10))
 	}
@@ -857,20 +869,32 @@ func (r *FilesService) Download(ctx context.Context, id string, params FilesDown
 
 // FilesDownloadNamedParams 是 client.Files.DownloadNamed 的参数。都是可选的，可以传零值。
 type FilesDownloadNamedParams struct {
+	// Exp 签名地址的过期时间（unix 秒），见 `POST /files/sign`
+	// 查询参数 exp，零值不发。
+	Exp int64
 	// Range `bytes=a-b`，只认一段
 	// 请求头 Range，空字符串不发。
 	Range string
+	// Sig 签名，和 `exp` 一起给；有效就不用登录
+	// 查询参数 sig，零值不发。
+	Sig string
 	// W 缩略图宽度（图片才有，给 WebP）
 	// 查询参数 w，零值不发。
 	W int32
 }
 
 // DownloadNamed 对应 GET /files/{id}/{name}。
-// 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+// 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
 // 返回响应正文，用完要 Close。
 func (r *FilesService) DownloadNamed(ctx context.Context, id string, name string, params FilesDownloadNamedParams) (io.ReadCloser, error) {
 	req := &request{method: "GET", path: "/files/" + url.PathEscape(id) + "/" + url.PathEscape(name)}
 	q := url.Values{}
+	if params.Exp != 0 {
+		q.Set("exp", strconv.FormatInt(params.Exp, 10))
+	}
+	if params.Sig != "" {
+		q.Set("sig", params.Sig)
+	}
 	if params.W != 0 {
 		q.Set("w", strconv.FormatInt(int64(params.W), 10))
 	}
@@ -883,20 +907,32 @@ func (r *FilesService) DownloadNamed(ctx context.Context, id string, name string
 
 // FilesMediaParams 是 client.Files.Media 的参数。都是可选的，可以传零值。
 type FilesMediaParams struct {
+	// Exp 签名地址的过期时间（unix 秒），见 `POST /files/sign`
+	// 查询参数 exp，零值不发。
+	Exp int64
 	// Range `bytes=a-b`，只认一段
 	// 请求头 Range，空字符串不发。
 	Range string
+	// Sig 签名，和 `exp` 一起给；有效就不用登录
+	// 查询参数 sig，零值不发。
+	Sig string
 	// W 缩略图宽度
 	// 查询参数 w，零值不发。
 	W int32
 }
 
 // Media 对应 GET /media/{hash}。
-// 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+// 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
 // 返回响应正文，用完要 Close。
 func (r *FilesService) Media(ctx context.Context, hash string, params FilesMediaParams) (io.ReadCloser, error) {
 	req := &request{method: "GET", path: "/media/" + url.PathEscape(hash)}
 	q := url.Values{}
+	if params.Exp != 0 {
+		q.Set("exp", strconv.FormatInt(params.Exp, 10))
+	}
+	if params.Sig != "" {
+		q.Set("sig", params.Sig)
+	}
 	if params.W != 0 {
 		q.Set("w", strconv.FormatInt(int64(params.W), 10))
 	}
@@ -905,6 +941,28 @@ func (r *FilesService) Media(ctx context.Context, hash string, params FilesMedia
 		req.setHeader("Range", params.Range)
 	}
 	return r.core.download(ctx, req)
+}
+
+// FilesSignParams 是 client.Files.Sign 的参数。
+type FilesSignParams struct {
+	// URLs 要签的：文件地址 `/api/v1/files/<id>[/<文件名>]`、转存图片的地址 `/api/v1/media/<hash>`（根相对的或者带域名的，可以带 `?w=`），
+	// 或者只给文件 id。最多 500 个
+	// 必填。
+	URLs []string
+}
+
+// Sign 对应 POST /files/sign。
+// 给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+func (r *FilesService) Sign(ctx context.Context, params FilesSignParams) (*SignedFileURLs, error) {
+	req := &request{method: "POST", path: "/files/sign"}
+	if err := req.setJSON(SignFileURLs{URLs: params.URLs}); err != nil {
+		return nil, err
+	}
+	var out SignedFileURLs
+	if err := r.core.do(ctx, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // Upload 对应 POST /workspaces/{ws}/files。

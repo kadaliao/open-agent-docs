@@ -70,13 +70,22 @@ el.addEventListener('oad-navigate', (e) => {
 
 ## 登录
 
-- **JWT**（推荐，`OAD_AUTH=jwt`）：宿主后端用 `@open-agent-docs/client/node` 的 `signJwt(secret, userId, { name, email })` 签，经 `getToken` 给元素；`/api` 原样转发。
+- **JWT**（推荐，`OAD_AUTH=jwt`）：宿主后端用 `@open-agent-docs/client/node` 的 `signJwt(secret, userId, { name, email })` 签，经 `getToken` 给元素；元素带着它直连服务器（见下面的跨域直连）。
 - **同源 + 宿主转发**：宿主把 `/api/*`（含 WebSocket）转给 Open Agent Docs，转发时加上 `X-OAD-User-*`（`OAD_AUTH=header`）；元素不用给 token，`base-url` 也不用给。
 - **Agent token**：`token="oad_…"`，适合内部工具。
 
-跨域直连（`base-url` 是别的域名）要服务器对 `/api` 回 CORS 头，现在的服务器还没有（只有 `/embed/content.css` 有）：先把 `/api`（含 WebSocket）
-转发到宿主同一个域名下，`base-url` 不给；WebSocket 握手还要检查 Origin，上线时 `OAD_ALLOWED_ORIGINS` 设成宿主的域名。
-完整的例子见仓库里的 `examples/embed-elements`（纯 HTML + 一个小 Node 服务：签 JWT、转发 `/api`）。
+**跨域直连**（`base-url` 是别的域名）：服务器的 `OAD_ALLOWED_ORIGINS` 写上宿主页面的 origin，接口（CORS）、事件流、WebSocket 握手（Origin 检查）就都放行了：
+
+```sh
+OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+```
+
+**图片和文件**：`<img>`、`<video>`、链接带不了 token。用 token 登录时，元素显示前先把服务器上的地址交给 `POST /api/v1/files/sign` 换成签名地址
+（`?exp=…&sig=…`，一批一起签，缓存到过期前 60 秒；过期了、加载失败了重签），跨域时再拼上 `base-url`；`<oad-viewer>` 拿到的 `format=html` 里本来就是签名地址。
+签名地址在有效期内（默认 24 小时，`OAD_SIGNED_URL_TTL`）谁拿到都能打开，见[嵌入文档](../../docs/zh/embedding.md#只读-html)。
+
+不想让浏览器直连（服务器只听内网）：宿主把 `/api/*`（含 WebSocket）转发到自己的域名下，`base-url` 不给。
+完整的例子见仓库里的 `examples/embed-elements`（纯 HTML + 一个小 Node 服务签 JWT，元素直连；`PROXY=1` 是转发的写法）。
 
 ## 换样式
 
@@ -98,8 +107,10 @@ oad-editor, oad-viewer, oad-database {
 
 `@open-agent-docs/editor` 是 React 组件，宿主自己管 React、样式表；这个包是同一套组件包了一层：
 
-- 代码块的语言提示、图片的大图预览这两样挂在 `document.body` 上，在 Shadow DOM 里不好用（大图没有样式、语言提示出不来；数据库视图的弹出菜单已经挂进 Shadow DOM 了）。
-- 一个页面上的多个元素共用同一份界面语言（`lang` 改的是全局的）。
+- 弹出来的东西（数据库的弹出菜单、公式编辑器、图片的大图预览）都挂在元素自己的 Shadow DOM 里，样式跟着进去，不往宿主页面里插；代码块的语言提示也在 Shadow DOM 里。
+- 界面语言整个页面只有一份：一个元素改了 `lang`，页面上别的元素（还有宿主自己用 `@open-agent-docs/editor` 画的组件）都跟着换，同一页上没法一个中文一个英文。
+  编辑器、数据库视图里几百处文字按全局语言取，不少在 ProseMirror 的节点视图里（不归 React 管），按元素分开改动太大，先不做。
+  另外设了 `lang` 也会改宿主页面的 `<html lang>`，并记进本机 localStorage 的 `oad:locale`。
 
 ## 开发
 

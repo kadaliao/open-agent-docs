@@ -6,6 +6,7 @@ import type { OadUser } from '../extensions'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Me } from '@open-agent-docs/client'
 import type { EventsLike, OadClient, PageConn } from '@open-agent-docs/client'
+import { usePortalRoot } from '../react/context'
 import { colorFor } from '../react/util'
 import { CellEditor, CellView, cellValue, DbContext, isEmptyVal, useDb, type DbCtx } from './cells'
 import { AddPropMenu } from './ColumnMenu'
@@ -125,16 +126,18 @@ export function RowPanel({ rowId, me, onClose }: { rowId: string; me: Me; onClos
   const { store, canWrite, ws, navigate, pageHref } = useDb()
   useSyncExternalStore(store.subscribe, store.getVersion)
   const panel = useRef<HTMLDivElement>(null)
+  // 弹出菜单挂在这里（Shadow DOM 里是 shadow 里的元素，document.querySelector 找不到）
+  const portal = usePortalRoot()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || document.querySelector('.db-pop')) return
-      // 正文、标题里按 Esc 不关
-      if ((e.target as HTMLElement).closest?.('.ProseMirror, .oad-title')) return
+      if (e.key !== 'Escape' || portal.querySelector('.db-pop')) return
+      // 正文、标题里按 Esc 不关。composedPath()[0]：在 Shadow DOM 里 e.target 只是宿主元素
+      if (((e.composedPath()[0] ?? e.target) as HTMLElement).closest?.('.ProseMirror, .oad-title')) return
       onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, portal])
   return (
     <aside className="db-peek oad-root" ref={panel} role="dialog" aria-label={t('openRow')} data-row={rowId}>
       <div className="db-peek-bar">

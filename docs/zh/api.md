@@ -14,8 +14,10 @@
 - 时间是毫秒时间戳（UTC）；编号都是字符串。
 - **压缩**：超过 1KB 的 JSON 响应按 `Accept-Encoding` 压成 br 或 gzip（浏览器、常见 HTTP 库会自动解）；实时事件（SSE）、WebSocket、文件不压。
 - **正文的格式**：`GET /pages/{id}/content` 给 `{ markdown, version }`；`?format=json` 给文档树 `{ doc, version }`；
-  `?format=html` 给只读 HTML `{ html, version }`（外面包 `<div class="oad-content">`，只有白名单里的标签，样式表是 `GET /embed/content.css`，
-  见[嵌入](embedding.md#只读-html)）。写（`PUT`）用 Markdown 或文档树。
+  `?format=html` 给只读 HTML `{ html, version, assets_expire_at }`（外面包 `<div class="oad-content">`，只有白名单里的标签，样式表是 `GET /embed/content.css`，
+  见[嵌入](embedding.md#只读-html)）：调用者看得到的图片、文件直接是[签名地址](#文件的签名地址)，`assets_expire_at` 是签名的过期时间（毫秒，没有签名地址时是 `null`）。
+  写（`PUT`）用 Markdown 或文档树。
+- **跨域**：别的域名上的网页直连接口要把它的 origin 写进 `OAD_ALLOWED_ORIGINS`（`/api/v1` 只对这些 origin 回 CORS 头，见[配置](configuration.md#请求来源host-和-origin)）。
 - **大页面先拿第一屏**：`GET /pages/{id}/content?limit=N`（哪种 `format` 都行）只给前 N 个顶层块，响应里带 `total`（一共几块）。
 
 ## 登录
@@ -65,6 +67,31 @@ Agent 的通知、收件箱。别的列表（页面、成员、评论……）�
 | `RateLimit-Reset` | 几秒后重置 |
 
 超了回 429 `too_many_requests`，带 `Retry-After`（秒）。登录失败另有限制（同一个 IP + 邮箱 15 分钟最多失败 10 次）。
+
+## 文件的签名地址
+
+上传的文件（`GET /files/{id}`、`/files/{id}/{文件名}`）要登录才能取、转存的图片（`GET /media/{hash}`）也一样，可 `<img>`、`<video>`、链接带不了
+`Authorization`。签名地址不用登录：
+
+```sh
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"urls": ["/api/v1/files/Qj1y9Gufp11a/图.png", "Qj1y9Gufp11b", "/api/v1/media/9f86d0…"]}' \
+  https://docs.example.com/api/v1/files/sign
+# { "urls": ["/api/v1/files/Qj1y9Gufp11a/图.png?exp=1763712000&sig=…", "/api/v1/files/Qj1y9Gufp11b?exp=…&sig=…", null], "expires_at": 1763712000000 }
+```
+
+- `POST /files/sign`：`urls` 给文件地址（根相对的或带域名的，可以带 `?w=`）、转存图片的地址，或者只给文件 id，一次最多 500 个。返回的 `urls` 和请求一一对应，
+  **只签调用者看得到的**（不是那个工作区的成员、不存在、不是本站文件的是 `null`）；`expires_at` 是过期时间（毫秒）。
+- 签名地址 = 原地址 + `?exp=<unix 秒>&sig=<base64url(HMAC-SHA256(密钥, "<文件 id 或媒体 hash>|<exp>"))>`。签名不含缩略图宽度 `w` 和文件名，
+  拿到以后可以自己加 `&w=320`。有效期 `OAD_SIGNED_URL_TTL`（默认 24 小时），往后凑整到一个刻度，同一段时间里签出来的地址一样（浏览器缓存用得上）。
+- 取文件时签名有效就不用登录（浏览器缓存到过期为止）；过期了回 403 `signature_expired`，不对回 403 `bad_signature`（登录着、看得到的照样给）。
+- `GET /pages/{id}/content?format=html` 里的图片、文件已经是签名地址，`assets_expire_at` 是它们的过期时间。
+
+> [!WARNING]
+> 1. **有有效期**：`format=html` 返回的 HTML 里，图片和文件地址带的签名默认 24 小时后过期（`OAD_SIGNED_URL_TTL`）。宿主把 HTML 缓存起来（知识库前台常这么做）的话，
+>    缓存时间不要超过有效期：过期前重新取一次，或者按响应里的 `assets_expire_at` 安排刷新。
+> 2. **拿到就能打开**：拿到这段 HTML（或签名地址）的任何人，在有效期内不登录也能打开里面的图片和文件。文档不该外泄的场景把有效期调短；
+>    要长期公开的内容用分享链接。
 
 ## 实时事件和 webhook
 

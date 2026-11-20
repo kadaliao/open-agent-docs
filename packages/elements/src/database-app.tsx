@@ -5,6 +5,7 @@ import { OadDatabaseView, OadPortalRoot, OadProvider } from '@open-agent-docs/ed
 import { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ElementHost } from './base.ts'
+import type { UrlResolver } from '@open-agent-docs/editor/resolve'
 
 // 元素用的是 client/core 的客户端：本地数据库（WASM 引擎）在这里登记
 registerPlugin('database', databasePlugin)
@@ -25,7 +26,7 @@ export function mountDatabase(h: ElementHost, o: { dbId: string; opts: () => { v
     root.render(
       <OadPortalRoot.Provider value={portal}>
         <OadProvider client={h.client}>
-          <DbApp host={host} client={h.client} dbId={o.dbId} viewId={viewId} readonly={readonly} base={h.baseUrl} />
+          <DbApp host={host} client={h.client} dbId={o.dbId} viewId={viewId} readonly={readonly} base={h.baseUrl} resolveUrl={h.resolveUrl} />
         </OadProvider>
       </OadPortalRoot.Provider>,
     )
@@ -49,7 +50,9 @@ interface Host {
   navigate: (href: string) => void
 }
 
-function DbApp({ host, client, dbId, viewId, readonly, base }: { host: Host; client: OadClient; dbId: string; viewId: string | null; readonly: boolean; base: string }) {
+function DbApp({ host, client, dbId, viewId, readonly, base, resolveUrl }: { host: Host; client: OadClient; dbId: string; viewId: string | null; readonly: boolean; base: string; resolveUrl: UrlResolver | null }) {
+  // 文件属性的缩略图、画廊封面、行里的正文：token 登录时换成签名地址
+  const media = useMemo(() => ({ unfurl: (url: string) => client.unfurl(url) as never, resolveUrl }), [client, resolveUrl])
   const [got, setGot] = useState<{ me: Me; page: Page } | null>(null)
   useEffect(() => {
     let alive = true
@@ -102,6 +105,7 @@ function DbApp({ host, client, dbId, viewId, readonly, base }: { host: Host; cli
       embedded
       navigate={host.navigate}
       pageHref={(id) => (base || '') + '/p/' + encodeURIComponent(id)}
+      media={media}
     />
   )
 }

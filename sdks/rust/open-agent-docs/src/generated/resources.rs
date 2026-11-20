@@ -1994,6 +1994,8 @@ pub struct FilesDownloadRequest {
     client: Client,
     id: String,
     w: Option<u32>,
+    exp: Option<i64>,
+    sig: Option<String>,
     range: Option<String>,
 }
 
@@ -2001,6 +2003,18 @@ impl FilesDownloadRequest {
     /// 缩略图宽度（图片才有，给 WebP）（查询参数 `w`）
     pub fn w(mut self, v: u32) -> Self {
         self.w = Some(v);
+        self
+    }
+
+    /// 签名地址的过期时间（unix 秒），见 `POST /files/sign`（查询参数 `exp`）
+    pub fn exp(mut self, v: i64) -> Self {
+        self.exp = Some(v);
+        self
+    }
+
+    /// 签名，和 `exp` 一起给；有效就不用登录（查询参数 `sig`）
+    pub fn sig(mut self, v: impl Into<String>) -> Self {
+        self.sig = Some(v.into());
         self
     }
 
@@ -2015,6 +2029,12 @@ impl FilesDownloadRequest {
         let mut spec = Spec::new(reqwest::Method::GET, format!("/files/{}", enc(&self.id)));
         if let Some(v) = &self.w {
             spec.query("w", v.to_string());
+        }
+        if let Some(v) = &self.exp {
+            spec.query("exp", v.to_string());
+        }
+        if let Some(v) = &self.sig {
+            spec.query("sig", v.to_string());
         }
         if let Some(v) = &self.range {
             spec.header("Range", v.to_string());
@@ -2034,7 +2054,7 @@ impl IntoFuture for FilesDownloadRequest {
     }
 }
 
-/// `files.download_named` 的请求：下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+/// `files.download_named` 的请求：下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
 ///
 /// `GET /api/v1/files/{id}/{name}`
 #[derive(Clone, Debug)]
@@ -2044,6 +2064,8 @@ pub struct FilesDownloadNamedRequest {
     id: String,
     name: String,
     w: Option<u32>,
+    exp: Option<i64>,
+    sig: Option<String>,
     range: Option<String>,
 }
 
@@ -2051,6 +2073,18 @@ impl FilesDownloadNamedRequest {
     /// 缩略图宽度（图片才有，给 WebP）（查询参数 `w`）
     pub fn w(mut self, v: u32) -> Self {
         self.w = Some(v);
+        self
+    }
+
+    /// 签名地址的过期时间（unix 秒），见 `POST /files/sign`（查询参数 `exp`）
+    pub fn exp(mut self, v: i64) -> Self {
+        self.exp = Some(v);
+        self
+    }
+
+    /// 签名，和 `exp` 一起给；有效就不用登录（查询参数 `sig`）
+    pub fn sig(mut self, v: impl Into<String>) -> Self {
+        self.sig = Some(v.into());
         self
     }
 
@@ -2068,6 +2102,12 @@ impl FilesDownloadNamedRequest {
         );
         if let Some(v) = &self.w {
             spec.query("w", v.to_string());
+        }
+        if let Some(v) = &self.exp {
+            spec.query("exp", v.to_string());
+        }
+        if let Some(v) = &self.sig {
+            spec.query("sig", v.to_string());
         }
         if let Some(v) = &self.range {
             spec.header("Range", v.to_string());
@@ -2087,7 +2127,7 @@ impl IntoFuture for FilesDownloadNamedRequest {
     }
 }
 
-/// `files.media` 的请求：转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+/// `files.media` 的请求：转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
 ///
 /// `GET /api/v1/media/{hash}`
 #[derive(Clone, Debug)]
@@ -2096,6 +2136,8 @@ pub struct FilesMediaRequest {
     client: Client,
     hash: String,
     w: Option<u32>,
+    exp: Option<i64>,
+    sig: Option<String>,
     range: Option<String>,
 }
 
@@ -2103,6 +2145,18 @@ impl FilesMediaRequest {
     /// 缩略图宽度（查询参数 `w`）
     pub fn w(mut self, v: u32) -> Self {
         self.w = Some(v);
+        self
+    }
+
+    /// 签名地址的过期时间（unix 秒），见 `POST /files/sign`（查询参数 `exp`）
+    pub fn exp(mut self, v: i64) -> Self {
+        self.exp = Some(v);
+        self
+    }
+
+    /// 签名，和 `exp` 一起给；有效就不用登录（查询参数 `sig`）
+    pub fn sig(mut self, v: impl Into<String>) -> Self {
+        self.sig = Some(v.into());
         self
     }
 
@@ -2117,6 +2171,12 @@ impl FilesMediaRequest {
         let mut spec = Spec::new(reqwest::Method::GET, format!("/media/{}", enc(&self.hash)));
         if let Some(v) = &self.w {
             spec.query("w", v.to_string());
+        }
+        if let Some(v) = &self.exp {
+            spec.query("exp", v.to_string());
+        }
+        if let Some(v) = &self.sig {
+            spec.query("sig", v.to_string());
         }
         if let Some(v) = &self.range {
             spec.header("Range", v.to_string());
@@ -2133,6 +2193,36 @@ impl IntoFuture for FilesMediaRequest {
         let spec = self.spec();
         let client = self.client;
         Box::pin(async move { client.send_bytes(spec?).await })
+    }
+}
+
+/// `files.sign` 的请求：给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+///
+/// `POST /api/v1/files/sign`
+#[derive(Clone, Debug)]
+#[must_use = "请求要 .await 才会发出去"]
+pub struct FilesSignRequest {
+    client: Client,
+    body: SignFileUrls,
+}
+
+impl FilesSignRequest {
+    fn spec(&self) -> Result<Spec> {
+        #[allow(unused_mut)]
+        let mut spec = Spec::new(reqwest::Method::POST, "/files/sign".to_string());
+        spec.json(&self.body)?;
+        Ok(spec)
+    }
+}
+
+impl IntoFuture for FilesSignRequest {
+    type Output = Result<SignedFileUrls>;
+    type IntoFuture = BoxFuture<'static, Self::Output>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        let spec = self.spec();
+        let client = self.client;
+        Box::pin(async move { client.send_json(spec?).await })
     }
 }
 
@@ -2162,11 +2252,13 @@ impl FilesApi {
             client: self.client.clone(),
             id: id.into(),
             w: None,
+            exp: None,
+            sig: None,
             range: None,
         }
     }
 
-    /// 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+    /// 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
     ///
     /// `GET /api/v1/files/{id}/{name}`
     pub fn download_named(
@@ -2179,11 +2271,13 @@ impl FilesApi {
             id: id.into(),
             name: name.into(),
             w: None,
+            exp: None,
+            sig: None,
             range: None,
         }
     }
 
-    /// 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+    /// 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
     ///
     /// `GET /api/v1/media/{hash}`
     pub fn media(&self, hash: impl Into<String>) -> FilesMediaRequest {
@@ -2191,7 +2285,19 @@ impl FilesApi {
             client: self.client.clone(),
             hash: hash.into(),
             w: None,
+            exp: None,
+            sig: None,
             range: None,
+        }
+    }
+
+    /// 给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+    ///
+    /// `POST /api/v1/files/sign`
+    pub fn sign(&self, body: SignFileUrls) -> FilesSignRequest {
+        FilesSignRequest {
+            client: self.client.clone(),
+            body,
         }
     }
 }

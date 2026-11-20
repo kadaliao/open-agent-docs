@@ -252,7 +252,11 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
   useEffect(() => {
     const el = scroll.current
     if (!el) return
-    const mine = () => document.activeElement === el || document.activeElement === sink.current
+    // 问自己所在的 root：在 Shadow DOM 里 document.activeElement 是宿主元素
+    const mine = () => {
+      const active = (el.getRootNode() as Document | ShadowRoot).activeElement
+      return active === el || active === sink.current
+    }
     const c = (e: ClipboardEvent) => mine() && copy(e)
     const p = (e: ClipboardEvent) => mine() && paste(e)
     document.addEventListener('copy', c)

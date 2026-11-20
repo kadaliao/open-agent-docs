@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
-  const { store, canWrite } = useDb()
+  const { store, canWrite, openFilter } = useDb()
   const [name, setName] = useState(p.name)
   const [sub, setSub] = useState<null | 'type' | 'options' | 'formula' | 'format' | 'datefmt' | 'relation' | 'rollup' | 'insert-left' | 'insert-right'>(null)
   const commitName = () => {
@@ -33,7 +33,7 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
     onView({ filter: { op: view.filter?.op ?? 'and', items } })
     onClose()
     // 打开工具栏里的筛选
-    setTimeout(() => document.querySelector<HTMLButtonElement>('[data-db-tool="filter"]')?.click(), 0)
+    setTimeout(() => openFilter?.(), 0)
   }
   const hide = () => {
     onView({ hidden: [...new Set([...(view.hidden ?? []), p.key])] })

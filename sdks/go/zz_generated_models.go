@@ -271,7 +271,7 @@ func (m Anchor) MarshalJSON() ([]byte, error) {
 // AuthConfigBody 登录方式和站点设置。
 type AuthConfigBody struct {
 	// AllowedOrigins 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
-	// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+	// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
 	AllowedOrigins Opt[[]string] `json:"allowed_origins"`
 	// Mode 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）
 	Mode   AuthMode   `json:"mode"`
@@ -509,9 +509,13 @@ func (m CommentView) MarshalJSON() ([]byte, error) {
 
 // Content 正文：`markdown`（默认）、`doc`（`?format=json`）或 `html`（`?format=html`，只读），带当前版本（改的时候作为 base 带回来）。
 type Content struct {
-	Doc Opt[DocNode] `json:"doc"`
+	// AssetsExpireAt `html` 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。只有 `?format=html` 才有。
+	// 宿主缓存这段 HTML 的话，缓存别超过这个时间（过期前重新取一次）
+	AssetsExpireAt Opt[int64]   `json:"assets_expire_at"`
+	Doc            Opt[DocNode] `json:"doc"`
 	// HTML 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
-	// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+	// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址。
+	// 调用者看得到的图片、文件地址带签名（`?exp=&sig=`），不登录也打得开，过期时间见 `assets_expire_at`
 	HTML     Opt[string] `json:"html"`
 	Markdown Opt[string] `json:"markdown"`
 	// Total 顶层块一共几个（给了 `limit` 才有）
@@ -521,7 +525,10 @@ type Content struct {
 
 // MarshalJSON 只写设置了的可选字段：Opt 没设置的不发，oad.Null 的发 null。
 func (m Content) MarshalJSON() ([]byte, error) {
-	o := make(map[string]any, 5)
+	o := make(map[string]any, 6)
+	if m.AssetsExpireAt.IsSet() {
+		o["assets_expire_at"] = m.AssetsExpireAt
+	}
 	if m.Doc.IsSet() {
 		o["doc"] = m.Doc
 	}
@@ -2417,6 +2424,37 @@ func (m ShareView) MarshalJSON() ([]byte, error) {
 	o["indexable"] = m.Indexable
 	o["token"] = m.Token
 	o["url"] = m.URL
+	return json.Marshal(o)
+}
+
+// SignFileURLs 签名地址的请求。
+type SignFileURLs struct {
+	// URLs 要签的：文件地址 `/api/v1/files/<id>[/<文件名>]`、转存图片的地址 `/api/v1/media/<hash>`（根相对的或者带域名的，可以带 `?w=`），
+	// 或者只给文件 id。最多 500 个
+	URLs []string `json:"urls"`
+}
+
+// MarshalJSON 只写设置了的可选字段：Opt 没设置的不发，oad.Null 的发 null。
+func (m SignFileURLs) MarshalJSON() ([]byte, error) {
+	o := make(map[string]any, 1)
+	o["urls"] = nonNilSlice(m.URLs)
+	return json.Marshal(o)
+}
+
+// SignedFileURLs 签好的地址。
+type SignedFileURLs struct {
+	// ExpiresAt 签名什么时候过期（毫秒时间戳）。有效期是 `OAD_SIGNED_URL_TTL`（默认 24 小时），往后凑整到一个刻度（最多一小时）
+	ExpiresAt int64 `json:"expires_at"`
+	// URLs 和请求的 `urls` 一一对应：原来的地址加上 `exp`、`sig`（只给 id 的是 `/api/v1/files/<id>?exp=…&sig=…`）；
+	// 不是本站的文件、不存在、调用者看不到的是 null
+	URLs []string `json:"urls"`
+}
+
+// MarshalJSON 只写设置了的可选字段：Opt 没设置的不发，oad.Null 的发 null。
+func (m SignedFileURLs) MarshalJSON() ([]byte, error) {
+	o := make(map[string]any, 2)
+	o["expires_at"] = m.ExpiresAt
+	o["urls"] = nonNilSlice(m.URLs)
 	return json.Marshal(o)
 }
 

@@ -2,7 +2,7 @@
 import type { NodeViewRenderer } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { t } from '../strings'
-import { blockAttrs, el, setAttr } from './node-views'
+import { blockAttrs, el, isFocused, setAttr } from './node-views'
 
 const COMMON = ['plaintext', 'bash', 'c', 'cpp', 'csharp', 'css', 'diff', 'go', 'html', 'java', 'javascript', 'json', 'kotlin', 'markdown', 'mermaid', 'php', 'python', 'ruby', 'rust', 'sql', 'swift', 'toml', 'tsx', 'typescript', 'yaml']
 
@@ -21,20 +21,21 @@ async function drawMermaid(code: string) {
 }
 
 const modes = new Map<string, 'diagram' | 'source'>()
-let datalist: HTMLDataListElement | null = null
+// 语言候选：<input list> 只认同一个树里的 <datalist>（放进 Shadow DOM 时 document.body 上的那份找不到），
+// 所以每个代码块自带一份，就放在语言框旁边（隐藏的，二十几个 option，不费什么）
+let listSeq = 0
 function langList() {
-  if (datalist) return datalist.id
-  datalist = el('datalist', '', { id: 'oad-code-langs' }) as HTMLDataListElement
-  for (const l of COMMON) datalist.append(el('option', '', { value: l }))
-  document.body.append(datalist)
-  return datalist.id
+  const list = el('datalist', '', { id: 'oad-code-langs-' + ++listSeq })
+  for (const l of COMMON) list.append(el('option', '', { value: l }))
+  return list
 }
 
 export const codeBlockView: NodeViewRenderer = (p) => {
   let node: PMNode = p.node
   const dom = el('div', 'oad-code')
   const bar = el('div', 'oad-code-bar', { contenteditable: 'false' })
-  const lang = el('input', 'oad-code-lang', { spellcheck: 'false', 'aria-label': t('codeLanguage'), list: langList() })
+  const langs = langList()
+  const lang = el('input', 'oad-code-lang', { spellcheck: 'false', 'aria-label': t('codeLanguage'), list: langs.id })
   lang.placeholder = t('plainText')
   const tools = el('span', 'oad-code-tools')
   const toggle = el('button', 'oad-code-btn oad-code-mode', { type: 'button' })
@@ -43,7 +44,7 @@ export const codeBlockView: NodeViewRenderer = (p) => {
   const copy = el('button', 'oad-code-btn', { type: 'button' })
   copy.textContent = t('copyCode')
   tools.append(toggle, wrap, copy)
-  bar.append(lang, tools)
+  bar.append(lang, langs, tools)
   const diagram = el('div', 'oad-mermaid', { contenteditable: 'false' })
   const pre = el('pre')
   const code = el('code')
@@ -92,7 +93,7 @@ export const codeBlockView: NodeViewRenderer = (p) => {
   }
 
   const sync = (n: PMNode) => {
-    if (document.activeElement !== lang) lang.value = n.attrs.language ?? ''
+    if (!isFocused(lang)) lang.value = n.attrs.language ?? ''
     lang.readOnly = !p.editor.isEditable
     dom.classList.toggle('is-wrap', !!n.attrs.wrap)
     wrap.setAttribute('aria-pressed', String(!!n.attrs.wrap))

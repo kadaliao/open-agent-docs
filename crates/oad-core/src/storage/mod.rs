@@ -231,6 +231,8 @@ pub trait Storage: Send + Sync + 'static {
     async fn ancestors(&self, page_id: &str) -> Result<Vec<String>>;
     /// 页面用过这个文件吗。
     async fn page_uses_file(&self, page_id: &str, file_id: &str) -> Result<bool>;
+    /// 服务器的设置：有就返回存着的，没有就存下 `init` 再返回（几个进程同时第一次取，大家拿到的也是同一个）。
+    async fn setting_or_init(&self, key: &str, init: &str) -> Result<String>;
 
     // 历史版本
     async fn add_version(&self, page_id: &str, v: NewVersion) -> Result<i64>;

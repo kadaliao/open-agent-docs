@@ -25,6 +25,11 @@
       "types": "./dist/types/i18n.d.ts",
       "import": "./dist/i18n.js"
     },
+    "./resolve": {
+      "oad-source": "./src/media/resolve.ts",
+      "types": "./dist/types/media/resolve.d.ts",
+      "import": "./dist/resolve.js"
+    },
     "./style.css": {
       "oad-source": "./src/style.css",
       "types": "./dist/style.css.d.ts",

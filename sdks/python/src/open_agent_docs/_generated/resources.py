@@ -60,6 +60,7 @@ from .models import (
     SearchResult,
     Seq,
     ShareView,
+    SignedFileUrls,
     ThreadView,
     TrashItem,
     TrashList,
@@ -967,6 +968,8 @@ class FilesResource:
         id: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
@@ -978,7 +981,7 @@ class FilesResource:
         return self._client._call(
             "GET",
             f"/files/{_p(id)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
             extra_headers=extra_headers,
             extra_query=extra_query,
@@ -991,18 +994,20 @@ class FilesResource:
         name: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
     ) -> bytes:
-        """下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+        """下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
 
         `GET /api/v1/files/{id}/{name}`
         """
         return self._client._call(
             "GET",
             f"/files/{_p(id)}/{_p(name)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
             extra_headers=extra_headers,
             extra_query=extra_query,
@@ -1014,19 +1019,45 @@ class FilesResource:
         hash: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
     ) -> bytes:
-        """转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+        """转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
 
         `GET /api/v1/media/{hash}`
         """
         return self._client._call(
             "GET",
             f"/media/{_p(hash)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            timeout=timeout,
+        )
+
+    def sign(
+        self,
+        *,
+        urls: Sequence[str],
+        extra_headers: Optional[Headers] = None,
+        extra_query: Optional[Query] = None,
+        extra_body: Optional[Body] = None,
+        timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
+    ) -> SignedFileUrls:
+        """给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+
+        `POST /api/v1/files/sign`
+        """
+        return self._client._call(
+            "POST",
+            "/files/sign",
+            body={"urls": urls},
+            extra_body=extra_body,
+            cast=SignedFileUrls,
             extra_headers=extra_headers,
             extra_query=extra_query,
             timeout=timeout,
@@ -3049,6 +3080,8 @@ class AsyncFilesResource:
         id: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
@@ -3060,7 +3093,7 @@ class AsyncFilesResource:
         return await self._client._call(
             "GET",
             f"/files/{_p(id)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
             extra_headers=extra_headers,
             extra_query=extra_query,
@@ -3073,18 +3106,20 @@ class AsyncFilesResource:
         name: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
     ) -> bytes:
-        """下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+        """下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
 
         `GET /api/v1/files/{id}/{name}`
         """
         return await self._client._call(
             "GET",
             f"/files/{_p(id)}/{_p(name)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
             extra_headers=extra_headers,
             extra_query=extra_query,
@@ -3096,19 +3131,45 @@ class AsyncFilesResource:
         hash: str,
         *,
         w: Union[int, NotGiven] = NOT_GIVEN,
+        exp: Union[int, NotGiven] = NOT_GIVEN,
+        sig: Union[str, NotGiven] = NOT_GIVEN,
         extra_headers: Optional[Headers] = None,
         extra_query: Optional[Query] = None,
         timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
     ) -> bytes:
-        """转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+        """转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
 
         `GET /api/v1/media/{hash}`
         """
         return await self._client._call(
             "GET",
             f"/media/{_p(hash)}",
-            query={"w": w},
+            query={"w": w, "exp": exp, "sig": sig},
             cast=bytes,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            timeout=timeout,
+        )
+
+    async def sign(
+        self,
+        *,
+        urls: Sequence[str],
+        extra_headers: Optional[Headers] = None,
+        extra_query: Optional[Query] = None,
+        extra_body: Optional[Body] = None,
+        timeout: Union[TimeoutTypes, NotGiven] = NOT_GIVEN,
+    ) -> SignedFileUrls:
+        """给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+
+        `POST /api/v1/files/sign`
+        """
+        return await self._client._call(
+            "POST",
+            "/files/sign",
+            body={"urls": urls},
+            extra_body=extra_body,
+            cast=SignedFileUrls,
             extra_headers=extra_headers,
             extra_query=extra_query,
             timeout=timeout,

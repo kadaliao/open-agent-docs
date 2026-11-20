@@ -26,6 +26,7 @@ pub mod position;
 pub mod s3;
 pub mod search;
 pub mod share;
+pub mod signed;
 pub mod ssrf;
 pub mod storage;
 pub mod trash;
@@ -153,6 +154,8 @@ pub struct Core {
     pub timezone: jiff::tz::TimeZone,
     /// 本地登录模式下怎么注册（`OAD_SIGNUP`），见 [`Core::signup_mode`]。
     signup: std::sync::atomic::AtomicU8,
+    /// 签文件地址（`?exp=&sig=`）的密钥，见 [`signed`]。
+    pub signer: signed::UrlSigner,
 }
 
 /// 页面属性的修改。`Option<Option<_>>`：外层 None = 不改，Some(None) = 清空。
@@ -232,6 +235,7 @@ impl Core {
                 Arc::new(auth::NoAuth::new(&user))
             }
         };
+        let signer = signed::UrlSigner::load(storage.as_ref()).await?;
         let events = Events::default();
         let notes = Notifier::new(storage.clone(), events.clone(), notify);
         let fetcher = oad_unfurl::Fetcher::new(media_cfg.fetch.clone())
@@ -283,6 +287,7 @@ impl Core {
             dbcache: Default::default(),
             timezone: tz::server_tz(),
             signup: std::sync::atomic::AtomicU8::new(members::SignupMode::from_env() as u8),
+            signer,
         });
         tokio::spawn(notes.run(Box::pin(core.on_shutdown())));
         core.spawn_trash_purger();

@@ -20,6 +20,7 @@ export default defineConfig({
         database: 'src/database/index.ts',
         schema: 'src/schema/index.ts',
         i18n: 'src/i18n.ts',
+        resolve: 'src/media/resolve.ts',
       },
       formats: ['es'],
       cssFileName: 'style',

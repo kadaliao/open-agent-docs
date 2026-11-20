@@ -2,9 +2,10 @@
 
 [English](../en/embedding.md) · [文档目录](README.md)
 
-网页这边两种做法：
+网页这边三种做法：
 
 - **iframe**：放一个 iframe 指向 Open Agent Docs 的页面，不用写前端代码。
+- **Web Component**：`<oad-editor>`、`<oad-viewer>`、`<oad-database>`（`@open-agent-docs/elements`），宿主用什么框架都行，纯 HTML 也行（[Web Component](#web-component)）。
 - **JS 包**：`@open-agent-docs/client`（接口、实时事件、协作文档、本地数据库）和 `@open-agent-docs/editor`（React 组件：编辑器、评论栏、数据库视图），
   编辑器直接长在你的页面里，跟着你的样式。
 
@@ -84,8 +85,8 @@ OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com op
 - iframe 收到 401、或者 token 离过期（`exp`）不到 60 秒时，发一次 `{ type: 'oad:auth-required', reason }`（同一个 token 每种原因只发一次），宿主回 `oad:token`。
   一开始没给 token、或者给的不对，iframe 不出登录框，等宿主的 token 来了再登录。
 - 不是嵌入模式（没有 `?embed=1`）时这些都不生效，照常用 cookie。
-- 现在的限制：上传的图片、文件（`/api/v1/files/…`）是 `<img>`、链接直接去取的，带不了 token，跨域时要靠 cookie（`oad_token`）才打得开。
-  图片多的话先让两边同域。
+- 上传的图片、文件：`<img>`、`<video>`、链接带不了 token，iframe 会先把地址交给 `POST /api/v1/files/sign` 换成签名地址
+  （`?exp=…&sig=…`，见[签名地址](api.md#文件的签名地址)），不靠 cookie 也打得开。
 
 宿主后端签 JWT 用各语言 SDK 的 `sign_jwt` / `signJwt`，拼地址用 `embed_url` / `embedUrl`（见 [SDK](sdks.md)）。
 
@@ -111,7 +112,9 @@ curl -H "Authorization: Bearer $TOKEN" 'https://docs.example.com/api/v1/pages/<�
   链接卡片 `<div class="oad-embed" data-url="…" data-view="embed|bookmark">`（里面是一个普通链接），上传的文件 `<div class="oad-embed oad-file" data-type="file" data-url="…">`。
   想画公式就照着 `data-latex` 用 KaTeX 自己画。
 - 图片、文件、站内页面的地址是服务器上的路径（`/api/v1/files/…`、`/p/…`）；设了 `OAD_PUBLIC_URL` 就是完整地址，嵌在别的域名下也指得对。
-  文件要登录才能取，跨域时同样有上面说的 cookie 的限制。
+- 调用者看得到的图片、文件，地址直接是**签名地址**（`/api/v1/files/<id>/<文件名>?exp=…&sig=…`）：`<img>` 带不了 token 也打得开，
+  宿主在别的域名、用 JWT 或 Agent token 取的都一样。响应里的 `assets_expire_at`（毫秒时间戳）是这些签名的过期时间，没有签名地址时是 `null`。
+  签名不含缩略图宽度，想要小图自己加 `&w=640`。
 - `limit` 照常能用（先拿前 N 块）。
 - 浏览器里或者 Node 里自己转：`@open-agent-docs/markdown`（WASM，和服务器同一份代码，输出逐字一样），样式表在包里：
 
@@ -123,6 +126,61 @@ await init()
 el.innerHTML = toHtml('# 标题\n\n正文')                 // Markdown
 el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // 文档 JSON（format=json 拿到的）
 ```
+
+  自己转出来的 HTML 没有签名（签名要服务器的密钥），跨域、token 登录时图片要自己换：`client.signFileUrls(urls)`（`POST /files/sign`）。
+
+> [!WARNING]
+> **签名地址的两个后果**（`format=html`、`POST /files/sign` 都一样）：
+>
+> 1. **有有效期**：默认 24 小时（`OAD_SIGNED_URL_TTL`，见[配置](configuration.md#服务器)）。宿主把 HTML 缓存起来（知识库前台常这么做）的话，
+>    缓存时间别超过有效期：过期前重新取一次，或者按响应里的 `assets_expire_at` 安排刷新。过期的地址回 403，图片就裂了。
+> 2. **拿到地址就能打开**：拿到这段 HTML 的任何人，在有效期内不登录也能打开里面的图片和文件。文档不该外泄的场景把有效期调短；
+>    要长期公开的内容用分享链接（`POST /pages/{id}/share`）。
+
+## Web Component
+
+宿主不用 React（Vue、Svelte、Angular、纯 HTML、后端模板都行）、又想要完整的编辑器时，用 `@open-agent-docs/elements`：三个自定义元素，
+React、编辑器、Yjs 都打在包里，样式在 Shadow DOM 里，和宿主互不影响。完整的说明：[packages/elements/README.md](../../packages/elements/README.md)。
+
+```html
+<!-- 不用打包工具：从 CDN 引，引进来就注册好了（npm i @open-agent-docs/elements 后 import '@open-agent-docs/elements' 也行） -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@<版本>/dist/elements.js"></script>
+
+<oad-editor base-url="https://docs.example.com" page-id="<页面 id>" comments></oad-editor>
+<oad-viewer base-url="https://docs.example.com" page-id="<页面 id>"></oad-viewer>
+<oad-database base-url="https://docs.example.com" db-id="<库 id>"></oad-database>
+
+<script type="module">
+  for (const el of document.querySelectorAll('oad-editor, oad-viewer, oad-database')) {
+    // 宿主后端签的 JWT；没有 token、快过期、遇到 401 时元素自己来要
+    el.getToken = () => fetch('/api/oad-token').then((r) => r.json()).then((j) => j.token)
+    el.addEventListener('oad-change', (e) => console.log(e.detail.kind, e.detail.title))
+  }
+</script>
+```
+
+| 元素 | 属性 | 说明 |
+| --- | --- | --- |
+| `<oad-editor>` | `page-id`、`comments`、`readonly` | 标题 + 协作编辑器（WebSocket 实时同步）；`comments` 加评论栏 |
+| `<oad-viewer>` | `page-id`、`content-css` | 只读正文，用 `format=html`，不连 WebSocket、不加载编辑器，最轻 |
+| `<oad-database>` | `db-id`、`view-id`、`readonly` | 数据库视图：表格、看板、日历、画廊、列表 |
+
+- 三个都有：`base-url`（服务器地址，不给是同源）、`token`（JWT 或 Agent token，也可以 `el.token = …`）、`el.getToken = async () => …`
+  （没有 token、JWT 离过期不到 60 秒、收到 401 时调它）、`theme`（`light` / `dark`）、`lang`（`zh` / `en`）、`el.client`、`el.reload()`。
+- 事件（`CustomEvent`，冒泡、穿过 Shadow DOM）：`oad-ready`（内容到了）、`oad-change`（标题、正文变了）、`oad-navigate`（要去另一页，
+  可以 `preventDefault()` 自己处理）、`oad-error`（401、403、404……）。
+- **跨域直连**：`base-url` 是别的域名时，元素直接调 Open Agent Docs 的接口（CORS）、连 WebSocket，服务器要把宿主的 origin 写进
+  `OAD_ALLOWED_ORIGINS`：
+
+  ```sh
+  OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+  ```
+
+  图片、文件用签名地址显示（元素自己调 `POST /files/sign`，缓存到过期前 60 秒）。不想让浏览器直连的，宿主把 `/api/*`（含 WebSocket）转发到自己的域名下，
+  `base-url` 不给。
+- 换样式：颜色、字体用 CSS 变量，写在元素上（`oad-editor { --oad-accent: #7c3aed }`）。
+
+例子：[examples/embed-elements](../../examples/embed-elements)（纯 HTML + 一个小 Node 服务签 JWT，元素直连；`PROXY=1` 是转发的写法）。
 
 ## JS 包
 
@@ -138,7 +196,7 @@ npm i @open-agent-docs/client @open-agent-docs/editor react react-dom yjs
 import { createClient } from '@open-agent-docs/client'
 
 const client = createClient({
-  baseUrl: 'https://docs.example.com',  // 同源时给 ''
+  baseUrl: 'https://docs.example.com',  // 同源时给 ''；别的域名要服务器的 OAD_ALLOWED_ORIGINS 里有你的页面（CORS）
   token: () => getToken(),              // 可选：Agent token、会话令牌或 JWT；不给就用 cookie
   locale: 'zh',                          // 错误信息的语言
 })
@@ -185,6 +243,17 @@ function Doc({ pageId, me }) {
 ```
 
 `react`、`react-dom`、`yjs`、`@open-agent-docs/client` 是 peer 依赖。组件的样式只在 `.oad-root` 里生效，不会影响宿主；颜色、字体用 CSS 变量换。
+
+图片、视频、上传的文件：同域 cookie 登录时不用管。服务器在别的域名、或者用 token 登录（JWT、Agent token）时，`<img>` 带不了 token，
+给编辑器一个解析地址的钩子，显示前换成签名地址（批量调 `POST /files/sign`，缓存到过期前 60 秒）：
+
+```tsx
+import { clientUrlResolver } from '@open-agent-docs/editor'
+
+const resolveUrl = clientUrlResolver(client, { token: true })   // 同域 cookie 登录时返回 null（不用换）
+<OadEditor ydoc={doc.ydoc} provider={doc.provider} user={user} media={{ resolveUrl }} />
+<OadDatabaseView client={client} dbId={dbId} media={{ resolveUrl }} … />
+```
 界面语言：`import { setLocale } from '@open-agent-docs/editor/i18n'`。完整的例子（编辑器 + 评论栏 + 数据库视图 + 两个用户）：[examples/embed-react](../../examples/embed-react)。
 
 ## header 登录
@@ -217,6 +286,7 @@ OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json ope
 ```
 
 - 带法：`Authorization: Bearer <jwt>`、WebSocket 用 `?token=<jwt>`，或 cookie `oad_token`。`@open-agent-docs/client` 的 `token` 选项都替你处理了。
+- 浏览器在别的域名上直连：`OAD_ALLOWED_ORIGINS` 写上宿主的 origin（接口的 CORS、WebSocket 的 Origin 检查都看它）；图片、文件用签名地址（[只读 HTML](#只读-html)）。
 - claims：`sub`（必填，用户编号）、`exp`（必填）、`name`、`email`、`workspaces`（工作区 id 的数组，或 `[{ "id": "…", "role": "editor" }]`；不给就进默认工作区）。
 - 用户按 `sub` 认，第一次见到时自动建；名字跟着 claims 变；claims 里给了角色就以它为准，没给的新成员是 editor。
 - JWKS 按 `kid` 缓存 10 分钟，宿主换了钥匙（新的 kid）会自动再取；签名算法必须和那把钥匙的一致。

@@ -19,6 +19,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations_pg/003_media.sql"),
     include_str!("migrations_pg/004_databases.sql"),
     include_str!("migrations_pg/005_phase5.sql"),
+    include_str!("migrations_pg/006_settings.sql"),
 ];
 /// 默认最多几条连接。
 pub const MAX_CONNS: usize = 10;

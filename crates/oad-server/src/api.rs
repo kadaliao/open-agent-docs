@@ -174,25 +174,14 @@ pub(crate) struct AuthConfigBody {
     timezone: String,
     signup: oad_core::members::SignupMode,
     /// 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
-    /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+    /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
     #[schema(required = false)]
     allowed_origins: Vec<String>,
 }
 
 #[utoipa::path(get, path = "/auth/config", tag = "auth", security(()), responses((status = 200, body = AuthConfigBody)))]
 pub(crate) async fn auth_config(State(s): State<AppState>) -> Json<AuthConfigBody> {
-    let mut allowed_origins: Vec<String> = Vec::new();
-    for o in s
-        .config
-        .allowed_origins
-        .iter()
-        .chain(s.config.public_url.as_ref())
-        .map(|o| crate::guard::normalize_origin(o))
-    {
-        if !o.is_empty() && !allowed_origins.contains(&o) {
-            allowed_origins.push(o);
-        }
-    }
+    let allowed_origins = crate::guard::allowed_origins(&s.config);
     Json(AuthConfigBody {
         mode: s.core.auth.mode(),
         timezone: oad_core::tz::name(&s.core.timezone),
@@ -455,9 +444,15 @@ pub(crate) struct Content {
     #[schema(value_type = Option<DocNode>)]
     doc: Option<Node>,
     /// 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
-    /// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+    /// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址。
+    /// 调用者看得到的图片、文件地址带签名（`?exp=&sig=`），不登录也打得开，过期时间见 `assets_expire_at`
     #[serde(skip_serializing_if = "Option::is_none")]
     html: Option<String>,
+    /// `html` 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。只有 `?format=html` 才有。
+    /// 宿主缓存这段 HTML 的话，缓存别超过这个时间（过期前重新取一次）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<i64>, required = false, nullable = true)]
+    assets_expire_at: Option<Option<i64>>,
     version: String,
     /// 顶层块一共几个（给了 `limit` 才有）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -491,6 +486,7 @@ pub(crate) async fn get_content(
                 markdown: Some(md),
                 doc: None,
                 html: None,
+                assets_expire_at: None,
                 version,
                 total,
             }))
@@ -499,24 +495,61 @@ pub(crate) async fn get_content(
             markdown: None,
             doc: Some(doc),
             html: None,
+            assets_expire_at: None,
             version,
             total,
         })),
         Some("html") => {
+            // 本站的图片、文件带上签名（<img> 带不了 token），只签调用者看得到的
+            let mut urls = Vec::new();
+            asset_urls(&doc, &mut urls);
+            let exp =
+                oad_core::signed::expiry(s.config.signed_url_ttl, oad_core::signed::now_secs());
+            let signed = crate::files::sign_visible(&s, &p, urls, exp).await?;
+            let assets_expire_at = (!signed.is_empty()).then_some(exp * 1000);
             // 嵌在别的域名下时，/api/v1/files/… 这种相对地址要拼上对外的地址才打得开
             let opts = oad_markdown::HtmlOptions {
                 base_url: s.config.public_url.clone(),
+                signed,
             };
             let html = blocking(move || oad_markdown::to_html(&doc, &opts)).await?;
             Ok(Json(Content {
                 markdown: None,
                 doc: None,
                 html: Some(html),
+                assets_expire_at: Some(assets_expire_at),
                 version,
                 total,
             }))
         }
         Some(f) => Err(ApiError::bad_request(format!("不支持的 format={f}"))),
+    }
+}
+
+/// 文档里根相对的本站文件、图片地址（`/api/v1/files/…`、`/api/v1/media/…`）：节点的 url / src / href、链接的 href。
+/// 和 `oad_markdown::to_html` 加签名的范围一样（带域名的不签）。
+fn asset_urls(n: &Node, out: &mut Vec<oad_core::signed::Subject>) {
+    let mut add = |u: &str| {
+        let u = u.trim();
+        if u.starts_with('/')
+            && !u[1..].starts_with(['/', '\\'])
+            && let Some(sub) = oad_core::signed::subject_of(u)
+        {
+            out.push(sub);
+        }
+    };
+    for k in ["url", "src", "href"] {
+        if let Some(u) = n.attr_str(k) {
+            add(u);
+        }
+    }
+    for m in &n.marks {
+        if let Some(u) = m.attrs.get("href").and_then(|v| v.as_str()) {
+            add(u);
+        }
+    }
+    for c in &n.content {
+        asset_urls(c, out);
     }
 }
 

@@ -200,7 +200,7 @@ with oad.start(data_dir="./data", auth="header", header_secret="dev") as server:
 
 <!-- operations:start -->
 <!-- 由 node sdks/gen-docs.mjs 从 sdks/operations.json 生成，不要手改 -->
-82 个接口。Go 的方法第一个参数是 `ctx`；Rust 的要 `.await`；翻页的接口 Go 另有 `ListAll`、Rust 另有 `list_all`、JS 另有 `each*`。
+83 个接口。Go 的方法第一个参数是 `ctx`；Rust 的要 `.await`；翻页的接口 Go 另有 `ListAll`、Rust 另有 `list_all`、JS 另有 `each*`。
 
 | 点路径 | Python | Go | Rust | JS | HTTP |
 | --- | --- | --- | --- | --- | --- |
@@ -273,6 +273,7 @@ with oad.start(data_dir="./data", auth="header", header_secret="dev") as server:
 | `files.download` (下载) | `client.files.download()` | `client.Files.Download()` | `client.files().download()` | `client.download()` | `GET /files/{id}` |
 | `files.download_named` (下载) | `client.files.download_named()` | `client.Files.DownloadNamed()` | `client.files().download_named()` | `client.downloadNamed()` | `GET /files/{id}/{name}` |
 | `files.media` (下载) | `client.files.media()` | `client.Files.Media()` | `client.files().media()` | `client.media()` | `GET /media/{hash}` |
+| `files.sign` | `client.files.sign()` | `client.Files.Sign()` | `client.files().sign()` | `client.signFileUrls()` | `POST /files/sign` |
 | `links.unfurl` | `client.links.unfurl()` | `client.Links.Unfurl()` | `client.links().unfurl()` | `client.unfurl()` | `GET /unfurl` |
 | `trash.list` (翻页) | `client.trash.list()` | `client.Trash.List()` | `client.trash().list()` | `client.trash()` | `GET /workspaces/{ws}/trash` |
 | `trash.restore` | `client.trash.restore()` | `client.Trash.Restore()` | `client.trash().restore()` | `client.restoreTrash()` | `POST /trash/{id}/restore` |

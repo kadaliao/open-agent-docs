@@ -1,5 +1,5 @@
 // 一个库：视图标签、工具栏、当前视图、行的侧边面板。整页和页面里的内嵌都用它。
-import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { EventsLike, Me, OadClient, Person } from '@open-agent-docs/client'
 import type { MediaServices } from '../extensions/media'
 import { useAgents } from '../react/people'
@@ -91,6 +91,8 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
     if (u.href !== location.href) history.replaceState(history.state, '', u)
   }, [view?.id, peek, embedded]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 库的根元素：找自己工具栏里的按钮（不用 document.querySelector：页面上可能有好几个库，也可能在 Shadow DOM 里）
+  const box = useRef<HTMLDivElement>(null)
   const ctx: DbCtx = useMemo(
     () => ({
       store,
@@ -101,6 +103,7 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
       navigate,
       pageHref,
       media,
+      openFilter: () => box.current?.querySelector<HTMLButtonElement>('[data-db-tool="filter"]')?.click(),
       openRow: (id: string) => {
         if (id.startsWith('tmp_')) return
         if (embedded) navigate(pagePath(dbId) + `?row=${id}` + (view ? `&view=${view.id}` : ''))
@@ -153,7 +156,7 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
 
   return (
     <DbContext.Provider value={ctx}>
-      <div className={'db oad-root' + (embedded ? ' is-embedded' : '')} data-db={dbId} data-status={store.status}>
+      <div ref={box} className={'db oad-root' + (embedded ? ' is-embedded' : '')} data-db={dbId} data-status={store.status}>
         {embedded && (
           <a
             className="db-embed-title"
@@ -171,7 +174,7 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
           <ViewTabs views={views} current={shownView} onPick={setVid} embedded={embedded} />
           <Toolbar view={shownView} onView={patchView} search={search} onSearch={setSearch} onNew={newRow} />
         </div>
-        <FilterChips view={shownView} onOpen={() => document.querySelector<HTMLButtonElement>(`[data-db="${dbId}"] [data-db-tool="filter"]`)?.click()} />
+        <FilterChips view={shownView} onOpen={() => ctx.openFilter?.()} />
         <div className={'db-view is-' + shownView.type}>
           {shownView.type === 'table' && <TableView view={shownView} result={shownResult} onView={patchView} maxHeight={embedded ? 420 : undefined} />}
           {shownView.type === 'board' && <BoardView view={shownView} result={shownResult} onView={patchView} />}

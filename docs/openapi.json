@@ -306,7 +306,7 @@
         "description": "登录方式和站点设置。",
         "properties": {
           "allowed_origins": {
-            "description": "允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。\niframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段",
+            "description": "允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。\niframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段",
             "items": {
               "type": "string"
             },
@@ -563,6 +563,14 @@
       "Content": {
         "description": "正文：`markdown`（默认）、`doc`（`?format=json`）或 `html`（`?format=html`，只读），带当前版本（改的时候作为 base 带回来）。",
         "properties": {
+          "assets_expire_at": {
+            "description": "`html` 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。只有 `?format=html` 才有。\n宿主缓存这段 HTML 的话，缓存别超过这个时间（过期前重新取一次）",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "doc": {
             "oneOf": [
               {
@@ -574,7 +582,7 @@
             ]
           },
           "html": {
-            "description": "只读 HTML（`?format=html`）：外面包 `<div class=\"oad-content\">`，配 `/embed/content.css` 显示。\n只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址",
+            "description": "只读 HTML（`?format=html`）：外面包 `<div class=\"oad-content\">`，配 `/embed/content.css` 显示。\n只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址。\n调用者看得到的图片、文件地址带签名（`?exp=&sig=`），不登录也打得开，过期时间见 `assets_expire_at`",
             "type": [
               "string",
               "null"
@@ -2840,6 +2848,47 @@
           "include_children",
           "indexable",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "SignFileUrls": {
+        "description": "签名地址的请求。",
+        "properties": {
+          "urls": {
+            "description": "要签的：文件地址 `/api/v1/files/<id>[/<文件名>]`、转存图片的地址 `/api/v1/media/<hash>`（根相对的或者带域名的，可以带 `?w=`），\n或者只给文件 id。最多 500 个",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "urls"
+        ],
+        "type": "object"
+      },
+      "SignedFileUrls": {
+        "description": "签好的地址。",
+        "properties": {
+          "expires_at": {
+            "description": "签名什么时候过期（毫秒时间戳）。有效期是 `OAD_SIGNED_URL_TTL`（默认 24 小时），往后凑整到一个刻度（最多一小时）",
+            "format": "int64",
+            "type": "integer"
+          },
+          "urls": {
+            "description": "和请求的 `urls` 一一对应：原来的地址加上 `exp`、`sig`（只给 id 的是 `/api/v1/files/<id>?exp=…&sig=…`）；\n不是本站的文件、不存在、调用者看不到的是 null",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "urls",
+          "expires_at"
         ],
         "type": "object"
       },
@@ -5644,6 +5693,58 @@
         ]
       }
     },
+    "/files/sign": {
+      "post": {
+        "description": "给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。",
+        "operationId": "sign_files",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignFileUrls"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedFileUrls"
+                }
+              }
+            },
+            "description": "成功"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "参数不对"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "没有登录"
+          }
+        },
+        "summary": "给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。",
+        "tags": [
+          "files"
+        ]
+      }
+    },
     "/files/{id}": {
       "get": {
         "description": "同 `/files/{id}/{name}`，不带文件名。",
@@ -5667,6 +5768,25 @@
               "format": "int32",
               "minimum": 0,
               "type": "integer"
+            }
+          },
+          {
+            "description": "签名地址的过期时间（unix 秒），见 `POST /files/sign`",
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "签名，和 `exp` 一起给；有效就不用登录",
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -5708,6 +5828,16 @@
             },
             "description": "没有登录"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "签名过期了或者不对"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5730,7 +5860,7 @@
     },
     "/files/{id}/{name}": {
       "get": {
-        "description": "下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。",
+        "description": "下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。",
         "operationId": "get_file",
         "parameters": [
           {
@@ -5763,6 +5893,25 @@
             }
           },
           {
+            "description": "签名地址的过期时间（unix 秒），见 `POST /files/sign`",
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "签名，和 `exp` 一起给；有效就不用登录",
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "`bytes=a-b`，只认一段",
             "in": "header",
             "name": "Range",
@@ -5801,6 +5950,16 @@
             },
             "description": "没有登录"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "签名过期了或者不对"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5815,7 +5974,7 @@
             "description": "Range 不对"
           }
         },
-        "summary": "下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。",
+        "summary": "下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。",
         "tags": [
           "files"
         ]
@@ -6210,7 +6369,7 @@
     },
     "/media/{hash}": {
       "get": {
-        "description": "转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。",
+        "description": "转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。",
         "operationId": "get_media",
         "parameters": [
           {
@@ -6231,6 +6390,25 @@
               "format": "int32",
               "minimum": 0,
               "type": "integer"
+            }
+          },
+          {
+            "description": "签名地址的过期时间（unix 秒），见 `POST /files/sign`",
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "签名，和 `exp` 一起给；有效就不用登录",
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -6272,6 +6450,16 @@
             },
             "description": "没有登录"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "签名过期了或者不对"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -6286,7 +6474,7 @@
             "description": "Range 不对"
           }
         },
-        "summary": "转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。",
+        "summary": "转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。",
         "tags": [
           "files"
         ]

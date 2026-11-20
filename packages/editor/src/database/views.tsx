@@ -1,7 +1,7 @@
 // 看板、日历、画廊、列表四种视图。
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CellView, cellValue, isEmptyVal, useDb } from './cells'
+import { CellView, cellValue, isEmptyVal, useAssetUrl, useDb } from './cells'
 import { groupDefaults, visibleProps } from './TableView'
 import { t } from './strings'
 import type { DateValue, Group, OadClient, Prop, QueryResult, Row, View } from '@open-agent-docs/client'
@@ -366,9 +366,12 @@ function useCover(view: View, row: Row, visible: boolean) {
   useEffect(() => {
     if (view.cover === 'body' && visible) bodyCover(store.client, row.id).then(setBody)
   }, [view.cover, row.id, visible])
-  if (!view.cover) return undefined
   const src = fromFiles ?? body
-  return src ? (src.startsWith('/api/') && !/\.svg(\?|$)/i.test(src) ? src.split('?')[0] + '?w=640' : src) : null
+  const thumb = src ? (src.startsWith('/api/') && !/\.svg(\?|$)/i.test(src) ? src.split('?')[0] + '?w=640' : src) : null
+  // 跨域、token 登录时换成能直接打开的地址（签名）
+  const resolved = useAssetUrl(thumb)
+  if (!view.cover) return undefined
+  return thumb ? (resolved ?? null) : null
 }
 
 function GalleryCard({ row, view, props, visible }: { row: Row; view: View; props: Prop[]; visible: boolean }) {

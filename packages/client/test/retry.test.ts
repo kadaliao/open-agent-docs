@@ -93,6 +93,29 @@ describe('重试', () => {
     expect(calls).toBe(2)
   })
 
+  it('retryConnectionErrors: false：连不上马上报错，429、503 照样重试', async () => {
+    const refused = Object.assign(new TypeError('Failed to fetch'), { cause: { code: 'ECONNREFUSED' } })
+    let calls = 0
+    const down = (async () => {
+      calls++
+      throw refused
+    }) as unknown as typeof fetch
+    const t0 = Date.now()
+    const e = await createClient({ fetch: down, retryConnectionErrors: false })
+      .me()
+      .catch((x) => x)
+    expect(e).toBeInstanceOf(ApiConnectionError)
+    expect(isConnectionError(e)).toBe(true)
+    expect(calls).toBe(1)
+    expect(Date.now() - t0).toBeLessThan(400)
+    for (const s of [429, 503]) {
+      let n = 0
+      const { fetch, calls: c } = fakeFetch(() => (n++ === 0 ? err(s, { 'retry-after': '0' }) : json({ ok: 1 })))
+      expect(await createClient({ fetch, retryConnectionErrors: false }).me()).toEqual({ ok: 1 })
+      expect(c.length).toBe(2)
+    }
+  })
+
   it('等待：Retry-After 最多 60 秒；没有就 0.5 秒 × 2^n，最多 8 秒，加 0–25%', () => {
     expect(retryDelay(0, 3)).toBe(3000)
     expect(retryDelay(0, 600)).toBe(60_000)

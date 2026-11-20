@@ -15,6 +15,7 @@ import { CodeHighlight } from './code-highlight'
 import { FlashBlock, LiveBlock } from './live-block'
 import { MediaServicesExt, type MediaServices } from './media'
 import { Paste } from './paste'
+import { PortalRootExt } from './portal'
 import { OadPlaceholder } from './placeholder'
 import { NotionKeys } from './keys'
 import { SlashCommands } from './slash'
@@ -37,6 +38,8 @@ export interface EditorExtensionOptions {
   authors?: () => Record<string, AuthorInfo>
   onUnknownAuthor?: (clientId: string) => void
   media?: () => Partial<MediaServices>
+  // 大图预览这些挂在哪（Shadow DOM 里给 shadow 里的一个元素）；不给就是 document.body，见 portal.ts
+  portalRoot?: () => HTMLElement | null
 }
 
 function caret(user: { name: string; color: string; kind?: string }) {
@@ -63,6 +66,7 @@ export function editorExtensions(o: EditorExtensionOptions): AnyExtension[] {
     LiveBlock,
     FlashBlock,
     MediaServicesExt.configure({ get: () => o.media?.() ?? {} }),
+    PortalRootExt.configure({ get: () => o.portalRoot?.() ?? null }),
     CodeHighlight,
     Paste,
     BlockHandle,

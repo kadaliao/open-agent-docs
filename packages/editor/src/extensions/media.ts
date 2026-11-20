@@ -1,5 +1,6 @@
 // 编辑器用到的外部服务：链接解析、上传、文件信息。宿主（apps/web）通过 OadEditor 的 props 填进来，节点视图从 editor.storage.oadMedia 取。
 import { Extension, type Editor } from '@tiptap/core'
+import type { UrlResolver } from '../media/resolve'
 import type { Unfurl, Uploaded } from '../media/types'
 
 export interface MediaServices {
@@ -19,6 +20,9 @@ export interface MediaServices {
   isDatabase: ((url: string) => boolean) | null
   /** 把库画进 box；不是库返回 null */
   renderDatabase: ((box: HTMLElement, url: string) => { destroy: () => void } | null) | null
+  /** 显示服务器上的图片、视频、文件前换地址：跨域拼上服务器地址、用 token 登录时换成签名地址（createUrlResolver / clientUrlResolver）。
+   *  不给就原样用（同域 cookie 登录） */
+  resolveUrl: UrlResolver | null
 }
 
 const defaults: MediaServices = {
@@ -30,6 +34,7 @@ const defaults: MediaServices = {
   pageUrl: () => location.href.split('#')[0],
   isDatabase: null,
   renderDatabase: null,
+  resolveUrl: null,
 }
 
 // 宿主给的服务放在选项里（取的时候才读，宿主后来换了也能拿到最新的）

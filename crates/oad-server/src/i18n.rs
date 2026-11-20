@@ -42,6 +42,12 @@ pub static SERVER: Table = &[
     ("没有 file 字段", "Missing file field"),
     ("要有 file 字段", "A file field is required"),
     ("没有这张图", "Image not found"),
+    (
+        "签名地址过期了，重新取一个",
+        "This signed URL has expired; get a new one",
+    ),
+    ("签名不对", "Invalid signature"),
+    ("一次最多签 500 个", "At most 500 URLs per request"),
     ("要给 url", "url is required"),
     (
         "to 要是版本号或 current",

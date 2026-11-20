@@ -22,9 +22,52 @@ export interface DbCtx {
   pageHref: (id: string) => string
   /** 行正文编辑器用的服务（链接卡片、上传……） */
   media?: Partial<MediaServices>
+  /** 打开这个库工具栏里的筛选（列头菜单“筛选”、筛选条件那一行用） */
+  openFilter?: () => void
 }
 export const DbContext = createContext<DbCtx | null>(null)
 export const useDb = () => useContext(DbContext)!
+
+/** 服务器上的文件地址换成能直接打开的（跨域、token 登录时，见 MediaServices.resolveUrl）。
+ *  要问服务器（签名）时先给 null，签好了再刷新；没有钩子原样给 */
+export function useAssetUrl(url: string | null | undefined): string | null | undefined {
+  const resolve = useContext(DbContext)?.media?.resolveUrl ?? null
+  const [late, setLate] = useState<[string, string] | null>(null)
+  let now: string | null | undefined = url
+  let pending: Promise<string> | null = null
+  if (url && resolve) {
+    const r = resolve(url)
+    if (typeof r === 'string') now = r
+    else pending = r
+  }
+  useEffect(() => {
+    if (!pending || !url) return
+    let on = true
+    pending.then(
+      (u) => on && setLate([url, u]),
+      () => on && setLate([url, url]),
+    )
+    return () => {
+      on = false
+    }
+  }, [url, resolve]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!pending) return now
+  return late && late[0] === url ? late[1] : null
+}
+
+function FileThumb({ f }: { f: { url: string; name?: string } }) {
+  const src = useAssetUrl(f.url.startsWith('/api/') && !/\.svg$/i.test(f.name || f.url) ? f.url + '?w=160' : f.url)
+  return src ? <img className="db-file-thumb" src={src} alt={f.name ?? ''} loading="lazy" referrerPolicy="no-referrer" /> : <span className="db-file-thumb" />
+}
+
+function FileLink({ f }: { f: { url: string; name?: string } }) {
+  const href = useAssetUrl(f.url) ?? f.url
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {f.name || f.url}
+    </a>
+  )
+}
 
 /** 一格的值：算出来的属性从引擎拿 */
 export function cellValue(store: DbStore, p: Prop, row: Row): unknown {
@@ -113,7 +156,7 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
         <span className="db-files">
           {(Array.isArray(v) ? (v as { url: string; name?: string }[]) : []).map((f, i) =>
             /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(f.name || f.url) ? (
-              <img key={i} className="db-file-thumb" src={f.url.startsWith('/api/') && !/\.svg$/i.test(f.name || f.url) ? f.url + '?w=160' : f.url} alt={f.name ?? ''} loading="lazy" referrerPolicy="no-referrer" />
+              <FileThumb key={i} f={f} />
             ) : (
               <span key={i} className="db-file-chip">
                 {f.name || f.url}
@@ -555,9 +598,7 @@ function FilesEditor({ p, row, anchor, onDone }: EditProps) {
       <div className="db-opt-list">
         {files.map((f, i) => (
           <div key={i} className="db-file-row">
-            <a href={f.url} target="_blank" rel="noopener noreferrer">
-              {f.name || f.url}
-            </a>
+            <FileLink f={f} />
             <button type="button" className="db-pill-x" onClick={() => set(files.filter((_, j) => j !== i))}>
               ×
             </button>

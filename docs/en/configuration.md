@@ -18,10 +18,23 @@ An empty value counts as unset. The tables list every `OAD_*` variable the code 
 | `OAD_PUBLIC_URL` | `--public-url` | none | Public address, e.g. `https://docs.example.com`. Used in links in notifications, webhooks and shares; its Host and Origin are allowed automatically |
 | `OAD_COOKIE_SECURE` | `--cookie-secure` | off | Mark the session cookie `Secure`. Turn on behind HTTPS (`true` / `1`) |
 | `OAD_ALLOWED_HOSTS` | `--allowed-hosts` | none | Extra allowed Host values, comma-separated; `*` disables the check. See "Request origin" below |
-| `OAD_ALLOWED_ORIGINS` | `--allowed-origins` | none | Origins allowed cross-origin (when embedding from another domain), comma-separated, e.g. `https://app.example.com` |
-| `OAD_RATE_LIMIT` | | `1200` | Requests per minute per token / session (per IP without one); `0` for no limit |
+| `OAD_ALLOWED_ORIGINS` | `--allowed-origins` | none | Origins allowed cross-origin (when embedding from another domain), comma-separated, e.g. `https://app.example.com`. The same list (plus `OAD_PUBLIC_URL`'s origin) drives three things: the Origin check on writes and WebSocket handshakes, CORS on `/api/v1` (pages on other domains calling the API and event streams directly), and which hosts an embedded iframe accepts `oad:token` from. See "Request origin" below |
+| `OAD_SIGNED_URL_TTL` | | `86400` | Lifetime in seconds of signed file URLs (`?exp=&sig=`: images in `format=html`, `POST /files/sign`). Rounded up to a step (1/24 of the lifetime, at most an hour). See the note below |
+| `OAD_RATE_LIMIT` | | `1200` | Requests per minute per token / session (per IP without one; per signature for signed URLs fetched without sign-in); `0` for no limit |
 | `OAD_MAX_UPLOAD_MB` | | `100` | Upload size limit (MB) |
 | `OAD_TZ` | | system | Server time zone, IANA name such as `Europe/Berlin`. Used for "today", relative dates and time display in databases; falls back to the system zone if unknown |
+
+> [!WARNING]
+> **Two consequences of `OAD_SIGNED_URL_TTL`**:
+>
+> 1. Image and file URLs in the HTML from `format=html` carry signatures that expire (after 24 hours by default). If the host caches the HTML
+>    (knowledge-base front ends often do), don't cache it longer than that: fetch it again before it expires, or schedule a refresh from
+>    `assets_expire_at` (ms timestamp) in the response.
+> 2. Anyone who gets this HTML (or a signed URL) can open its images and files without signing in until they expire. Where documents must
+>    not leak, shorten the lifetime; for content meant to stay public, use a share link.
+>
+> The signing key is generated at first start and stored in the database (one per tenant). To revoke every signed URL already handed out,
+> delete `url_signing_key` from the `settings` table and restart.
 
 ## Storage
 
@@ -76,4 +89,7 @@ against a real S3 / MinIO). Not used in deployments.
   name or IP, add it to `OAD_ALLOWED_HOSTS`.
 - **Origin**: requests that change data (POST / PUT / PATCH / DELETE) and WebSocket handshakes that carry an Origin must be
   same-origin, listed in `OAD_ALLOWED_ORIGINS`, or `OAD_PUBLIC_URL`. Requests without an Origin (agents, curl, server to server) pass.
+- **CORS**: `/api/v1` sends CORS headers only to origins in that same list (preflight handled; `Authorization`, `Content-Type`, `Last-Event-ID`,
+  `Accept-Language`, `X-Filename` and other request headers plus credentials allowed; `RateLimit-*`, `Retry-After`, `ETag` exposed). Other origins
+  get none, so browsers block them. Event streams (SSE) work the same way.
 - Behind a reverse proxy: set `OAD_PUBLIC_URL` and have the proxy pass the original `Host` (or `X-Forwarded-Host`). See [Deployment](deployment.md).

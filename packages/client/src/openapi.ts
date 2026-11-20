@@ -413,6 +413,26 @@ export interface paths {
         patch: operations["patch_view"];
         trace?: never;
     };
+    "/files/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+         * @description 给文件、转存的图片签名，拿到不用登录就能打开的地址（`<img>`、链接带不了 `Authorization`：跨域 iframe、Web Component、宿主自己渲染的 HTML 用）。签名不包含 `w` 和文件名，拿到以后可以自己加 `w=`。只签调用者看得到的；拿到地址的人在有效期内不登录也能打开，别外传。
+         */
+        post: operations["sign_files"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{id}": {
         parameters: {
             query?: never;
@@ -441,8 +461,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
-         * @description 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。
+         * 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
+         * @description 下载上传的文件：原来的类型；带 ETag、长缓存、Range。`?w=` 给图片的缩略图（WebP）。SVG、HTML 之类带 `Content-Security-Policy: sandbox`，SVG 当附件下载。不是这个工作区的成员当不存在（404）。带了有效的签名（`?exp=&sig=`，见 `POST /files/sign`）就不用登录；签名过期了或者不对回 403（登录了、看得到的照样给）。
          */
         get: operations["get_file"];
         put?: never;
@@ -573,8 +593,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
-         * @description 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看。`?w=` 给缩略图（WebP），支持 Range。
+         * 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
+         * @description 转存的外部图片（链接卡片的封面、头像之类），按内容的 hash。登录了就能看，带了有效的签名（`?exp=&sig=`）也行。`?w=` 给缩略图（WebP），支持 Range。
          */
         get: operations["get_media"];
         put?: never;
@@ -1485,7 +1505,7 @@ export interface components {
         AuthConfigBody: {
             /**
              * @description 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
-             *     iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+             *     iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
              */
             allowed_origins?: string[];
             /** @description 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT） */
@@ -1562,10 +1582,17 @@ export interface components {
         };
         /** @description 正文：`markdown`（默认）、`doc`（`?format=json`）或 `html`（`?format=html`，只读），带当前版本（改的时候作为 base 带回来）。 */
         Content: {
+            /**
+             * Format: int64
+             * @description `html` 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。只有 `?format=html` 才有。
+             *     宿主缓存这段 HTML 的话，缓存别超过这个时间（过期前重新取一次）
+             */
+            assets_expire_at?: number | null;
             doc?: components["schemas"]["DocNode"] | null;
             /**
              * @description 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
-             *     只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+             *     只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址。
+             *     调用者看得到的图片、文件地址带签名（`?exp=&sig=`），不登录也打得开，过期时间见 `assets_expire_at`
              */
             html?: string | null;
             markdown?: string | null;
@@ -2267,6 +2294,27 @@ export interface components {
             token: string;
             /** @description 公开的网址（`/s/<token>`） */
             url: string;
+        };
+        /** @description 签名地址的请求。 */
+        SignFileUrls: {
+            /**
+             * @description 要签的：文件地址 `/api/v1/files/<id>[/<文件名>]`、转存图片的地址 `/api/v1/media/<hash>`（根相对的或者带域名的，可以带 `?w=`），
+             *     或者只给文件 id。最多 500 个
+             */
+            urls: string[];
+        };
+        /** @description 签好的地址。 */
+        SignedFileUrls: {
+            /**
+             * Format: int64
+             * @description 签名什么时候过期（毫秒时间戳）。有效期是 `OAD_SIGNED_URL_TTL`（默认 24 小时），往后凑整到一个刻度（最多一小时）
+             */
+            expires_at: number;
+            /**
+             * @description 和请求的 `urls` 一一对应：原来的地址加上 `exp`、`sig`（只给 id 的是 `/api/v1/files/<id>?exp=…&sig=…`）；
+             *     不是本站的文件、不存在、调用者看不到的是 null
+             */
+            urls: (string | null)[];
         };
         SignupBody: {
             email: string;
@@ -4143,11 +4191,57 @@ export interface operations {
             };
         };
     };
+    sign_files: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignFileUrls"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedFileUrls"];
+                };
+            };
+            /** @description 参数不对 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 没有登录 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_file_bare: {
         parameters: {
             query?: {
                 /** @description 缩略图宽度（图片才有，给 WebP） */
                 w?: number;
+                /** @description 签名地址的过期时间（unix 秒），见 `POST /files/sign` */
+                exp?: number;
+                /** @description 签名，和 `exp` 一起给；有效就不用登录 */
+                sig?: string;
             };
             header?: {
                 /** @description `bytes=a-b`，只认一段 */
@@ -4195,6 +4289,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description 签名过期了或者不对 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description 找不到 */
             404: {
                 headers: {
@@ -4218,6 +4321,10 @@ export interface operations {
             query?: {
                 /** @description 缩略图宽度（图片才有，给 WebP） */
                 w?: number;
+                /** @description 签名地址的过期时间（unix 秒），见 `POST /files/sign` */
+                exp?: number;
+                /** @description 签名，和 `exp` 一起给；有效就不用登录 */
+                sig?: string;
             };
             header?: {
                 /** @description `bytes=a-b`，只认一段 */
@@ -4260,6 +4367,15 @@ export interface operations {
             };
             /** @description 没有登录 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 签名过期了或者不对 */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4597,6 +4713,10 @@ export interface operations {
             query?: {
                 /** @description 缩略图宽度 */
                 w?: number;
+                /** @description 签名地址的过期时间（unix 秒），见 `POST /files/sign` */
+                exp?: number;
+                /** @description 签名，和 `exp` 一起给；有效就不用登录 */
+                sig?: string;
             };
             header?: {
                 /** @description `bytes=a-b`，只认一段 */
@@ -4637,6 +4757,15 @@ export interface operations {
             };
             /** @description 没有登录 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description 签名过期了或者不对 */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

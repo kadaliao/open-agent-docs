@@ -160,7 +160,7 @@ pub struct Anchor {
 #[serde(default)]
 pub struct AuthConfigBody {
     /// 允许跨源嵌入的宿主（`OAD_ALLOWED_ORIGINS`，加上 `OAD_PUBLIC_URL` 的 origin），如 `https://app.example.com`。
-    /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`。旧版服务器没有这个字段
+    /// iframe 里的网页只认这些 origin（和同源）发来的 `oad:token`；`/api/v1` 也只对它们回 CORS 头。旧版服务器没有这个字段
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_origins: Option<Vec<String>>,
     /// 登录方式：local（账号密码）/ header（宿主反代带身份头）/ none（不登录，单人）/ jwt（宿主签的 JWT）
@@ -331,10 +331,15 @@ pub struct CommentView {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Content {
+    /// `html` 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。只有 `?format=html` 才有。
+    /// 宿主缓存这段 HTML 的话，缓存别超过这个时间（过期前重新取一次）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assets_expire_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<DocNode>,
     /// 只读 HTML（`?format=html`）：外面包 `<div class="oad-content">`，配 `/embed/content.css` 显示。
-    /// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址
+    /// 只有白名单里的标签和属性；公式、链接卡片是带 `data-*` 的占位；设了 `OAD_PUBLIC_URL` 时文件、页面链接是完整地址。
+    /// 调用者看得到的图片、文件地址带签名（`?exp=&sig=`），不登录也打得开，过期时间见 `assets_expire_at`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1825,6 +1830,26 @@ pub struct ShareView {
     pub token: String,
     /// 公开的网址（`/s/<token>`）
     pub url: String,
+}
+
+/// 签名地址的请求。
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SignFileUrls {
+    /// 要签的：文件地址 `/api/v1/files/<id>[/<文件名>]`、转存图片的地址 `/api/v1/media/<hash>`（根相对的或者带域名的，可以带 `?w=`），
+    /// 或者只给文件 id。最多 500 个
+    pub urls: Vec<String>,
+}
+
+/// 签好的地址。
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SignedFileUrls {
+    /// 签名什么时候过期（毫秒时间戳）。有效期是 `OAD_SIGNED_URL_TTL`（默认 24 小时），往后凑整到一个刻度（最多一小时）
+    pub expires_at: i64,
+    /// 和请求的 `urls` 一一对应：原来的地址加上 `exp`、`sig`（只给 id 的是 `/api/v1/files/<id>?exp=…&sig=…`）；
+    /// 不是本站的文件、不存在、调用者看不到的是 null
+    pub urls: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

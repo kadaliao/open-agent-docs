@@ -1,7 +1,9 @@
 // 编辑器用到的外部服务：链接解析（GET /api/v1/unfurl，结果在内存和 IndexedDB 里各存一份，离线、再打开时直接画）、
 // 上传（POST /api/v1/workspaces/{ws}/files，带进度）、Markdown 解析（WASM 版 oad-markdown，按需加载）。
 import type { MediaServices, Unfurl, Uploaded } from '@open-agent-docs/editor'
+import { createUrlResolver, type UrlResolver } from '@open-agent-docs/editor/resolve'
 import { API, authHeaders, client } from './api'
+import { getToken, onToken } from './token'
 
 const mem = new Map<string, Unfurl>()
 const inflight = new Map<string, Promise<Unfurl | null>>()
@@ -110,6 +112,13 @@ export function internalPage(url: string): { id: string; view: string | null } |
   }
 }
 
+// ---------- 图片、文件的地址 ----------
+// 跨域 iframe 用 token 登录（#token=）时没有 cookie，<img>、<video>、链接带不了 Authorization：换成签名地址（POST /files/sign）。
+// cookie 登录时原样用。
+const signed = createUrlResolver({ baseUrl: '', sign: (urls) => client.signFileUrls(urls) })
+onToken(() => signed.clear())
+export const resolveUrl: UrlResolver = (url, o) => (getToken() ? signed(url, o) : url)
+
 export interface DbHost {
   isDatabase: (id: string) => boolean
   mount: (box: HTMLElement, id: string, view: string | null) => () => void
@@ -134,5 +143,6 @@ export function mediaServices(ws: string, db?: DbHost): Partial<MediaServices> {
     },
     parseMarkdown,
     pageUrl: () => location.origin + location.pathname,
+    resolveUrl,
   }
 }

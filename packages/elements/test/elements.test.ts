@@ -1,7 +1,7 @@
 // 元素的基本行为（jsdom）：注册、属性变了重连、事件、token、移除时断开。服务器用假的 fetch / WebSocket。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '../src/index.ts'
-import { jwtExp } from '../src/base.ts'
+import { jwtExp, type OadBaseElement } from '../src/base.ts'
 import { addCss, toShadowCss } from '../src/styles.ts'
 import { OadDatabaseElement, OadEditorElement, OadViewerElement } from '../src/index.ts'
 
@@ -259,6 +259,21 @@ describe('token', () => {
     document.body.append(el)
     await r
     expect(calls[0].auth).toBe('Bearer abc')
+  })
+})
+
+describe('图片地址', () => {
+  it('用 token：服务器上的图片地址交给 files/sign 换成签名地址，拼上 base-url；同域 cookie 登录不换', async () => {
+    route = (u) => (u.pathname === '/api/v1/files/sign' ? json({ urls: ['/api/v1/files/f1/a.png?exp=9&sig=S'], expires_at: Date.now() + 3600_000 }) : undefined)
+    const el = document.createElement('oad-editor')
+    el.setAttribute('base-url', 'https://docs.example.com')
+    el.token = 'oad_x'
+    const resolve = (el as unknown as OadBaseElement).host().resolveUrl!
+    expect(await resolve('/api/v1/files/f1/a.png?w=320')).toBe('https://docs.example.com/api/v1/files/f1/a.png?exp=9&sig=S&w=320')
+    expect(calls.filter((c) => c.url.endsWith('/files/sign')).map((c) => c.auth)).toEqual(['Bearer oad_x'])
+    // 缓存着：不再问
+    expect(resolve('/api/v1/files/f1/a.png')).toBe('https://docs.example.com/api/v1/files/f1/a.png?exp=9&sig=S')
+    expect((document.createElement('oad-viewer') as unknown as OadBaseElement).host().resolveUrl).toBeNull()
   })
 })
 

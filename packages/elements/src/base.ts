@@ -2,6 +2,7 @@
 // 只引客户端的 core 和编辑器的 i18n（很小）：<oad-viewer> 用不到 React 编辑器，编辑器、数据库视图的代码在 start() 里按需加载。
 import { createClient, isApiError, type OadClient } from '@open-agent-docs/client/core'
 import { setLocale } from '@open-agent-docs/editor/i18n'
+import { clientUrlResolver, type UrlResolver } from '@open-agent-docs/editor/resolve'
 import { adoptStyles, releaseStyles } from './styles.ts'
 import type { OadErrorDetail, OadNavigateDetail, TokenProvider } from './types.ts'
 
@@ -13,6 +14,8 @@ export interface ElementHost {
   mount: HTMLDivElement
   client: OadClient
   baseUrl: string
+  /** 显示服务器上的图片、文件前换地址（token 登录时签名、跨域时拼服务器地址）；同域 cookie 登录时 null */
+  resolveUrl: UrlResolver | null
   emit: <D>(name: string, detail: D, cancelable?: boolean) => boolean
   fail: (e: unknown) => void
   navigate: (href: string, pageId?: string) => void
@@ -51,6 +54,7 @@ export abstract class OadBaseElement extends HTMLElement {
   private _token: string | null = null
   private _getToken: TokenProvider | null = null
   private _client: OadClient | null = null
+  private _resolver: { client: OadClient; r: UrlResolver | null } | null = null
   private running: { key: string; stop: () => void } | null = null
   private scheduled = false
   private refreshing: Promise<void> | null = null
@@ -121,6 +125,12 @@ export abstract class OadBaseElement extends HTMLElement {
   /** 这个元素用的客户端（@open-agent-docs/client）：想自己调接口时拿来用，登录方式和元素一样 */
   get client(): OadClient {
     return (this._client ??= this.makeClient())
+  }
+  /** 图片、文件的地址解析（跟着客户端换）：用 token 时批量签名（POST /files/sign，缓存到过期前 60 秒），跨域时拼上服务器地址 */
+  private get urlResolver(): UrlResolver | null {
+    const c = this.client
+    if (this._resolver?.client !== c) this._resolver = { client: c, r: clientUrlResolver(c, { token: !!(this.token || this.getToken) }) }
+    return this._resolver.r
   }
 
   // ---------- 生命周期 ----------
@@ -293,6 +303,7 @@ export abstract class OadBaseElement extends HTMLElement {
       mount: this.mount,
       client: this.client,
       baseUrl: this.baseUrl,
+      resolveUrl: this.urlResolver,
       emit: (n, d, c) => this.emit(n, d, c),
       fail: (e) => this.fail(e),
       navigate: (href, pageId) => this.navigate(href, pageId),

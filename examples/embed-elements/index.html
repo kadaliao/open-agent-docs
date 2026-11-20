@@ -47,12 +47,14 @@
       const getToken = () => fetch('/token').then((r) => r.json()).then((j) => j.token)
       const log = (...a) => (document.getElementById('log').textContent += a.join(' ') + '\n')
 
-      const { pageId, dbId, user } = await fetch('/host/page').then((r) => r.json())
+      // baseUrl：Open Agent Docs 的地址，浏览器直连（服务器的 OAD_ALLOWED_ORIGINS 里要有这个页面的 origin）；转发 /api 时是空的（同源）
+      const { pageId, dbId, user, baseUrl } = await fetch('/host/page').then((r) => r.json())
       document.getElementById('me').textContent = user.name
 
       document.getElementById('db').dbId = dbId
       for (const el of [document.getElementById('editor'), document.getElementById('viewer'), document.getElementById('db')]) {
         el.getToken = getToken
+        if (baseUrl) el.baseUrl = baseUrl // 或者 <oad-editor base-url="https://docs.example.com">
         if (el.localName !== 'oad-database') el.pageId = pageId // 或者 <oad-editor page-id="…">
         el.addEventListener('oad-ready', (e) => log(el.localName, 'ready', JSON.stringify(e.detail)))
         el.addEventListener('oad-error', (e) => log(el.localName, 'error', e.detail.status ?? '', e.detail.message))

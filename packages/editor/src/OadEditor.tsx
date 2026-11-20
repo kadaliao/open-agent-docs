@@ -2,13 +2,14 @@
 import type { Editor } from '@tiptap/core'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import { Selection, TextSelection } from '@tiptap/pm/state'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
 import { editorExtensions, type OadUser } from './extensions'
 import type { AuthorInfo } from './extensions/block-author'
 import { selectionToAnchor, type CommentAnchor } from './extensions/comments'
 import type { MediaServices } from './extensions/media'
+import { OadPortalRoot } from './react/context'
 import { BlockMenu } from './ui/BlockMenu'
 import { PasteMenu } from './ui/PasteMenu'
 import type { SlashStorage } from './extensions/slash'
@@ -52,6 +53,9 @@ export function OadEditor(props: OadEditorProps) {
   // 回调和作者表放 ref 里，变了不用重建编辑器
   const live = useRef(props)
   live.current = props
+  // 浮层挂在哪（<OadPortalRoot>）：节点视图（大图预览）从扩展选项里取，也放 ref
+  const portal = useRef<HTMLElement | null>(null)
+  portal.current = useContext(OadPortalRoot)
   const extensions = useMemo(
     () =>
       editorExtensions({
@@ -63,6 +67,7 @@ export function OadEditor(props: OadEditorProps) {
         authors: () => live.current.authors ?? {},
         onUnknownAuthor: (c) => live.current.onUnknownAuthor?.(c),
         media: () => live.current.media ?? {},
+        portalRoot: () => portal.current,
       }),
     // user 变了走 updateUser，不重建编辑器
     // eslint-disable-next-line react-hooks/exhaustive-deps

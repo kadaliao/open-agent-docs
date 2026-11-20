@@ -58,6 +58,8 @@ export interface ClientOptions {
   WebSocket?: unknown
   /** 失败了最多重试几次（默认 2）：429；502 / 503 / 504（POST、PATCH 除外）；连不上（GET、PUT、DELETE，或者确定没发出去） */
   maxRetries?: number
+  /** 连不上（请求没拿到响应）时要不要重试，默认要。网页里设 false：断网了马上报错，不白等一秒多；429、503 这些照样重试 */
+  retryConnectionErrors?: boolean
   /** 单个请求的超时（毫秒，默认 60 秒；0 是不限）。事件流只限连接，不限总时长 */
   timeout?: number
 }
@@ -67,6 +69,8 @@ export interface HtmlContent {
   html: string
   version: string
   total?: number | null
+  /** html 里图片、文件地址的签名什么时候过期（毫秒时间戳）；没有签名地址时是 null。缓存这段 HTML 别超过它 */
+  assets_expire_at?: number | null
 }
 
 /** 嵌入网页的地址：<base>/p/<id>?embed=1[&theme=][&lang=][#token=]。token 放在 # 后面，不进服务器日志和 Referer */
@@ -174,7 +178,7 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
           r = await f(url, { ...init, credentials, signal: ctrl.signal })
         } catch (e) {
           if (timedOut) throw new ApiTimeoutError(`${method} ${url}：${timeout} 毫秒没有响应`)
-          if (n < maxRetries && (idempotent || notSent(e))) {
+          if (n < maxRetries && opts.retryConnectionErrors !== false && (idempotent || notSent(e))) {
             await sleep(retryDelay(n))
             continue
           }
@@ -463,6 +467,9 @@ export function createClient(opts: ClientOptions = {}, extra: ClientPlugins = {}
     downloadNamed: (id: string, name: string, q: { w?: number } = {}) => blob(`/files/${enc(id)}/${enc(name)}`, q),
     /** 按内容哈希取媒体（图片、附件） */
     media: (hash: string, q: { w?: number } = {}) => blob(`/media/${enc(hash)}`, q),
+    /** 给文件、转存的图片签名：拿到不用登录就能打开的地址（<img>、链接带不了 token 时用）。urls 是 /api/v1/files/…、/api/v1/media/… 或文件 id，
+     *  返回的 urls 一一对应（看不到的、不是本站文件的是 null），expires_at 是过期时间（毫秒）。签名不含 w，可以自己加 &w= */
+    signFileUrls: (urls: string[]) => call('post', '/files/sign', { body: { urls } }),
     /** 链接解析（卡片用）；失败返回 null */
     unfurl: (url: string) => call('get', '/unfurl', { query: { url } }).catch(() => null),
 

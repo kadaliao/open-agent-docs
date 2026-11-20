@@ -24,6 +24,11 @@ export function setAttr(p: Props, key: string, value: unknown) {
   view.dispatch(view.state.tr.setNodeAttribute(pos, key, value))
 }
 
+/** 这个元素有没有焦点（在 Shadow DOM 里 document.activeElement 是宿主元素，要问它所在的 root） */
+export function isFocused(e: Element) {
+  return (e.getRootNode() as Document | ShadowRoot).activeElement === e
+}
+
 export function blockAttrs(dom: HTMLElement, node: PMNode) {
   if (node.attrs.id) dom.setAttribute('data-id', node.attrs.id)
   else dom.removeAttribute('data-id')
@@ -106,7 +111,7 @@ export const calloutView: NodeViewRenderer = (p) => {
     dom.dataset.kind = kind
     icon.textContent = CALLOUT_ICONS[kind]
     icon.title = t(`callout.${kind}` as 'callout.note')
-    if (document.activeElement !== title) title.value = n.attrs.title ?? ''
+    if (!isFocused(title)) title.value = n.attrs.title ?? ''
     dom.classList.toggle('has-title', !!n.attrs.title)
     blockAttrs(dom, n)
   }

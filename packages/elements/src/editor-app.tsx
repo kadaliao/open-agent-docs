@@ -23,6 +23,7 @@ import '@open-agent-docs/editor/style.css'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ElementHost } from './base.ts'
+import type { UrlResolver } from '@open-agent-docs/editor/resolve'
 
 // 编辑器自己的文字（斜杠菜单、格式菜单）跟着界面语言：同样是编辑器入口里会被摇掉的那几行
 setEditorLocale(getLocale())
@@ -47,7 +48,7 @@ export function mountEditor(h: ElementHost, o: { pageId: string; opts: () => { c
     root.render(
       <OadPortalRoot.Provider value={portal}>
         <OadProvider client={h.client}>
-          <EditorApp host={host} client={h.client} pageId={o.pageId} comments={comments} readonly={readonly} baseUrl={h.baseUrl} />
+          <EditorApp host={host} client={h.client} pageId={o.pageId} comments={comments} readonly={readonly} baseUrl={h.baseUrl} resolveUrl={h.resolveUrl} />
         </OadProvider>
       </OadPortalRoot.Provider>,
     )
@@ -70,7 +71,7 @@ interface Host {
   setConn: (c: PageConn | null) => void
 }
 
-function EditorApp(p: { host: Host; client: OadClient; pageId: string; comments: boolean; readonly: boolean; baseUrl: string }) {
+function EditorApp(p: { host: Host; client: OadClient; pageId: string; comments: boolean; readonly: boolean; baseUrl: string; resolveUrl: UrlResolver | null }) {
   const [got, setGot] = useState<{ me: Me; page: Page } | null>(null)
   useEffect(() => {
     let alive = true
@@ -86,7 +87,7 @@ function EditorApp(p: { host: Host; client: OadClient; pageId: string; comments:
   return <Doc {...p} me={got.me} page={got.page} />
 }
 
-function Doc({ host, client, me, page, comments, readonly, baseUrl }: { host: Host; client: OadClient; me: Me; page: Page; comments: boolean; readonly: boolean; baseUrl: string }) {
+function Doc({ host, client, me, page, comments, readonly, baseUrl, resolveUrl }: { host: Host; client: OadClient; me: Me; page: Page; comments: boolean; readonly: boolean; baseUrl: string; resolveUrl: UrlResolver | null }) {
   const user = useMemo(() => ({ id: me.user.id, name: me.user.name, color: colorFor(me.user.id) }), [me])
   const doc = useOadPage(client, page.id, { user })
   const role = me.workspaces.find((w) => w.id === page.workspace_id)?.role
@@ -139,8 +140,10 @@ function Doc({ host, client, me, page, comments, readonly, baseUrl }: { host: Ho
       unfurl: (url: string) => client.unfurl(url) as never,
       upload: canWrite ? (file: File, onProgress: (f: number) => void) => client.upload(page.workspace_id, file, onProgress) as Promise<unknown> as Promise<Uploaded> : null,
       pageUrl: () => (baseUrl || location.origin) + '/p/' + encodeURIComponent(page.id),
+      // 图片、文件：token 登录时换成签名地址、跨域时拼上服务器地址
+      resolveUrl,
     }),
-    [client, page.id, page.workspace_id, canWrite, baseUrl],
+    [client, page.id, page.workspace_id, canWrite, baseUrl, resolveUrl],
   )
 
   if (!doc.ydoc) return <div className="oad-el-loading" aria-busy="true" />

@@ -71,14 +71,25 @@ el.addEventListener('oad-navigate', (e) => {
 
 ## Auth
 
-- **JWT** (recommended, `OAD_AUTH=jwt`): your backend signs with `signJwt(secret, userId, { name, email })` from `@open-agent-docs/client/node` and hands it to the element through `getToken`; `/api` is proxied as is.
+- **JWT** (recommended, `OAD_AUTH=jwt`): your backend signs with `signJwt(secret, userId, { name, email })` from `@open-agent-docs/client/node` and hands it to the element through `getToken`; the element uses it to talk to the server directly (see below).
 - **Same origin + proxy**: the host proxies `/api/*` (including the WebSocket) and adds `X-OAD-User-*` (`OAD_AUTH=header`); no token or `base-url` needed.
 - **Agent token**: `token="oad_…"`, for internal tools.
 
-Talking to another origin directly (`base-url` on a different domain) needs CORS headers on `/api`, which the server doesn't send yet (only
-`/embed/content.css` does). For now, proxy `/api` (and the WebSocket) under the host's domain and leave `base-url` empty; the WebSocket handshake checks
-the Origin, so set `OAD_ALLOWED_ORIGINS` to the host's origin in production. See `examples/embed-elements` in the repo (plain HTML + a small Node server
-that signs JWTs and proxies `/api`).
+**Direct cross-origin** (`base-url` on a different domain): add the host page's origin to the server's `OAD_ALLOWED_ORIGINS` and the API (CORS),
+event streams and WebSocket handshakes (Origin check) all let it through:
+
+```sh
+OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+```
+
+**Images and files**: `<img>`, `<video>` and links can't carry a token. With token sign-in, the element first trades server URLs for signed URLs
+via `POST /api/v1/files/sign` (`?exp=…&sig=…`, batched, cached until 60 seconds before expiry, re-signed when expired or when loading fails) and
+prefixes `base-url` when cross-origin; the `format=html` that `<oad-viewer>` gets already has signed URLs. Anyone holding a signed URL can open it
+until it expires (24 hours by default, `OAD_SIGNED_URL_TTL`); see the [embedding docs](../../docs/en/embedding.md#read-only-html).
+
+If the browser shouldn't talk to the server directly (it only listens internally), have the host forward `/api/*` (WebSocket included) under
+its own domain and leave `base-url` out. See `examples/embed-elements` in the repo (plain HTML + a small Node server that signs JWTs; the elements
+connect directly, `PROXY=1` shows the forwarding variant).
 
 ## Styling
 
@@ -101,9 +112,13 @@ follow the system. `::part(root)` selects the outermost `div` inside the element
 
 `@open-agent-docs/editor` is the React version, where the host manages React and the stylesheet; this package wraps the same components:
 
-- Two things attached to `document.body` (the code-block language hint list and the image lightbox) don't work well with the Shadow DOM: the lightbox
-  is unstyled and the hint list doesn't show (database popovers are already rendered inside the shadow root).
-- All elements on a page share one UI language (`lang` changes it globally).
+- Everything that pops up (database popovers, the formula editor, the image lightbox) is mounted inside the element's own shadow root, so it gets
+  its styles and nothing is inserted into the host page; the code-block language hint list lives in the shadow root too.
+- There is one UI language per page: setting `lang` on one element switches every element on the page (and any `@open-agent-docs/editor`
+  components the host renders itself), so you can't have one element in Chinese and another in English on the same page.
+  Several hundred strings in the editor and database view read the global language, many of them from ProseMirror node views outside React,
+  so making it per-element would be a large change; it isn't done for now.
+  Setting `lang` also sets the host page's `<html lang>` and stores the choice in localStorage (`oad:locale`).
 
 ## Development
 

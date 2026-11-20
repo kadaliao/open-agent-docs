@@ -330,6 +330,9 @@ pub async fn start(env: &Env) -> Result<Running, String> {
             allowed_hosts: env.list("OAD_ALLOWED_HOSTS"),
             allowed_origins: env.list("OAD_ALLOWED_ORIGINS"),
             rate_limit: env.num("OAD_RATE_LIMIT", 1200, "整数（每分钟多少次，0 不限）")?,
+            signed_url_ttl: env
+                .num::<u64>("OAD_SIGNED_URL_TTL", 86400, "正整数（秒）")?
+                .max(1),
             ..ServerConfig::default()
         },
     };

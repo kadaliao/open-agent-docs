@@ -15,8 +15,11 @@ The full reference is OpenAPI 3.1: `GET /api/v1/openapi.json` on a running serve
 - **Compression**: JSON responses over 1KB are compressed with br or gzip according to `Accept-Encoding` (browsers and common HTTP libraries
   decode it for you). Live events (SSE), WebSocket and files are not compressed.
 - **Page content formats**: `GET /pages/{id}/content` returns `{ markdown, version }`; `?format=json` returns the document tree `{ doc, version }`;
-  `?format=html` returns read-only HTML `{ html, version }` (wrapped in `<div class="oad-content">`, whitelisted tags only, styled by
-  `GET /embed/content.css`; see [Embedding](embedding.md#read-only-html)). Writing (`PUT`) takes Markdown or the document tree.
+  `?format=html` returns read-only HTML `{ html, version, assets_expire_at }` (wrapped in `<div class="oad-content">`, whitelisted tags only, styled by
+  `GET /embed/content.css`; see [Embedding](embedding.md#read-only-html)): images and files the caller can see are [signed URLs](#signed-file-urls),
+  and `assets_expire_at` is when those signatures expire (ms; `null` when there are none). Writing (`PUT`) takes Markdown or the document tree.
+- **Cross-origin**: pages on another domain calling the API directly need their origin in `OAD_ALLOWED_ORIGINS` (`/api/v1` sends CORS headers
+  only to those; see [Configuration](configuration.md#request-origin-host-and-origin)).
 - **First screen of a big page**: `GET /pages/{id}/content?limit=N` (any `format`) returns only the first N top-level blocks,
   plus `total` (how many there are).
 
@@ -68,6 +71,35 @@ Each caller (by token / session, otherwise by IP) gets `OAD_RATE_LIMIT` requests
 | `RateLimit-Reset` | Seconds until reset |
 
 Over the limit you get 429 `too_many_requests` with `Retry-After` (seconds). Failed sign-ins have their own limit (10 failures per IP + email per 15 minutes).
+
+## Signed file URLs
+
+Uploaded files (`GET /files/{id}`, `/files/{id}/{name}`) and rehosted images (`GET /media/{hash}`) need sign-in, but `<img>`, `<video>` and links
+can't send `Authorization`. Signed URLs work without signing in:
+
+```sh
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"urls": ["/api/v1/files/Qj1y9Gufp11a/pic.png", "Qj1y9Gufp11b", "/api/v1/media/9f86d0…"]}' \
+  https://docs.example.com/api/v1/files/sign
+# { "urls": ["/api/v1/files/Qj1y9Gufp11a/pic.png?exp=1763712000&sig=…", "/api/v1/files/Qj1y9Gufp11b?exp=…&sig=…", null], "expires_at": 1763712000000 }
+```
+
+- `POST /files/sign`: `urls` takes file URLs (root-relative or absolute, `?w=` allowed), rehosted image URLs, or bare file ids, up to 500 per call.
+  The returned `urls` match the request one to one and **only cover what the caller can see** (`null` for files in workspaces you're not in,
+  missing files, or URLs that aren't this server's files); `expires_at` is the expiry (ms).
+- A signed URL is the original URL plus `?exp=<unix seconds>&sig=<base64url(HMAC-SHA256(key, "<file id or media hash>|<exp>"))>`. The signature
+  doesn't cover the thumbnail width `w` or the file name, so add `&w=320` yourself. Lifetime: `OAD_SIGNED_URL_TTL` (24 hours by default),
+  rounded up to a step so URLs signed close together are identical (browser caches can reuse them).
+- With a valid signature the file is served without sign-in (browsers cache it until expiry); expired gives 403 `signature_expired`,
+  wrong gives 403 `bad_signature` (still served if you're signed in and can see it).
+- Images and files in `GET /pages/{id}/content?format=html` are already signed; `assets_expire_at` is their expiry.
+
+> [!WARNING]
+> 1. **They expire**: signatures on image and file URLs in the `format=html` output expire after 24 hours by default (`OAD_SIGNED_URL_TTL`).
+>    If the host caches the HTML (knowledge-base front ends often do), don't cache it longer than that: fetch it again before it expires,
+>    or schedule a refresh from `assets_expire_at` in the response.
+> 2. **Whoever has it can open it**: anyone who gets this HTML (or a signed URL) can open its images and files without signing in until they
+>    expire. Where documents must not leak, shorten the lifetime; for content meant to stay public, use a share link.
 
 ## Live events and webhooks
 

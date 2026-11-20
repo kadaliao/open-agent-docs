@@ -78,6 +78,7 @@
     "get_file_bare": { "name": "files.download", "download": true, "js": "download" },
     "get_file": { "name": "files.download_named", "download": true, "js": "downloadNamed" },
     "get_media": { "name": "files.media", "download": true, "js": "media" },
+    "sign_files": { "name": "files.sign", "js": "signFileUrls" },
     "unfurl": { "name": "links.unfurl", "js": "unfurl" },
 
     "trash_list": { "name": "trash.list", "paginate": "items", "js": "trash" },

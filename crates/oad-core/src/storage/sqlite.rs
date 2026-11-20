@@ -14,6 +14,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/003_media.sql"),
     include_str!("migrations/004_databases.sql"),
     include_str!("migrations/005_phase5.sql"),
+    include_str!("migrations/006_settings.sql"),
 ];
 const READERS: usize = 4;
 /// 每条连接缓存的语句数（所有 SQL 都走缓存，够放下全部）。

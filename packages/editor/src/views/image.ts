@@ -3,10 +3,12 @@
 import type { NodeViewRenderer } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { media } from '../extensions/media'
+import { portalRoot } from '../extensions/portal'
 import { srcset } from '../media/dom'
+import { editQuery, queryParam, withUrl } from '../media/resolve'
 import type { Unfurl } from '../media/types'
 import { t } from '../strings'
-import { blockAttrs, el, setAttr } from './node-views'
+import { blockAttrs, el, isFocused, setAttr } from './node-views'
 
 let blurhash: Promise<typeof import('blurhash')> | null = null
 const placeholders = new Map<string, string>()
@@ -34,14 +36,17 @@ async function blurUrl(hash: string, w: number, h: number) {
 /** 本页面上传过的图片：地址 → 宽高、blurhash（上传完就知道，不用再问服务器） */
 export const knownImages = new Map<string, { width?: number; height?: number; blurhash?: string }>()
 
-export function openLightbox(src: string, alt = '') {
+/** 看大图。root 是挂在哪（默认 document.body；在 Shadow DOM 里要给 shadow 里的元素，样式才跟得过去） */
+export function openLightbox(src: string, alt = '', root: HTMLElement | ShadowRoot = document.body) {
+  const doc = root.ownerDocument ?? document
   const mask = el('div', 'oad-lightbox', { role: 'dialog', 'aria-label': alt || t('zoomIn') })
-  const big = el('img', '', { src: src.split('?')[0], alt, referrerpolicy: 'no-referrer' })
+  // 原图：去掉缩略图的 w（签名地址的 exp、sig 留着）
+  const big = el('img', '', { src: editQuery(src, ['w']), alt, referrerpolicy: 'no-referrer' })
   mask.append(big)
   const close = () => {
     mask.classList.add('is-closing')
     setTimeout(() => mask.remove(), 140)
-    document.removeEventListener('keydown', onKey, true)
+    doc.removeEventListener('keydown', onKey, true)
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -51,8 +56,9 @@ export function openLightbox(src: string, alt = '') {
     }
   }
   mask.addEventListener('click', close)
-  document.addEventListener('keydown', onKey, true)
-  document.body.append(mask)
+  // 挂在 document 上：键盘事件穿得出 Shadow DOM，焦点在哪都收得到 Esc
+  doc.addEventListener('keydown', onKey, true)
+  root.append(mask)
 }
 
 export const imageView: NodeViewRenderer = (p) => {
@@ -93,21 +99,38 @@ export const imageView: NodeViewRenderer = (p) => {
       )
   }
 
+  // 文档里的地址（shown）和真正放进 <img> 的（换过的：拼了服务器地址、带签名）不一样
+  let shown: string | null = null
+  let retried = false
+  const show = (src: string, fresh = false) => {
+    withUrl(
+      media(p.editor).resolveUrl,
+      src,
+      (u) => {
+        if (!alive || shown !== src) return
+        const ss = srcset(u)
+        if (ss) {
+          img.srcset = ss
+          img.sizes = '(max-width: 760px) 100vw, 760px'
+        } else img.removeAttribute('srcset')
+        if (!u.startsWith('/')) img.referrerPolicy = 'no-referrer'
+        img.src = u
+      },
+      { fresh },
+    )
+  }
+
   const sync = (n: PMNode) => {
     const src: string = n.attrs.src || ''
-    if (img.getAttribute('src') !== src) {
+    if (shown !== src) {
+      shown = src
+      retried = false
       dom.classList.remove('is-broken', 'is-loaded')
       broken.hidden = true
       img.hidden = false
       frame.style.backgroundImage = ''
       frame.style.aspectRatio = ''
-      const ss = srcset(src)
-      if (ss) {
-        img.srcset = ss
-        img.sizes = '(max-width: 760px) 100vw, 760px'
-      } else img.removeAttribute('srcset')
-      if (!src.startsWith('/')) img.referrerPolicy = 'no-referrer'
-      img.src = src
+      show(src)
       const known = knownImages.get(src)
       if (known) placeholder(known)
       else if (/^\/api\/v1\/(files|media)\//.test(src)) {
@@ -122,7 +145,7 @@ export const imageView: NodeViewRenderer = (p) => {
     else img.removeAttribute('title')
     broken.textContent = n.attrs.alt || n.attrs.title || src
     applyWidth(n.attrs.width)
-    if (document.activeElement !== caption) caption.value = n.attrs.caption ?? ''
+    if (!isFocused(caption)) caption.value = n.attrs.caption ?? ''
     dom.classList.toggle('has-caption', !!n.attrs.caption)
     caption.readOnly = !p.editor.isEditable
     blockAttrs(dom, n)
@@ -134,13 +157,19 @@ export const imageView: NodeViewRenderer = (p) => {
     frame.style.backgroundImage = ''
   })
   img.addEventListener('error', () => {
+    // 签名过期了（页面开了很久、懒加载的图片很晚才取）：重新签一次再试
+    if (!retried && shown && queryParam(img.src, 'sig') !== null) {
+      retried = true
+      show(shown, true)
+      return
+    }
     dom.classList.add('is-broken')
     img.hidden = true
     broken.hidden = false
   })
   zoom.addEventListener('mousedown', (e) => e.preventDefault())
-  zoom.addEventListener('click', () => openLightbox(img.currentSrc || img.src, img.alt))
-  img.addEventListener('dblclick', () => openLightbox(img.currentSrc || img.src, img.alt))
+  zoom.addEventListener('click', () => openLightbox(img.currentSrc || img.src, img.alt, portalRoot(p.editor)))
+  img.addEventListener('dblclick', () => openLightbox(img.currentSrc || img.src, img.alt, portalRoot(p.editor)))
 
   // 拖左右边改宽度：按正文宽度算百分比，两边对称（图片居中）
   const drag = (side: 'left' | 'right') => (e: PointerEvent) => {

@@ -3,6 +3,7 @@
 import type { NodeViewRenderer } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { media } from '../extensions/media'
+import { resolveDeep } from '../media/resolve'
 import type { Unfurl } from '../media/types'
 
 type Cards = typeof import('../media/cards')
@@ -95,8 +96,19 @@ export const embedView: NodeViewRenderer = (p) => {
       }
     }
     dom.classList.remove('is-db')
-    handle = cards.render(box, data, { url, view: node.attrs.view === 'bookmark' ? 'bookmark' : 'embed' })
+    const view = node.attrs.view === 'bookmark' ? 'bookmark' : 'embed'
+    // 卡片里服务器上的地址（文件本身、封面、头像、图标）先换成能直接打开的（跨域、token 登录时）
+    const got = resolveDeep({ d: data, u: url }, svc.resolveUrl)
+    const paint = (x: { d: Unfurl | null; u: string }) => {
+      handle = cards!.render(box, x.d, { url: x.u, view })
+      shown = k
+    }
+    if (!(got instanceof Promise)) return paint(got)
     shown = k
+    const want = data
+    got.then((x) => {
+      if (alive && near && shown === k && data === want) paint(x)
+    }, () => {})
   }
 
   const resolve = () => {

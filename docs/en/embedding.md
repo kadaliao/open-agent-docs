@@ -2,9 +2,11 @@
 
 [简体中文](../zh/embedding.md) · [Contents](README.md)
 
-Two ways on the web side:
+Three ways on the web side:
 
 - **iframe**: point an iframe at an Open Agent Docs page. No front-end code.
+- **Web Components**: `<oad-editor>`, `<oad-viewer>`, `<oad-database>` (`@open-agent-docs/elements`), for any framework or plain HTML
+  ([Web Components](#web-components)).
 - **JS packages**: `@open-agent-docs/client` (API, live events, collaborative documents, local databases) and `@open-agent-docs/editor` (React components:
   editor, comment panel, database views). The editor lives inside your page and follows your styles.
 
@@ -88,8 +90,8 @@ OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com op
   (once per token and reason); the host answers with `oad:token`. With no token at first, or a bad one, the iframe shows no sign-in form and
   waits for the host's token.
 - Outside embed mode (no `?embed=1`) none of this applies; cookies work as usual.
-- Current limitation: uploaded images and files (`/api/v1/files/…`) are fetched directly by `<img>` and links, which cannot carry the token,
-  so cross-origin they only load with a cookie (`oad_token`). For image-heavy pages, put both under one domain for now.
+- Uploaded images and files: `<img>`, `<video>` and links can't carry the token, so the iframe first trades their URLs for signed URLs
+  via `POST /api/v1/files/sign` (`?exp=…&sig=…`, see [signed URLs](api.md#signed-file-urls)). They load without any cookie.
 
 Sign the JWT on the host's back end with the SDKs' `sign_jwt` / `signJwt`, and build the URL with `embed_url` / `embedUrl` (see [SDKs](sdks.md)).
 
@@ -117,7 +119,10 @@ curl -H "Authorization: Bearer $TOKEN" 'https://docs.example.com/api/v1/pages/<p
   `<div class="oad-math-block" data-latex="…">`; link cards `<div class="oad-embed" data-url="…" data-view="embed|bookmark">` (a plain link inside);
   uploaded files `<div class="oad-embed oad-file" data-type="file" data-url="…">`. Render math yourself from `data-latex` with KaTeX if you like.
 - Images, files and in-app pages are server paths (`/api/v1/files/…`, `/p/…`); with `OAD_PUBLIC_URL` set they are full URLs, so they still
-  point to the right place on another domain. Files need sign-in, so the cookie limitation above applies cross-origin too.
+  point to the right place on another domain.
+- Images and files the caller can see come as **signed URLs** (`/api/v1/files/<id>/<name>?exp=…&sig=…`): they load in `<img>` without a token,
+  whether the host is on another domain or fetched the HTML with a JWT or agent token. `assets_expire_at` in the response (ms timestamp) is when
+  those signatures expire, `null` when there are no signed URLs. The signature doesn't cover the thumbnail width: add `&w=640` for a smaller image.
 - `limit` works as usual (first N blocks).
 - Convert it yourself in the browser or Node: `@open-agent-docs/markdown` (WASM, same code as the server, byte-for-byte the same output);
   the stylesheet ships in the package:
@@ -130,6 +135,66 @@ await init()
 el.innerHTML = toHtml('# Title\n\nBody')                 // Markdown
 el.innerHTML = toHtml(doc, { baseUrl: 'https://docs.example.com' })   // document JSON (from format=json)
 ```
+
+  HTML you convert yourself has no signatures (signing needs the server's key); cross-origin or with token sign-in, swap the image URLs
+  yourself with `client.signFileUrls(urls)` (`POST /files/sign`).
+
+> [!WARNING]
+> **Two consequences of signed URLs** (same for `format=html` and `POST /files/sign`):
+>
+> 1. **They expire**: after 24 hours by default (`OAD_SIGNED_URL_TTL`, see [configuration](configuration.md#server)). If the host caches the HTML
+>    (knowledge-base front ends often do), don't cache it longer than that: fetch it again before it expires, or schedule a refresh from
+>    `assets_expire_at` in the response. Expired URLs get a 403 and the images break.
+> 2. **Whoever has the URL can open it**: anyone who gets this HTML can open its images and files without signing in until they expire.
+>    Where documents must not leak, shorten the lifetime; for content meant to stay public, use a share link (`POST /pages/{id}/share`).
+
+## Web Components
+
+When the host doesn't use React (Vue, Svelte, Angular, plain HTML, server templates) but wants the full editor, use `@open-agent-docs/elements`:
+three custom elements with React, the editor and Yjs bundled, styles inside Shadow DOM so the host and the elements don't affect each other.
+Full reference: [packages/elements/README.en.md](../../packages/elements/README.en.md).
+
+```html
+<!-- No bundler: load from a CDN and the elements are registered (or npm i @open-agent-docs/elements and import '@open-agent-docs/elements') -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@<version>/dist/elements.js"></script>
+
+<oad-editor base-url="https://docs.example.com" page-id="<page id>" comments></oad-editor>
+<oad-viewer base-url="https://docs.example.com" page-id="<page id>"></oad-viewer>
+<oad-database base-url="https://docs.example.com" db-id="<database id>"></oad-database>
+
+<script type="module">
+  for (const el of document.querySelectorAll('oad-editor, oad-viewer, oad-database')) {
+    // a JWT signed by the host's back end; elements ask again when there is none, it's about to expire, or on a 401
+    el.getToken = () => fetch('/api/oad-token').then((r) => r.json()).then((j) => j.token)
+    el.addEventListener('oad-change', (e) => console.log(e.detail.kind, e.detail.title))
+  }
+</script>
+```
+
+| Element | Attributes | What it is |
+| --- | --- | --- |
+| `<oad-editor>` | `page-id`, `comments`, `readonly` | Title + collaborative editor (live over WebSocket); `comments` adds the comment panel |
+| `<oad-viewer>` | `page-id`, `content-css` | Read-only body via `format=html`; no WebSocket, no editor code — the lightest |
+| `<oad-database>` | `db-id`, `view-id`, `readonly` | Database views: table, board, calendar, gallery, list |
+
+- All three take `base-url` (server address, same origin if omitted), `token` (JWT or agent token, or `el.token = …`),
+  `el.getToken = async () => …` (called when there's no token, the JWT expires within 60 seconds, or on a 401), `theme` (`light` / `dark`),
+  `lang` (`zh` / `en`), plus `el.client` and `el.reload()`.
+- Events (`CustomEvent`, bubbling, crossing the Shadow DOM): `oad-ready` (content is in), `oad-change` (title or body changed),
+  `oad-navigate` (wants another page; `preventDefault()` to handle it yourself), `oad-error` (401, 403, 404…).
+- **Direct cross-origin**: when `base-url` is another domain, the elements call Open Agent Docs' API (CORS) and open WebSockets directly;
+  add the host's origin to the server's `OAD_ALLOWED_ORIGINS`:
+
+  ```sh
+  OAD_AUTH=jwt OAD_JWT_SECRET='…' OAD_ALLOWED_ORIGINS=https://app.example.com open-agent-docs serve
+  ```
+
+  Images and files show through signed URLs (the elements call `POST /files/sign` and cache until 60 seconds before expiry). If the browser
+  shouldn't talk to the server directly, have the host forward `/api/*` (WebSocket included) under its own domain and leave `base-url` out.
+- Styling: colors and fonts via CSS variables set on the element (`oad-editor { --oad-accent: #7c3aed }`).
+
+Example: [examples/embed-elements](../../examples/embed-elements) (plain HTML plus a small Node service that signs JWTs; the elements connect
+directly, `PROXY=1` shows the forwarding variant).
 
 ## JS packages
 
@@ -146,7 +211,7 @@ npm i @open-agent-docs/client @open-agent-docs/editor react react-dom yjs
 import { createClient } from '@open-agent-docs/client'
 
 const client = createClient({
-  baseUrl: 'https://docs.example.com',  // '' for same origin
+  baseUrl: 'https://docs.example.com',  // '' for same origin; another domain needs your page's origin in OAD_ALLOWED_ORIGINS (CORS)
   token: () => getToken(),              // optional: agent token, session token or JWT; cookies otherwise
   locale: 'en',                          // language of error messages
 })
@@ -196,6 +261,18 @@ function Doc({ pageId, me }) {
 leak into the host; change colors and fonts with CSS variables. UI language: `import { setLocale } from '@open-agent-docs/editor/i18n'`.
 Full example (editor + comments + database views + two users): [examples/embed-react](../../examples/embed-react).
 
+Images, videos, uploaded files: nothing to do with same-origin cookie sign-in. When the server is on another domain, or you sign in with a token
+(JWT, agent token), `<img>` can't carry the token: give the editor a URL hook that swaps in signed URLs before showing them
+(batched `POST /files/sign`, cached until 60 seconds before expiry):
+
+```tsx
+import { clientUrlResolver } from '@open-agent-docs/editor'
+
+const resolveUrl = clientUrlResolver(client, { token: true })   // null for same-origin cookie sign-in (nothing to swap)
+<OadEditor ydoc={doc.ydoc} provider={doc.provider} user={user} media={{ resolveUrl }} />
+<OadDatabaseView client={client} dbId={dbId} media={{ resolveUrl }} … />
+```
+
 ## Header auth
 
 The host signs people in and, on its server, forwards `/api/*` (including the WebSocket at `/api/v1/sync/*`) to Open Agent Docs with:
@@ -226,6 +303,8 @@ OAD_AUTH=jwt OAD_JWT_JWKS_URL=https://auth.example.com/.well-known/jwks.json ope
 ```
 
 - Send it as `Authorization: Bearer <jwt>`, as `?token=<jwt>` on WebSockets, or in the `oad_token` cookie. `@open-agent-docs/client`'s `token` option handles this.
+- Browsers on another domain connecting directly: put the host's origin in `OAD_ALLOWED_ORIGINS` (API CORS and the WebSocket Origin check both use it);
+  images and files use signed URLs ([read-only HTML](#read-only-html)).
 - Claims: `sub` (required, user id), `exp` (required), `name`, `email`, `workspaces` (array of workspace ids, or
   `[{ "id": "…", "role": "editor" }]`; the default workspace if omitted).
 - Users are matched by `sub` and created on first sight; the name follows the claims; a role given in the claims wins, new members default to editor.

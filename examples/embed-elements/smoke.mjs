@@ -1,6 +1,7 @@
-// 冒烟测试：起一个 JWT 登录的 Open Agent Docs 和宿主的 server.mjs，用浏览器打开纯 HTML 的宿主页：
-// <oad-editor>、<oad-viewer>、<oad-database> 都发了 oad-ready（token 是元素自己用 getToken 要的），在编辑器里写字，oad-change 收到，
-// 刷新只读视图看到刚写的字；Bob 打开同一页看到 Alice 写的；最后把编辑器从页面上拿掉，WebSocket 断开。
+// 冒烟测试：起一个 JWT 登录的 Open Agent Docs 和宿主的 server.mjs，用浏览器打开纯 HTML 的宿主页（另一个端口，元素直连服务器：CORS）：
+// <oad-editor>、<oad-viewer>、<oad-database> 都发了 oad-ready（token 是元素自己用 getToken 要的），编辑器和只读视图里的图片显示出来（签名地址），
+// 在编辑器里写字，oad-change 收到，刷新只读视图看到刚写的字；Bob 打开同一页看到 Alice 写的；最后把编辑器从页面上拿掉，WebSocket 断开。
+// 再用第二种写法（PROXY=1，宿主转发 /api）起一次，只读视图和图片照样出来。
 //   OAD_BINARY=/path/to/open-agent-docs node smoke.mjs      （不给就找仓库里 target/release、target/debug 下编好的）
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync } from 'node:fs'
@@ -14,6 +15,8 @@ const bin =
   process.env.OAD_BINARY ?? process.env.OAD_BIN ?? [join(root, 'target/release/open-agent-docs'), join(root, 'target/debug/open-agent-docs')].find(existsSync) ?? 'open-agent-docs'
 const OAD_PORT = 18894
 const PORT = 5184
+const PROXY_PORT = 5185
+const OAD = `http://127.0.0.1:${OAD_PORT}`
 const SECRET = 'demo-jwt-secret-' + Math.random().toString(36).slice(2)
 const kids = []
 const stop = () => kids.forEach((k) => k.kill())
@@ -45,32 +48,63 @@ for (const [pkg, file] of [
 // 1. Open Agent Docs（JWT 登录）
 kids.push(
   spawn(bin, ['serve', '--port', String(OAD_PORT)], {
-    env: { ...process.env, OAD_AUTH: 'jwt', OAD_JWT_SECRET: SECRET, OAD_DATA_DIR: mkdtempSync(join(tmpdir(), 'oad-embed-elements-')), RUST_LOG: 'warn' },
+    env: {
+      ...process.env,
+      OAD_AUTH: 'jwt',
+      OAD_JWT_SECRET: SECRET,
+      // 宿主页面在另一个端口：允许它跨域（CORS、WebSocket 的 Origin 检查）
+      OAD_ALLOWED_ORIGINS: `http://localhost:${PORT}`,
+      OAD_DATA_DIR: mkdtempSync(join(tmpdir(), 'oad-embed-elements-')),
+      RUST_LOG: 'warn',
+    },
     stdio: 'inherit',
   }),
 )
 await wait(`http://127.0.0.1:${OAD_PORT}/api/v1/auth/config`)
 
 // 2. 宿主
-kids.push(spawn(process.execPath, ['server.mjs'], { cwd: here, env: { ...process.env, PORT: String(PORT), OAD_URL: `http://127.0.0.1:${OAD_PORT}`, OAD_JWT_SECRET: SECRET }, stdio: 'inherit' }))
+const host = (port, proxy) =>
+  kids.push(spawn(process.execPath, ['server.mjs'], { cwd: here, env: { ...process.env, PORT: String(port), OAD_URL: OAD, OAD_JWT_SECRET: SECRET, PROXY: proxy ? '1' : '' }, stdio: 'inherit' }))
+host(PORT, false)
 await wait(`http://127.0.0.1:${PORT}/`)
 
 // 没有 JWT 直接打服务器：进不去
-const direct = await fetch(`http://127.0.0.1:${OAD_PORT}/api/v1/me`)
-if (direct.status !== 401) throw new Error('没带 JWT 也进去了：' + direct.status)
+const anon = await fetch(`http://127.0.0.1:${OAD_PORT}/api/v1/me`)
+if (anon.status !== 401) throw new Error('没带 JWT 也进去了：' + anon.status)
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ baseURL: `http://localhost:${PORT}` })
 const page = await ctx.newPage()
+// 接口、WebSocket 都直连 Open Agent Docs，不经过宿主
+const viaHost = []
+const direct = []
+page.on('request', (q) => {
+  const u = q.url()
+  if (u.startsWith(`http://localhost:${PORT}/api/`)) viaHost.push(u)
+  if (u.startsWith(OAD + '/api/')) direct.push(u)
+})
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 page.on('console', (m) => m.type() === 'error' && console.log('页面控制台：', m.text()))
 const logHas = (s) => page.waitForFunction((s) => document.getElementById('log').textContent.includes(s), s, { timeout: 20_000 })
+/** 元素里的图片真画出来了（加载成功），地址带签名 */
+async function imageShown(p, sel) {
+  const img = p.locator(sel).first()
+  await img.waitFor({ timeout: 15_000 })
+  await p.waitForFunction((el) => el.complete && el.naturalWidth > 0, await img.elementHandle(), { timeout: 15_000 })
+  const src = await img.evaluate((el) => el.currentSrc || el.src)
+  if (!/[?&]sig=/.test(src)) throw new Error(sel + ' 的地址没有签名：' + src)
+  return src
+}
 
 // 3. Alice：两个元素都 ready
 await page.goto('/login?as=alice')
 await logHas('oad-editor ready')
 await logHas('oad-viewer ready')
+// 图片：编辑器（签名地址 + 服务器地址）、只读视图（format=html 里就是签名地址）
+const edSrc = await imageShown(page, 'oad-editor figure.oad-image img')
+if (!edSrc.startsWith(OAD + '/api/v1/files/')) throw new Error('编辑器里的图片没拼上服务器地址：' + edSrc)
+await imageShown(page, 'oad-viewer .oad-content img')
 const editorText = page.locator('oad-editor .oad-prose') // Playwright 的 locator 会穿过 Shadow DOM
 await editorText.waitFor()
 await page.locator('oad-editor .oad-title').click()
@@ -124,6 +158,21 @@ if (!sync.length || !sync[0].url().includes('token=')) throw new Error('WebSocke
 const closed = sync[0].isClosed() ? Promise.resolve() : sync[0].waitForEvent('close', { timeout: 5000 })
 await page.evaluate(() => document.getElementById('editor').remove())
 await closed
+
+if (viaHost.length) throw new Error('有请求走了宿主：' + viaHost.slice(0, 3).join(', '))
+if (!direct.some((u) => u.includes('/api/v1/files/sign'))) throw new Error('没签图片地址')
+if (!sync[0].url().startsWith(`ws://127.0.0.1:${OAD_PORT}/`)) throw new Error('WebSocket 没直连：' + sync[0].url())
+
+// 9. 第二种写法：宿主转发 /api（base-url 不给，同源）
+host(PROXY_PORT, true)
+await wait(`http://127.0.0.1:${PROXY_PORT}/`)
+const p2 = await (await browser.newContext({ baseURL: `http://localhost:${PROXY_PORT}` })).newPage()
+p2.on('pageerror', (e) => errors.push(e.message))
+await p2.goto('/login?as=alice')
+await p2.waitForFunction(() => document.getElementById('log').textContent.includes('oad-viewer ready'), null, { timeout: 20_000 })
+const proxied = await imageShown(p2, 'oad-viewer .oad-content img')
+if (!proxied.startsWith(`http://localhost:${PROXY_PORT}/api/v1/files/`)) throw new Error('转发时图片应该走宿主：' + proxied)
+await imageShown(p2, 'oad-editor figure.oad-image img')
 
 if (errors.length) throw new Error('页面出错：' + errors.join('\n'))
 await browser.close()

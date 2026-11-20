@@ -42,6 +42,8 @@ pub struct ServerConfig {
     pub login_window: Duration,
     /// 每个调用者每分钟最多多少次接口请求，0 不限（默认；命令行程序按 `OAD_RATE_LIMIT`，默认 1200）。
     pub rate_limit: u32,
+    /// 文件签名地址（`?exp=&sig=`）的有效期，秒（`OAD_SIGNED_URL_TTL`，默认 86400）。
+    pub signed_url_ttl: u64,
 }
 
 impl Default for ServerConfig {
@@ -55,6 +57,7 @@ impl Default for ServerConfig {
             login_max_failures: 10,
             login_window: Duration::from_secs(15 * 60),
             rate_limit: 0,
+            signed_url_ttl: 86400,
         }
     }
 }
@@ -85,19 +88,7 @@ impl AppState {
 /// `into_make_service_with_connect_info::<SocketAddr>()` 起服务（没有就只按邮箱算）。
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .nest(
-            "/api/v1",
-            api::routes()
-                .layer(axum::middleware::from_fn_with_state(
-                    state.clone(),
-                    rate_limit,
-                ))
-                .layer(axum::middleware::from_fn_with_state(
-                    state.clone(),
-                    i18n::errors,
-                ))
-                .layer(compress_json()),
-        )
+        .nest("/api/v1", api_v1(&state))
         .nest("/s", share::public_routes())
         .nest("/embed", embed::routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
@@ -109,22 +100,25 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// `/api/v1`：限流、错误信息的语言、压缩、跨域（CORS）。CORS 在最外面：预检直接回，429、401 也带 CORS 头（别的域名的页面才读得到）。
+fn api_v1(state: &AppState) -> Router<AppState> {
+    api::routes()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            i18n::errors,
+        ))
+        .layer(compress_json())
+        .layer(guard::cors(&state.config))
+}
+
 /// 只有接口，不带网页（宿主自己出网页时用）。
 pub fn api_router(state: AppState) -> Router {
     Router::new()
-        .nest(
-            "/api/v1",
-            api::routes()
-                .layer(axum::middleware::from_fn_with_state(
-                    state.clone(),
-                    rate_limit,
-                ))
-                .layer(axum::middleware::from_fn_with_state(
-                    state.clone(),
-                    i18n::errors,
-                ))
-                .layer(compress_json()),
-        )
+        .nest("/api/v1", api_v1(&state))
         .nest("/s", share::public_routes())
         .nest("/embed", embed::routes())
         .nest_service("/mcp", oad_mcp::router(state.core.clone()))
@@ -179,7 +173,13 @@ async fn rate_limit(
                 .and_then(|v| v.to_str().ok())
                 .map(str::to_string)
         });
-    let key = match token {
+    // 签名地址（`?sig=`，图片、文件，不带登录）：按签名算，不按 IP（一个公司的人共用一个出口 IP，打开图多的页面会互相挤掉额度）
+    let sig = req
+        .uri()
+        .query()
+        .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("sig=")))
+        .map(|s| format!("sig:{s}"));
+    let key = match token.or(sig) {
         Some(t) => oad_core::ids::hash_token(&t),
         None => req
             .extensions()

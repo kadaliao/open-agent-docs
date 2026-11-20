@@ -165,3 +165,28 @@ test('快过期时向宿主要新的，换上以后接着用', async ({ page }) 
   await expect.poll(async () => (await (await api(`/pages/${other.id}/content`)).json()).markdown, { timeout: 10_000 }).toContain('换了 token 以后加的')
   expect((await msgs(page)).filter((m) => m.type === 'oad:auth-required' && m.reason === 'unauthorized')).toEqual([])
 })
+
+test('跨域 iframe 里图片能显示（签名地址，不靠 cookie）', async ({ page }) => {
+  const me = await (await api('/me')).json()
+  const ws = me.workspaces[0].id
+  // 一张 2×2 的 PNG
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGM4kWIERAwQCgAorgV5QuEn7gAAAABJRU5ErkJggg==', 'base64')
+  const fd = new FormData()
+  fd.append('file', new Blob([png], { type: 'image/png' }), '图.png')
+  const up = await fetch(`${OAD}/api/v1/workspaces/${ws}/files`, { method: 'POST', body: fd, headers: { authorization: 'Bearer ' + tokenFor(600) } })
+  expect(up.status).toBe(201)
+  const file = await up.json()
+  // 不登录取不到（iframe 里没有 cookie，<img> 也带不了 Bearer）
+  expect((await fetch(OAD + file.url)).status).toBe(401)
+  const p = await (await api(`/workspaces/${ws}/pages`, { method: 'POST', body: JSON.stringify({ title: '有图的页' }) })).json()
+  await api(`/pages/${p.id}/content`, { method: 'PUT', body: JSON.stringify({ markdown: `有图的正文\n\n![图](${file.url})` }) })
+
+  await page.goto(HOST)
+  await page.evaluate((src) => (window as unknown as { __open: (s: string) => void }).__open(src), `${OAD}/p/${p.id}?embed=1#token=${tokenFor(600)}`)
+  const f = page.frameLocator('#oad')
+  await expect(f.locator('.oad-prose').getByText('有图的正文')).toBeVisible({ timeout: 20_000 })
+  const img = f.locator('figure.oad-image img')
+  await expect(img).toHaveAttribute('src', /[?&]sig=/, { timeout: 15_000 })
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0), { timeout: 15_000 }).toBe(true)
+  await expect(f.locator('figure.oad-image.is-broken')).toHaveCount(0)
+})

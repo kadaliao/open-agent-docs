@@ -1,4 +1,5 @@
 // 画卡片用的小工具：建 DOM、格式化数字和时间、从网址认出是哪个网站。
+import { editQuery, isServerAsset } from './resolve'
 export type Child = Node | string | null | undefined | false
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Record<string, string | number | boolean | null | undefined> | null, ...kids: Child[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag)
@@ -35,11 +36,10 @@ export function img(src: string | undefined, cls: string, alt = '', extra: Recor
   return i
 }
 
-/** 服务器转存的图片（/api/v1/media、/api/v1/files）给 srcset */
+/** 服务器转存的图片（/api/v1/media、/api/v1/files，可以是拼好服务器地址、带着签名的）给 srcset：换掉 w，别的参数（exp、sig）留着 */
 export function srcset(src: string) {
-  if (!/^\/api\/v1\/(media|files)\//.test(src)) return undefined
-  const base = src.split('?')[0]
-  return [320, 640, 960, 1280, 1920].map((w) => `${base}?w=${w} ${w}w`).join(', ')
+  if (!isServerAsset(src)) return undefined
+  return [320, 640, 960, 1280, 1920].map((w) => `${editQuery(src, ['w'], { w: String(w) })} ${w}w`).join(', ')
 }
 
 export function host(url: string) {

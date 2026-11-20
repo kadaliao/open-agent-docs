@@ -1827,6 +1827,22 @@ impl<E: Engine> Storage for SqlStore<E> {
         .await
     }
 
+    async fn setting_or_init(&self, key: &str, init: &str) -> Result<String> {
+        let (k, v) = (key.to_string(), init.to_string());
+        self.write(move |c| {
+            c.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)",
+                params![k, v],
+            )?;
+            Ok(c.query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![k],
+                |r| r.get(0),
+            )?)
+        })
+        .await
+    }
+
     async fn trash(&self, workspace_id: &str) -> Result<Vec<Page>> {
         let w = workspace_id.to_string();
         self.read(move |c| {

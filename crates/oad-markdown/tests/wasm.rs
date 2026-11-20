@@ -80,6 +80,7 @@ fn wasm_matches_rust() {
     assert_eq!(got.len(), cases.len());
     let abs = HtmlOptions {
         base_url: Some("https://docs.example.com".into()),
+        ..Default::default()
     };
     for (md, g) in cases.iter().zip(got) {
         let doc = parse(md);
