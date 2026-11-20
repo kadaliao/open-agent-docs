@@ -1,0 +1,77 @@
+# 发 npm 包（@open-agent-docs/* 和按平台拆开的 @open-agent-docs/server-<平台>）。
+#   - 发版时由 release.yml 调用，用同一次运行编好的原生模块；
+#   - 也能手动跑（补发）：Actions → npm → Run workflow，填版本标签和那次 release 运行的编号，用那次编好的原生模块，不用重编。
+#       gh workflow run npm.yml -f tag=v0.3.0 -f run_id=<release 运行的编号>
+# 已经发过的版本跳过，重跑不会失败。
+name: npm
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 发哪个版本的源码（标签，如 v0.3.0）
+        required: true
+      run_id:
+        description: 原生模块从哪次 release 运行里取（运行编号）
+        required: true
+
+permissions:
+  contents: read
+  actions: read # 从别的运行下载原生模块
+  id-token: write # npm 的来源证明（provenance）
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # db-wasm、markdown-wasm 的 dist 在仓库里，不用编
+      - run: pnpm --filter @open-agent-docs/client --filter @open-agent-docs/editor --filter @open-agent-docs/elements build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: node-*
+          merge-multiple: true
+          path: native
+          # 被 release.yml 调用时 github.run_id 就是那次发版；手动补发时用填的编号
+          run-id: ${{ inputs.run_id || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: 原生模块拆成按平台的包
+        run: node packages/server-node/scripts/platform-packages.mjs native npm-platform
+      - name: 打包（workspace:* 换成真的版本号）
+        env:
+          # 不跑 prepack：上面已经编好了；server-node 的 prepack 会在这台机器上重编原生模块
+          npm_config_ignore_scripts: 'true'
+        run: |
+          mkdir -p npm-dist
+          for d in db-wasm markdown-wasm client editor elements server-node; do
+            (cd "packages/$d" && pnpm pack --pack-destination ../../npm-dist)
+          done
+          for d in npm-platform/*/; do (cd "$d" && npm pack --pack-destination ../../npm-dist); done
+          ls -l npm-dist
+      - name: 发布
+        env:
+          # 第一次发包要 token（npm 上的包还不存在，没法配 trusted publishing）；之后可以换成 trusted publishing、删掉这个 secret
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # 先发平台包，再发别的（主包的 optionalDependencies 指向平台包）。
+          # 路径一定带 ./：不然 npm 把 npm-dist/x.tgz 当成 GitHub 的“用户/仓库”简写去拉
+          plat=$(ls ./npm-dist/open-agent-docs-server-darwin-*.tgz ./npm-dist/open-agent-docs-server-linux-*.tgz)
+          rest=$(ls ./npm-dist/*.tgz | grep -v -e '-server-darwin-' -e '-server-linux-')
+          for f in $plat $rest; do
+            name=$(tar -xOzf "$f" package/package.json | node -p 'const j=JSON.parse(require("fs").readFileSync(0));j.name+"@"+j.version')
+            if npm view "$name" version >/dev/null 2>&1; then echo "跳过（已经有了）：$name"; continue; fi
+            npm publish "$f" --access public --provenance
+            echo "发布了：$name"
+          done
