@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "open-agent-docs-server"
-version = "0.3.1"
+version = "0.3.2"
 description = "Open Agent Docs server (Rust, PyO3) that runs inside a Python process. Normally installed via pip install \"open-agent-docs[server]\" and used through open_agent_docs.start()"
 readme = "README.md"
 license = { text = "MIT OR Apache-2.0" }

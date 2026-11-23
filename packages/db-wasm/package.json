@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/db",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "oad-db as WASM: database filters, sorts, groups, formulas and totals, the same code as the server",
   "type": "module",
   "main": "index.js",

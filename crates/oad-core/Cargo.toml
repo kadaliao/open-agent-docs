@@ -18,11 +18,11 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 infer = "0.22.0"
 jsonwebtoken = { version = "12.0.0", default-features = false, features = ["rust_crypto"] }
 jiff = "1.0.1"
-oad-db = { version = "0.3.1", path = "../oad-db" }
-oad-doc = { version = "0.3.1", path = "../oad-doc" }
-oad-markdown = { version = "0.3.1", path = "../oad-markdown" }
-oad-search = { version = "0.3.1", path = "../oad-search" }
-oad-unfurl = { version = "0.3.1", path = "../oad-unfurl" }
+oad-db = { version = "0.3.2", path = "../oad-db" }
+oad-doc = { version = "0.3.2", path = "../oad-doc" }
+oad-markdown = { version = "0.3.2", path = "../oad-markdown" }
+oad-search = { version = "0.3.2", path = "../oad-search" }
+oad-unfurl = { version = "0.3.2", path = "../oad-unfurl" }
 rand = "0.10.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
 rusqlite = { version = "0.43.0", features = ["bundled"] }

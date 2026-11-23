@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-agent-docs"
-version = "0.3.1"
+version = "0.3.2"
 description = "Python SDK for Open Agent Docs: sync and async clients, event streams, webhook verification, JWT signing, local server launcher"
 readme = "README.md"
 license = "MIT"
@@ -19,7 +19,7 @@ classifiers = [
 
 [project.optional-dependencies]
 # the in-process server (Rust, PyO3): oad.start() then needs no binary download
-server = ["open-agent-docs-server==0.3.1"]
+server = ["open-agent-docs-server==0.3.2"]
 
 [dependency-groups]
 # 跑测试和类型检查用（uv run 默认带上）

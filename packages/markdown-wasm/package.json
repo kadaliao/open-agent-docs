@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/markdown",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "oad-markdown as WASM: Markdown <-> document (ProseMirror JSON), and document -> read-only HTML (with content.css), the same code as the server",
   "type": "module",
   "main": "dist/oad_markdown.js",

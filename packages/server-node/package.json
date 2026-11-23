@@ -1,6 +1,6 @@
 {
   "name": "@open-agent-docs/server",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Run an Open Agent Docs server inside a Node process (Rust, napi-rs): start() returns { url, port, close() }, and it can be mounted on Node http / Express",
   "license": "MIT",
   "repository": {

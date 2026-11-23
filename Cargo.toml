@@ -5,7 +5,7 @@ members = ["crates/*", "examples/rust-mount"]
 [workspace.package]
 edition = "2024"
 license = "MIT"
-version = "0.3.1"
+version = "0.3.2"
 
 [profile.release]
 # 默认按体积优化，整体 LTO（fat 比 thin 小好几 MB）：二进制从 39MB 降到 28MB。下面这些热路径（搜索、协作、
