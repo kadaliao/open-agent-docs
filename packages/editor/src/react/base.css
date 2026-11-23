@@ -17,6 +17,9 @@
     --oad-ok: #4fbf8a;
     --oad-warn: #e0a548;
     --oad-bad: #f07368;
+  }
+  /* 原生控件、滚动条跟着变暗：只放在编辑器自己的元素上，不放 :root（不然整个宿主页面都被改成深色） */
+  :root:not([data-theme='light']) :is([class^='oad-'], [class*=' oad-']) {
     color-scheme: dark;
   }
 }
