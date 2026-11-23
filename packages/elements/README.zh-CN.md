@@ -9,7 +9,7 @@ Vue、Svelte、Angular、纯 HTML、后端模板都能用。
 
 ```html
 <!-- 不用打包工具：直接从 CDN 引，引进来就注册好了 -->
-<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.3.2/dist/elements.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@open-agent-docs/elements@0.4.0/dist/elements.js"></script>
 
 <oad-editor base-url="https://docs.example.com" page-id="Qj1y9Gufp11" token="eyJ…"></oad-editor>
 ```
