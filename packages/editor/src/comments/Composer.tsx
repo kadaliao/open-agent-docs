@@ -87,7 +87,7 @@ export function Composer({ candidates, initial = '', placeholder, submitLabel, a
   }
 
   return (
-    <div className={'composer' + (compact ? ' is-compact' : '')}>
+    <div className={'oad-composer' + (compact ? ' oad-is-compact' : '')}>
       <textarea
         ref={ta}
         value={text}
@@ -132,9 +132,9 @@ export function Composer({ candidates, initial = '', placeholder, submitLabel, a
         }}
       />
       {picker && (
-        <div className="mention-picker" role="listbox" onMouseDown={(e) => e.preventDefault()}>
+        <div className="oad-mention-picker" role="listbox" onMouseDown={(e) => e.preventDefault()}>
           {matches.length === 0 ? (
-            <div className="mention-empty">{t('mentionEmpty')}</div>
+            <div className="oad-mention-empty">{t('mentionEmpty')}</div>
           ) : (
             matches.map((c, i) => (
               <button
@@ -142,29 +142,29 @@ export function Composer({ candidates, initial = '', placeholder, submitLabel, a
                 type="button"
                 role="option"
                 aria-selected={i === picker.cur}
-                className="mention-item"
+                className="oad-mention-item"
                 onMouseMove={() => i !== picker.cur && setPicker({ ...picker, cur: i })}
                 onClick={() => pick(c)}
               >
-                <span className={'avatar' + (c.kind === 'agent' ? ' is-agent' : '')} style={{ background: colorFor(c.id) }}>
+                <span className={'oad-avatar' + (c.kind === 'agent' ? ' oad-is-agent' : '')} style={{ background: colorFor(c.id) }}>
                   {c.kind === 'agent' ? '✦' : initials(c.name)}
                 </span>
-                <span className="mention-name">{c.name}</span>
-                {c.kind === 'agent' && <span className="mention-tag">{t('agentTag')}</span>}
-                {c.about && <span className="mention-about">{c.about}</span>}
+                <span className="oad-mention-name">{c.name}</span>
+                {c.kind === 'agent' && <span className="oad-mention-tag">{t('agentTag')}</span>}
+                {c.about && <span className="oad-mention-about">{c.about}</span>}
               </button>
             ))
           )}
         </div>
       )}
-      <div className="composer-bar">
-        <span className="composer-hint">{t('sendHint')}</span>
+      <div className="oad-composer-bar">
+        <span className="oad-composer-hint">{t('sendHint')}</span>
         {onCancel && (
-          <button type="button" className="btn btn-sm" onClick={onCancel}>
+          <button type="button" className="oad-btn oad-btn-sm" onClick={onCancel}>
             {t('cancel')}
           </button>
         )}
-        <button type="button" className="btn btn-sm btn-primary" disabled={!text.trim() || busy} onClick={submit}>
+        <button type="button" className="oad-btn oad-btn-sm oad-btn-primary" disabled={!text.trim() || busy} onClick={submit}>
           {submitLabel ?? t('send')}
         </button>
       </div>

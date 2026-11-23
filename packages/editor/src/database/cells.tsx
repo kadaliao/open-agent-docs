@@ -57,7 +57,7 @@ export function useAssetUrl(url: string | null | undefined): string | null | und
 
 function FileThumb({ f }: { f: { url: string; name?: string } }) {
   const src = useAssetUrl(f.url.startsWith('/api/') && !/\.svg$/i.test(f.name || f.url) ? f.url + '?w=160' : f.url)
-  return src ? <img className="db-file-thumb" src={src} alt={f.name ?? ''} loading="lazy" referrerPolicy="no-referrer" /> : <span className="db-file-thumb" />
+  return src ? <img className="oad-db-file-thumb" src={src} alt={f.name ?? ''} loading="lazy" referrerPolicy="no-referrer" /> : <span className="oad-db-file-thumb" />
 }
 
 function FileLink({ f }: { f: { url: string; name?: string } }) {
@@ -98,7 +98,7 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
   const disp = () => store.engine?.display(p.key, v) ?? String(v ?? '')
   switch (p.type) {
     case 'title':
-      return <span className={'db-title-text' + (v ? '' : ' is-empty')}>{(v as string) || t('untitled')}</span>
+      return <span className={'oad-db-title-text' + (v ? '' : ' oad-is-empty')}>{(v as string) || t('untitled')}</span>
     case 'select':
     case 'status': {
       const o = p.options?.find((x) => x.id === v)
@@ -106,7 +106,7 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
     }
     case 'multi_select':
       return (
-        <span className={'db-pills' + (wrap ? ' is-wrap' : '')}>
+        <span className={'oad-db-pills' + (wrap ? ' oad-is-wrap' : '')}>
           {(Array.isArray(v) ? v : []).map((id) => {
             const o = p.options?.find((x) => x.id === id)
             return o ? <Pill key={id} opt={o} /> : null
@@ -114,19 +114,19 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
         </span>
       )
     case 'checkbox':
-      return <span className={'db-check' + (v ? ' is-on' : '')} aria-checked={!!v} role="checkbox" />
+      return <span className={'oad-db-check' + (v ? ' oad-is-on' : '')} aria-checked={!!v} role="checkbox" />
     case 'number':
     case 'unique_id':
-      return <span className="db-num">{disp()}</span>
+      return <span className="oad-db-num">{disp()}</span>
     case 'url':
       return v ? (
-        <a className="db-link" href={String(v)} target="_blank" rel="noopener noreferrer nofollow" onClick={(e) => e.stopPropagation()}>
+        <a className="oad-db-link" href={String(v)} target="_blank" rel="noopener noreferrer nofollow" onClick={(e) => e.stopPropagation()}>
           {String(v).replace(/^https?:\/\/(www\.)?/, '')}
         </a>
       ) : null
     case 'email':
       return v ? (
-        <a className="db-link" href={`mailto:${v}`} onClick={(e) => e.stopPropagation()}>
+        <a className="oad-db-link" href={`mailto:${v}`} onClick={(e) => e.stopPropagation()}>
           {String(v)}
         </a>
       ) : null
@@ -135,13 +135,13 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
     case 'updated_by': {
       const list = (Array.isArray(v) ? v : v ? [v] : []) as string[]
       return (
-        <span className="db-people">
+        <span className="oad-db-people">
           {list.map((ref) => {
             const name = personName(people, ref)
             const agent = ref.startsWith('agent:') || people.get(ref.replace(/^\w+:/, ''))?.kind === 'agent'
             return (
-              <span key={ref} className="db-person">
-                <span className={'avatar avatar-xs' + (agent ? ' is-agent' : '')} style={{ background: colorFor(ref) }}>
+              <span key={ref} className="oad-db-person">
+                <span className={'oad-avatar oad-avatar-xs' + (agent ? ' oad-is-agent' : '')} style={{ background: colorFor(ref) }}>
                   {agent ? '✦' : initials(name)}
                 </span>
                 {name}
@@ -153,12 +153,12 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
     }
     case 'files':
       return (
-        <span className="db-files">
+        <span className="oad-db-files">
           {(Array.isArray(v) ? (v as { url: string; name?: string }[]) : []).map((f, i) =>
             /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(f.name || f.url) ? (
               <FileThumb key={i} f={f} />
             ) : (
-              <span key={i} className="db-file-chip">
+              <span key={i} className="oad-db-file-chip">
                 {f.name || f.url}
               </span>
             ),
@@ -167,18 +167,18 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
       )
     case 'relation':
       return (
-        <span className="db-pills">
+        <span className="oad-db-pills">
           {(Array.isArray(v) ? (v as string[]) : []).map((id) => (
             <button
               key={id}
               type="button"
-              className="db-rel"
+              className="oad-db-rel"
               onClick={(e) => {
                 e.stopPropagation()
                 if (p.relation?.db_id === store.id) openRow(id)
               }}
             >
-              <span className="db-rel-ico">↗</span>
+              <span className="oad-db-rel-ico">↗</span>
               {relatedTitle(store, p.relation?.db_id, id)}
             </button>
           ))}
@@ -187,7 +187,7 @@ export function CellView({ p, row, wrap }: { p: Prop; row: Row; wrap?: boolean }
     case 'button':
       return <ButtonCell p={p} row={row} />
     default:
-      return <span className="db-text">{disp()}</span>
+      return <span className="oad-db-text">{disp()}</span>
   }
 }
 
@@ -197,7 +197,7 @@ function ButtonCell({ p, row }: { p: Prop; row: Row }) {
   return (
     <button
       type="button"
-      className="db-btn-cell"
+      className="oad-db-btn-cell"
       disabled={!canWrite}
       onClick={async (e) => {
         e.stopPropagation()
@@ -272,13 +272,13 @@ function TextEditor({ p, row, anchor, initial, onDone }: EditProps) {
   return (
     <>
     {error && (
-      <div className="db-cell-err" role="alert" style={{ left: anchor.left, top: anchor.bottom + 4 }}>
+      <div className="oad-db-cell-err" role="alert" style={{ left: anchor.left, top: anchor.bottom + 4 }}>
         {error}
       </div>
     )}
     <textarea
       ref={ref}
-      className={'db-cell-input' + (p.type === 'number' ? ' is-num' : '')}
+      className={'oad-db-cell-input' + (p.type === 'number' ? ' oad-is-num' : '')}
       style={{ left: anchor.left, top: anchor.top, width: Math.max(anchor.width ?? 160, p.type === 'text' || p.type === 'title' ? 260 : 120), minHeight: anchor.bottom - anchor.top }}
       value={text}
       rows={1}
@@ -342,15 +342,15 @@ function OptionsEditor({ p, row, anchor, initial, onDone }: EditProps) {
   }
   const items = [...shown.map((o) => ({ kind: 'opt' as const, o })), ...(canCreate ? [{ kind: 'new' as const }] : [])]
   return (
-    <Popover anchor={anchor} onClose={() => onDone('none')} width={Math.max(260, anchor.width ?? 0)} className="db-opt-pop">
-      <div className="db-opt-head">
+    <Popover anchor={anchor} onClose={() => onDone('none')} width={Math.max(260, anchor.width ?? 0)} className="oad-db-opt-pop">
+      <div className="oad-db-opt-head">
         {selected.map((id) => {
           const o = opts.find((x) => x.id === id)
           return o ? <Pill key={id} opt={o} status={p.type === 'status'} onRemove={() => set(selected.filter((x) => x !== id))} /> : null
         })}
         <input
           autoFocus
-          className="db-opt-search"
+          className="oad-db-opt-search"
           value={q}
           placeholder={t('search')}
           onChange={(e) => {
@@ -376,26 +376,26 @@ function OptionsEditor({ p, row, anchor, initial, onDone }: EditProps) {
           }}
         />
       </div>
-      <div className="db-opt-list">
+      <div className="oad-db-opt-list">
         {p.type === 'status'
           ? (['todo', 'doing', 'done'] as const).map((g) => {
               const inG = items.filter((it) => it.kind === 'opt' && (it.o.group ?? 'todo') === g)
               if (!inG.length) return null
               return (
                 <div key={g}>
-                  <div className="db-opt-group">{g === 'todo' ? t('statusTodo') : g === 'doing' ? t('statusDoing') : t('statusDone')}</div>
+                  <div className="oad-db-opt-group">{g === 'todo' ? t('statusTodo') : g === 'doing' ? t('statusDoing') : t('statusDone')}</div>
                   {inG.map((it) => it.kind === 'opt' && <OptRow key={it.o.id} o={it.o} on={selected.includes(it.o.id)} active={items.indexOf(it) === active} status onPick={() => pick(it.o)} />)}
                 </div>
               )
             })
           : items.map((it, i) => (it.kind === 'opt' ? <OptRow key={it.o.id} o={it.o} on={selected.includes(it.o.id)} active={i === active} onPick={() => pick(it.o)} /> : null))}
         {canCreate && (
-          <button type="button" className={'db-opt-row' + (active === items.length - 1 ? ' is-active' : '')} onClick={create}>
-            <span className="db-opt-new">{t('newOptionLabel')}</span>
+          <button type="button" className={'oad-db-opt-row' + (active === items.length - 1 ? ' oad-is-active' : '')} onClick={create}>
+            <span className="oad-db-opt-new">{t('newOptionLabel')}</span>
             <Pill opt={{ name: q.trim(), color: randomColor(opts.length) }} />
           </button>
         )}
-        {!items.length && <div className="db-empty-note">{t('noResults')}</div>}
+        {!items.length && <div className="oad-db-empty-note">{t('noResults')}</div>}
       </div>
     </Popover>
   )
@@ -403,9 +403,9 @@ function OptionsEditor({ p, row, anchor, initial, onDone }: EditProps) {
 
 function OptRow({ o, on, active, status, onPick }: { o: SelectOption; on: boolean; active: boolean; status?: boolean; onPick: () => void }) {
   return (
-    <button type="button" className={'db-opt-row' + (active ? ' is-active' : '')} onClick={onPick}>
+    <button type="button" className={'oad-db-opt-row' + (active ? ' oad-is-active' : '')} onClick={onPick}>
       <Pill opt={o} status={status} />
-      {on && <span className="db-opt-check">✓</span>}
+      {on && <span className="oad-db-opt-check">✓</span>}
     </button>
   )
 }
@@ -422,8 +422,8 @@ export function MonthGrid({ month, onMonth, isSel, inRange, onPick }: { month: D
   const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i))
   const today = iso(new Date())
   return (
-    <div className="db-month">
-      <div className="db-month-head">
+    <div className="oad-db-month">
+      <div className="oad-db-month-head">
         <button type="button" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label={t('prev')}>
           ‹
         </button>
@@ -434,11 +434,11 @@ export function MonthGrid({ month, onMonth, isSel, inRange, onPick }: { month: D
           ›
         </button>
       </div>
-      <div className="db-month-grid">
+      <div className="oad-db-month-grid">
         {t('weekdays')
           .split(',')
           .map((w) => (
-            <span key={w} className="db-month-wd">
+            <span key={w} className="oad-db-month-wd">
               {w}
             </span>
           ))}
@@ -446,7 +446,7 @@ export function MonthGrid({ month, onMonth, isSel, inRange, onPick }: { month: D
           <button
             key={iso(d)}
             type="button"
-            className={'db-month-day' + (d.getMonth() !== month.getMonth() ? ' is-out' : '') + (isSel(d) ? ' is-sel' : '') + (inRange?.(d) ? ' is-range' : '') + (iso(d) === today ? ' is-today' : '')}
+            className={'oad-db-month-day' + (d.getMonth() !== month.getMonth() ? ' oad-is-out' : '') + (isSel(d) ? ' oad-is-sel' : '') + (inRange?.(d) ? ' oad-is-range' : '') + (iso(d) === today ? ' oad-is-today' : '')}
             onClick={() => onPick(d)}
           >
             {d.getDate()}
@@ -473,10 +473,10 @@ function DateEditor({ p, row, anchor, onDone }: EditProps) {
   const timeOf = (s?: string) => (s && s.includes('T') ? s.slice(11, 16) : '09:00')
   const withTime = (day: string, s?: string) => (val?.time ? `${day}T${timeOf(s)}` : day)
   return (
-    <Popover anchor={anchor} onClose={() => onDone('none')} width={264} className="db-date-pop">
+    <Popover anchor={anchor} onClose={() => onDone('none')} width={264} className="oad-db-date-pop">
       <input
         autoFocus
-        className="db-date-text"
+        className="oad-db-date-text"
         value={text}
         placeholder="2026-11-20"
         onChange={(e) => setText(e.target.value)}
@@ -510,12 +510,12 @@ function DateEditor({ p, row, anchor, onDone }: EditProps) {
         }}
       />
       {val?.time && (
-        <div className="db-date-times">
+        <div className="oad-db-date-times">
           <input type="time" value={timeOf(val.start)} onChange={(e) => save({ ...val, start: `${val.start.slice(0, 10)}T${e.target.value}` })} />
           {val.end && <input type="time" value={timeOf(val.end)} onChange={(e) => save({ ...val, end: `${val.end!.slice(0, 10)}T${e.target.value}` })} />}
         </div>
       )}
-      <div className="db-date-opts">
+      <div className="oad-db-date-opts">
         <label>
           <input
             type="checkbox"
@@ -543,7 +543,7 @@ function DateEditor({ p, row, anchor, onDone }: EditProps) {
           />
           {t('includeTime')}
         </label>
-        <button type="button" className="db-link-btn" onClick={() => (save(null), onDone('none'))}>
+        <button type="button" className="oad-db-link-btn" onClick={() => (save(null), onDone('none'))}>
           {t('clear')}
         </button>
       </div>
@@ -563,23 +563,23 @@ function PersonEditor({ p, row, anchor, onDone }: EditProps) {
     store.setCells([{ row_id: row.id, key: p.key, value: cur.includes(r) ? cur.filter((y) => y !== r) : [...cur, r] }])
   }
   return (
-    <Popover anchor={anchor} onClose={() => onDone('none')} width={260} className="db-opt-pop">
-      <div className="db-opt-head">
-        <input autoFocus className="db-opt-search" value={q} placeholder={t('search')} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+    <Popover anchor={anchor} onClose={() => onDone('none')} width={260} className="oad-db-opt-pop">
+      <div className="oad-db-opt-head">
+        <input autoFocus className="oad-db-opt-search" value={q} placeholder={t('search')} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
       </div>
-      <div className="db-opt-list">
+      <div className="oad-db-opt-list">
         {list.map((x) => (
-          <button key={x.kind + x.id} type="button" className="db-opt-row" onClick={() => toggle(x)}>
-            <span className="db-person">
-              <span className={'avatar avatar-xs' + (x.kind === 'agent' ? ' is-agent' : '')} style={{ background: colorFor(ref(x)) }}>
+          <button key={x.kind + x.id} type="button" className="oad-db-opt-row" onClick={() => toggle(x)}>
+            <span className="oad-db-person">
+              <span className={'oad-avatar oad-avatar-xs' + (x.kind === 'agent' ? ' oad-is-agent' : '')} style={{ background: colorFor(ref(x)) }}>
                 {x.kind === 'agent' ? '✦' : initials(x.name)}
               </span>
               {x.name}
             </span>
-            {cur.includes(ref(x)) && <span className="db-opt-check">✓</span>}
+            {cur.includes(ref(x)) && <span className="oad-db-opt-check">✓</span>}
           </button>
         ))}
-        {!list.length && <div className="db-empty-note">{t('noResults')}</div>}
+        {!list.length && <div className="oad-db-empty-note">{t('noResults')}</div>}
       </div>
     </Popover>
   )
@@ -594,19 +594,19 @@ function FilesEditor({ p, row, anchor, onDone }: EditProps) {
   const set = (v: { url: string; name?: string }[]) => store.setCells([{ row_id: row.id, key: p.key, value: v }])
   const up = useMemo(() => (f: File, prog: (x: number) => void) => store.client.upload(ws, f, prog), [ws, store])
   return (
-    <Popover anchor={anchor} onClose={() => onDone('none')} width={300} className="db-opt-pop">
-      <div className="db-opt-list">
+    <Popover anchor={anchor} onClose={() => onDone('none')} width={300} className="oad-db-opt-pop">
+      <div className="oad-db-opt-list">
         {files.map((f, i) => (
-          <div key={i} className="db-file-row">
+          <div key={i} className="oad-db-file-row">
             <FileLink f={f} />
-            <button type="button" className="db-pill-x" onClick={() => set(files.filter((_, j) => j !== i))}>
+            <button type="button" className="oad-db-pill-x" onClick={() => set(files.filter((_, j) => j !== i))}>
               ×
             </button>
           </div>
         ))}
       </div>
-      <div className="db-file-actions">
-        <label className="btn btn-sm">
+      <div className="oad-db-file-actions">
+        <label className="oad-btn oad-btn-sm">
           {busy ? `${t('upload')}…` : t('upload')}
           <input
             type="file"
@@ -630,7 +630,7 @@ function FilesEditor({ p, row, anchor, onDone }: EditProps) {
           />
         </label>
         <input
-          className="db-opt-search"
+          className="oad-db-opt-search"
           value={link}
           placeholder={t('addLink')}
           onChange={(e) => setLink(e.target.value)}
@@ -665,19 +665,19 @@ function RelationEditor({ p, row, anchor, onDone }: EditProps) {
   }, [q, all.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (id: string) => store.setCells([{ row_id: row.id, key: p.key, value: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }])
   return (
-    <Popover anchor={anchor} onClose={() => onDone('none')} width={320} className="db-opt-pop">
-      <div className="db-opt-head">
-        <input autoFocus className="db-opt-search" value={q} placeholder={t('searchRows')} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+    <Popover anchor={anchor} onClose={() => onDone('none')} width={320} className="oad-db-opt-pop">
+      <div className="oad-db-opt-head">
+        <input autoFocus className="oad-db-opt-search" value={q} placeholder={t('searchRows')} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
       </div>
-      <div className="db-opt-list">
-        {!target.meta && <div className="db-empty-note">{t('noRelatedDb')}</div>}
+      <div className="oad-db-opt-list">
+        {!target.meta && <div className="oad-db-empty-note">{t('noRelatedDb')}</div>}
         {shown.map((r) => (
-          <button key={r.id} type="button" className="db-opt-row" onClick={() => toggle(r.id)}>
-            <span className="db-rel">
-              <span className="db-rel-ico">↗</span>
+          <button key={r.id} type="button" className="oad-db-opt-row" onClick={() => toggle(r.id)}>
+            <span className="oad-db-rel">
+              <span className="oad-db-rel-ico">↗</span>
               {target.rowTitle(r) || t('untitled')}
             </span>
-            {cur.includes(r.id) && <span className="db-opt-check">✓</span>}
+            {cur.includes(r.id) && <span className="oad-db-opt-check">✓</span>}
           </button>
         ))}
       </div>

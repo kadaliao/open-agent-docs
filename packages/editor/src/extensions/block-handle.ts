@@ -112,9 +112,9 @@ export const BlockHandle = Extension.create<object, BlockHandleStorage>({
               e.dataTransfer.effectAllowed = 'copyMove'
               e.dataTransfer.setDragImage(cur.dom, 0, 0)
             }
-            cur.dom.classList.add('is-dragging')
+            cur.dom.classList.add('oad-is-dragging')
             const done = () => {
-              cur?.dom.classList.remove('is-dragging')
+              cur?.dom.classList.remove('oad-is-dragging')
               handle.hidden = true
               document.removeEventListener('dragend', done, true)
             }

@@ -43,7 +43,7 @@
     "./dist/database.js"
   ],
   "scripts": {
-    "build": "rm -rf dist && vite build && tsc -p tsconfig.build.json && node scripts/clean-dts.mjs",
+    "build": "rm -rf dist && vite build && tsc -p tsconfig.build.json && node scripts/clean-dts.mjs && node scripts/check-css-prefix.mjs",
     "prepack": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

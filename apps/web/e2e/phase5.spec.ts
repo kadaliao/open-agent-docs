@@ -209,7 +209,7 @@ test('页面历史：存一版、改、看对比（按块）、恢复', async ({
 test('库的改动记录：改一格，看记录，撤销', async ({ browser }) => {
   const { ctx, page } = await newCtx(browser)
   await page.goto(`/p/${be.id}`)
-  await page.waitForSelector('.db[data-status="ready"]')
+  await page.waitForSelector('.oad-db[data-status="ready"]')
   const cell = page.locator('[data-cell="0:0"]')
   await cell.dblclick()
   await page.keyboard.press(`${mod}+a`)
@@ -218,13 +218,13 @@ test('库的改动记录：改一格，看记录，撤销', async ({ browser }) 
   await expect(cell).toContainText('改过的标题')
   await page.waitForTimeout(400)
   await page.locator('[data-db-tool="history"]').click()
-  const item = page.locator('.dbh-item', { hasText: '改过的标题' }).first()
-  const unavailable = await page.locator('.dbh .db-empty-note', { hasText: '不支持' }).count()
+  const item = page.locator('.oad-dbh-item', { hasText: '改过的标题' }).first()
+  const unavailable = await page.locator('.oad-dbh .oad-db-empty-note', { hasText: '不支持' }).count()
   test.skip(!!unavailable, '服务器还没有改动记录')
   await expect(item).toBeVisible()
   await shot(page, 'db-history')
   page.once('dialog', (d) => d.accept())
-  await item.locator('.db-link-btn').click()
+  await item.locator('.oad-db-link-btn').click()
   await expect(cell).not.toContainText('改过的标题', { timeout: 10_000 })
   await ctx.close()
 })
@@ -346,7 +346,7 @@ test('分享：公开、复制链接、带子页面；公开页面不用登录�
 })
 
 // 界面上的固定文字（不是用户内容）里不能有中文
-const CHROME = ['.side-new', '.side-link', '.side-label', '.topbar-right', '.db-toolbar', '.db-tabs .db-tab-add', '.set-tabs', '.set-label', '.palette-label', '.palette-foot', '.sc-modal', '.hist-head', '.hist-name', '.trash .settings-head', '.db-th-add', '.db-tfoot']
+const CHROME = ['.side-new', '.side-link', '.side-label', '.topbar-right', '.oad-db-toolbar', '.oad-db-tabs .oad-db-tab-add', '.set-tabs', '.set-label', '.palette-label', '.palette-foot', '.sc-modal', '.hist-head', '.hist-name', '.trash .settings-head', '.oad-db-th-add', '.oad-db-tfoot']
 async function cjkInChrome(page: Page) {
   return page.evaluate((sels) => {
     const bad: string[] = []
@@ -392,7 +392,7 @@ test('英文界面：设置里切换，不刷新就全换；跟着账号记住',
   await shot(page, 'shortcuts-en')
   await page.keyboard.press('Escape')
   await page.goto(`/p/${be.id}`)
-  await page.waitForSelector('.db[data-status="ready"]')
+  await page.waitForSelector('.oad-db[data-status="ready"]')
   bad.push(...(await cjkInChrome(page)))
   await shot(page, 'db-en')
   await page.goto('/trash')
@@ -459,23 +459,23 @@ test('手机（390×844，触屏）：抽屉侧栏、正文、表格横着滑、
   await expect(page.locator('.app.is-collapsed')).toBeVisible()
   // 库：表格能横着滑
   await page.goto(`/p/${be.id}`)
-  await page.waitForSelector('.db[data-status="ready"]')
-  const scroll = await page.locator('.db-table').evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth, body: document.documentElement.scrollWidth }))
+  await page.waitForSelector('.oad-db[data-status="ready"]')
+  const scroll = await page.locator('.oad-db-table').evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth, body: document.documentElement.scrollWidth }))
   expect(scroll.sw).toBeGreaterThan(scroll.cw)
   expect(scroll.body).toBeLessThanOrEqual(392)
   await shot(page, 'mobile-table')
-  await page.locator('.db-table').evaluate((el) => (el.scrollLeft = 300))
+  await page.locator('.oad-db-table').evaluate((el) => (el.scrollLeft = 300))
   await page.waitForTimeout(150)
   await shot(page, 'mobile-table-scrolled')
   // 看板竖排
-  await page.locator('.db-tab', { hasText: '看板' }).tap()
+  await page.locator('.oad-db-tab', { hasText: '看板' }).tap()
   await page.waitForTimeout(300)
-  const cols = await page.locator('.db-col').evaluateAll((els) => els.slice(0, 2).map((e) => e.getBoundingClientRect().top))
+  const cols = await page.locator('.oad-db-col').evaluateAll((els) => els.slice(0, 2).map((e) => e.getBoundingClientRect().top))
   expect(cols[1]).toBeGreaterThan(cols[0])
   await shot(page, 'mobile-board')
   // 行面板
-  await page.locator('.db-card').first().tap()
-  await expect(page.locator('.db-peek')).toBeVisible()
+  await page.locator('.oad-db-card').first().tap()
+  await expect(page.locator('.oad-db-peek')).toBeVisible()
   await page.waitForTimeout(500)
   await shot(page, 'mobile-row')
   await ctx.close()

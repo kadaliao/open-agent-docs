@@ -11,7 +11,7 @@ export type OadDatabaseViewProps = Omit<DatabaseViewProps, 'client'> & { client?
 export function OadDatabaseView(p: OadDatabaseViewProps) {
   const client = useOadClient(p.client)
   return (
-    <Suspense fallback={<div className="db db-skeleton" aria-busy="true" style={{ minHeight: 120 }} />}>
+    <Suspense fallback={<div className="oad-db oad-db-skeleton" aria-busy="true" style={{ minHeight: 120 }} />}>
       <Lazy {...p} client={client} />
     </Suspense>
   )

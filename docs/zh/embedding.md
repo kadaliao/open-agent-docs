@@ -242,7 +242,9 @@ function Doc({ pageId, me }) {
 }
 ```
 
-`react`、`react-dom`、`yjs`、`@open-agent-docs/client` 是 peer 依赖。组件的样式只在 `.oad-root` 里生效，不会影响宿主；颜色、字体用 CSS 变量换。
+`react`、`react-dom`、`yjs`、`@open-agent-docs/client` 是 peer 依赖。`style.css` 里的 class、动画名、CSS 变量都带 `oad-` 前缀（只有 ProseMirror 自己的 `ProseMirror-*` 例外），
+不会改到宿主页面里的元素；颜色、字体用 CSS 变量换。以前的版本用的是 `.composer`、`.thread`、`.btn`、`.db-table` 这类通用名字，
+宿主样式里改过这些的，要加上 `oad-` 前缀（`.composer` → `.oad-composer`）。
 
 图片、视频、上传的文件：同域 cookie 登录时不用管。服务器在别的域名、或者用 token 登录（JWT、Agent token）时，`<img>` 带不了 token，
 给编辑器一个解析地址的钩子，显示前换成签名地址（批量调 `POST /files/sign`，缓存到过期前 60 秒）：

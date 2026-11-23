@@ -105,30 +105,30 @@ function Panel(p: Props) {
   }
 
   return (
-    <aside className="comments oad-root" aria-label={t('comments')}>
-      <div className="comments-head">
-        <div className="seg" role="tablist">
+    <aside className="oad-comments oad-root" aria-label={t('comments')}>
+      <div className="oad-comments-head">
+        <div className="oad-seg" role="tablist">
           <button role="tab" aria-selected={tab === 'open'} onClick={() => setTab('open')}>
             {t('commentsOpen')}
-            {open.length > 0 && <span className="seg-count">{open.length}</span>}
+            {open.length > 0 && <span className="oad-seg-count">{open.length}</span>}
           </button>
           <button role="tab" aria-selected={tab === 'resolved'} onClick={() => setTab('resolved')}>
             {t('commentsResolved')}
-            {done.length > 0 && <span className="seg-count">{done.length}</span>}
+            {done.length > 0 && <span className="oad-seg-count">{done.length}</span>}
           </button>
         </div>
-        <button className="icon-btn" onClick={p.onClose} aria-label={t('closePanel')} title={t('closePanel')}>
+        <button className="oad-icon-btn" onClick={p.onClose} aria-label={t('closePanel')} title={t('closePanel')}>
           ✕
         </button>
       </div>
-      <div className="comments-list" ref={list}>
+      <div className="oad-comments-list" ref={list}>
         {p.draft && (
-          <div className="thread is-active is-draft">
-            <div className="thread-quote">{p.draft.quote}</div>
+          <div className="oad-thread oad-is-active oad-is-draft">
+            <div className="oad-thread-quote">{p.draft.quote}</div>
             <Composer candidates={p.candidates} autoFocus onSubmit={create} onCancel={() => p.setDraft(null)} />
           </div>
         )}
-        {ordered.length === 0 && !p.draft && <div className="comments-empty">{tab === 'open' ? t('noComments') : t('noResolved')}</div>}
+        {ordered.length === 0 && !p.draft && <div className="oad-comments-empty">{tab === 'open' ? t('noComments') : t('noResolved')}</div>}
         {ordered.map((th) => (
           <ThreadCard
             key={th.id}
@@ -175,22 +175,22 @@ const ThreadCard = memo(function ThreadCard({ thread, active, lost, me, candidat
     reload()
   }
   return (
-    <div className={'thread' + (active ? ' is-active' : '') + (resolved ? ' is-resolved' : '')} data-thread-id={thread.id} onClick={onActivate}>
-      <div className="thread-top">
+    <div className={'oad-thread' + (active ? ' oad-is-active' : '') + (resolved ? ' oad-is-resolved' : '')} data-thread-id={thread.id} onClick={onActivate}>
+      <div className="oad-thread-top">
         {a.start ? (
-          <div className={'thread-quote' + (lost ? ' is-lost' : '')} title={lost ? t('anchorLost') : undefined}>
+          <div className={'oad-thread-quote' + (lost ? ' oad-is-lost' : '')} title={lost ? t('anchorLost') : undefined}>
             {a.quote || '…'}
           </div>
         ) : (
-          <div className="thread-quote is-page">{t('pageComment')}</div>
+          <div className="oad-thread-quote oad-is-page">{t('pageComment')}</div>
         )}
         {canWrite && (
-          <button className="thread-resolve" onClick={toggle} title={resolved ? t('reopen') : t('resolve')}>
+          <button className="oad-thread-resolve" onClick={toggle} title={resolved ? t('reopen') : t('resolve')}>
             {resolved ? t('reopen') : '✓ ' + t('resolve')}
           </button>
         )}
       </div>
-      {lost && <div className="thread-lost">{t('anchorLost')}</div>}
+      {lost && <div className="oad-thread-lost">{t('anchorLost')}</div>}
       {comments.map((c) => (
         <CommentItem key={c.id} c={c} me={me} candidates={candidates} nameOf={nameOf} reload={reload} />
       ))}
@@ -218,21 +218,21 @@ function CommentItem({ c, me, candidates, nameOf, reload }: { c: Comment; me: Me
   const name = c.author.name || nameOf(kind, id)
   const mine = kind === 'user' && id === me.user.id
   const client = useOadClient()
-  if (c.deleted_at) return <div className="comment is-deleted">{t('commentDeleted')}</div>
+  if (c.deleted_at) return <div className="oad-comment oad-is-deleted">{t('commentDeleted')}</div>
   return (
-    <div className="comment" data-comment-id={c.id}>
-      <div className="comment-head">
-        <span className={'avatar avatar-sm' + (kind === 'agent' ? ' is-agent' : '')} style={{ background: colorFor(id) }}>
+    <div className="oad-comment" data-comment-id={c.id}>
+      <div className="oad-comment-head">
+        <span className={'oad-avatar oad-avatar-sm' + (kind === 'agent' ? ' oad-is-agent' : '')} style={{ background: colorFor(id) }}>
           {kind === 'agent' ? '✦' : initials(name)}
         </span>
-        <span className="comment-author">{name}</span>
-        {kind === 'agent' && <span className="mention-tag">{t('agentTag')}</span>}
-        <span className="comment-time" title={new Date(c.created_at).toLocaleString()}>
+        <span className="oad-comment-author">{name}</span>
+        {kind === 'agent' && <span className="oad-mention-tag">{t('agentTag')}</span>}
+        <span className="oad-comment-time" title={new Date(c.created_at).toLocaleString()}>
           {ago(c.created_at)}
           {c.edited_at ? ' · ' + t('edited') : ''}
         </span>
         {mine && !editing && (
-          <span className="comment-actions" onClick={(e) => e.stopPropagation()}>
+          <span className="oad-comment-actions" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setEditing(true)}>{t('edit')}</button>
             <button
               onClick={async () => {
@@ -263,7 +263,7 @@ function CommentItem({ c, me, candidates, nameOf, reload }: { c: Comment; me: Me
           />
         </div>
       ) : (
-        <div className="comment-body" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
+        <div className="oad-comment-body" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
       )}
     </div>
   )

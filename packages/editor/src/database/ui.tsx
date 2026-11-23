@@ -37,7 +37,7 @@ export function Popover({ anchor, onClose, children, className = '', width, alig
     // 用 composedPath 而不是 e.target：在 Shadow DOM 里 document 上的监听只看得到宿主元素
     const down = (e: MouseEvent) => {
       const path = e.composedPath()
-      if (box.current && !path.includes(box.current) && !path.some((n) => (n as Element).classList?.contains('db-pop'))) onClose()
+      if (box.current && !path.includes(box.current) && !path.some((n) => (n as Element).classList?.contains('oad-db-pop'))) onClose()
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -55,7 +55,7 @@ export function Popover({ anchor, onClose, children, className = '', width, alig
     }
   }, [onClose])
   return createPortal(
-    <div ref={box} className={'db-pop oad-root ' + className} style={{ left: pos.left, top: pos.top, width }} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={box} className={'oad-db-pop oad-root ' + className} style={{ left: pos.left, top: pos.top, width }} onMouseDown={(e) => e.stopPropagation()}>
       {children}
     </div>,
     root,
@@ -70,13 +70,13 @@ export const COLOR_NAMES: Record<Color, string> = new Proxy(COLOR_ZH, { get: (z,
 
 export function Pill({ opt, status, onRemove }: { opt: Pick<SelectOption, 'name' | 'color'>; status?: boolean; onRemove?: () => void }) {
   return (
-    <span className={'db-pill c-' + (opt.color || 'default') + (status ? ' is-status' : '')}>
-      {status && <i className="db-pill-dot" />}
-      <span className="db-pill-text">{opt.name}</span>
+    <span className={'oad-db-pill oad-c-' + (opt.color || 'default') + (status ? ' oad-is-status' : '')}>
+      {status && <i className="oad-db-pill-dot" />}
+      <span className="oad-db-pill-text">{opt.name}</span>
       {onRemove && (
         <button
           type="button"
-          className="db-pill-x"
+          className="oad-db-pill-x"
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.stopPropagation()
@@ -120,7 +120,7 @@ const ICONS: Record<PropType, string> = {
 }
 export function TypeIcon({ type }: { type: PropType }) {
   return (
-    <svg className="db-type-ico" viewBox="0 0 24 24" aria-hidden>
+    <svg className="oad-db-type-ico" viewBox="0 0 24 24" aria-hidden>
       <path d={ICONS[type] ?? ICONS.text} fill="currentColor" />
     </svg>
   )
@@ -135,7 +135,7 @@ export const VIEW_ICONS: Record<string, string> = {
 }
 export function ViewIcon({ type }: { type: string }) {
   return (
-    <svg className="db-view-ico" viewBox="0 0 24 24" aria-hidden>
+    <svg className="oad-db-view-ico" viewBox="0 0 24 24" aria-hidden>
       <path d={VIEW_ICONS[type] ?? VIEW_ICONS.table} fill="currentColor" />
     </svg>
   )

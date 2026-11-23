@@ -12,7 +12,7 @@ export function renderBody(md: string): string {
     return `\u0000${codes.length - 1}\u0000`
   })
   s = esc(s)
-  s = s.replace(/@\[([^\]\n]{1,64})\]\((agent|user):([0-9A-Za-z_-]{1,64})\)/g, (_, name, kind, id) => `<span class="mention is-${kind}" data-id="${id}">@${name}</span>`)
+  s = s.replace(/@\[([^\]\n]{1,64})\]\((agent|user):([0-9A-Za-z_-]{1,64})\)/g, (_, name, kind, id) => `<span class="oad-mention oad-is-${kind}" data-id="${id}">@${name}</span>`)
   s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer nofollow">${t}</a>`)
   s = s.replace(/(^|[^"=])(https?:\/\/[^\s<]+)/g, (_, pre, u) => `${pre}<a href="${u}" target="_blank" rel="noopener noreferrer nofollow">${u}</a>`)
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')

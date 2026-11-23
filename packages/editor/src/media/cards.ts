@@ -52,7 +52,7 @@ function codeSpans(text: string): DocumentFragment {
   const f = document.createDocumentFragment()
   const parts = text.split(/(`[^`]+`)/)
   for (const part of parts) {
-    if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) f.append(h('code', { class: 'c-code' }, part.slice(1, -1)))
+    if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) f.append(h('code', { class: 'oad-c-code' }, part.slice(1, -1)))
     else if (part) f.append(part)
   }
   return f
@@ -60,8 +60,8 @@ function codeSpans(text: string): DocumentFragment {
 
 const ext = (href: string, cls: string, ...kids: (Node | string | null)[]) => h('a', { class: cls, href, target: '_blank', rel: 'noopener noreferrer nofollow' }, ...kids)
 
-function favicon(src?: string, cls = 'c-favicon') {
-  if (!src) return h('span', { class: cls + ' is-empty' })
+function favicon(src?: string, cls = 'oad-c-favicon') {
+  if (!src) return h('span', { class: cls + ' oad-is-empty' })
   return img(src, cls)
 }
 
@@ -69,9 +69,9 @@ function favicon(src?: string, cls = 'c-favicon') {
 export function skeleton(url: string) {
   return h(
     'div',
-    { class: 'c-card c-skeleton', 'aria-busy': 'true' },
-    h('div', { class: 'c-sk-body' }, h('span', { class: 'c-sk-line w60' }), h('span', { class: 'c-sk-line w90' }), h('span', { class: 'c-sk-meta' }, host(url))),
-    h('div', { class: 'c-sk-thumb' }),
+    { class: 'oad-c-card oad-c-skeleton', 'aria-busy': 'true' },
+    h('div', { class: 'oad-c-sk-body' }, h('span', { class: 'oad-c-sk-line oad-w60' }), h('span', { class: 'oad-c-sk-line oad-w90' }), h('span', { class: 'oad-c-sk-meta' }, host(url))),
+    h('div', { class: 'oad-c-sk-thumb' }),
   )
 }
 
@@ -83,21 +83,21 @@ function bookmark(d: Unfurl | null, url: string) {
   const author = d?.embed?.type === 'wechat' ? d.embed.account : undefined
   return ext(
     d?.canonical_url || url,
-    'c-card c-bookmark' + (thumb ? ' has-thumb' : ''),
+    'oad-c-card oad-c-bookmark' + (thumb ? ' oad-has-thumb' : ''),
     h(
       'div',
-      { class: 'c-bm-body' },
-      h('div', { class: 'c-bm-title' }, codeSpans(title)),
-      desc ? h('div', { class: 'c-bm-desc' }, desc) : null,
+      { class: 'oad-c-bm-body' },
+      h('div', { class: 'oad-c-bm-title' }, codeSpans(title)),
+      desc ? h('div', { class: 'oad-c-bm-desc' }, desc) : null,
       h(
         'div',
-        { class: 'c-bm-meta' },
+        { class: 'oad-c-bm-meta' },
         favicon(d?.favicon),
-        h('span', { class: 'c-bm-site' }, author || d?.site_name || host(url)),
-        (author || d?.site_name) && (author || d?.site_name) !== host(url) ? h('span', { class: 'c-bm-url' }, host(url)) : null,
+        h('span', { class: 'oad-c-bm-site' }, author || d?.site_name || host(url)),
+        (author || d?.site_name) && (author || d?.site_name) !== host(url) ? h('span', { class: 'oad-c-bm-url' }, host(url)) : null,
       ),
     ),
-    thumb ? h('div', { class: 'c-bm-thumb' }, img(thumb, '', d?.thumbnail?.alt ?? '', srcset(thumb) ? { srcset: srcset(thumb)!, sizes: '240px' } : {})) : null,
+    thumb ? h('div', { class: 'oad-c-bm-thumb' }, img(thumb, '', d?.thumbnail?.alt ?? '', srcset(thumb) ? { srcset: srcset(thumb)!, sizes: '240px' } : {})) : null,
   )
 }
 
@@ -126,22 +126,22 @@ function videoFacade(o: {
   portrait?: boolean
   pausable?: boolean
 }): [HTMLElement, CardHandle] {
-  const frame = h('div', { class: 'c-video-frame' + (o.portrait ? ' is-portrait' : '') })
+  const frame = h('div', { class: 'oad-c-video-frame' + (o.portrait ? ' oad-is-portrait' : '') })
   const cover = h(
     'button',
-    { class: 'c-video-cover', type: 'button', 'aria-label': `${t('playVideo')}：${o.title ?? ''}` },
-    img(o.thumb, 'c-video-thumb'),
-    h('span', { class: 'c-video-shade' }),
-    h('span', { class: 'c-video-top' }, o.avatar ? img(o.avatar, 'c-video-avatar') : null, h('span', { class: 'c-video-titles' }, h('span', { class: 'c-video-title' }, o.title ?? host(o.url)), o.channel ? h('span', { class: 'c-video-channel' }, o.channel) : null)),
-    h('span', { class: 'c-play c-play-' + o.brand }, o.badge),
-    o.duration ? h('span', { class: 'c-video-duration' }, o.duration) : null,
+    { class: 'oad-c-video-cover', type: 'button', 'aria-label': `${t('playVideo')}：${o.title ?? ''}` },
+    img(o.thumb, 'oad-c-video-thumb'),
+    h('span', { class: 'oad-c-video-shade' }),
+    h('span', { class: 'oad-c-video-top' }, o.avatar ? img(o.avatar, 'oad-c-video-avatar') : null, h('span', { class: 'oad-c-video-titles' }, h('span', { class: 'oad-c-video-title' }, o.title ?? host(o.url)), o.channel ? h('span', { class: 'oad-c-video-channel' }, o.channel) : null)),
+    h('span', { class: 'oad-c-play oad-c-play-' + o.brand }, o.badge),
+    o.duration ? h('span', { class: 'oad-c-video-duration' }, o.duration) : null,
   )
   frame.append(cover)
   let iframe: HTMLIFrameElement | null = null
   cover.addEventListener('click', (e) => {
     e.preventDefault()
     iframe = h('iframe', {
-      class: 'c-video-iframe',
+      class: 'oad-c-video-iframe',
       src: o.iframe,
       title: o.title ?? '',
       allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen',
@@ -153,9 +153,9 @@ function videoFacade(o: {
   })
   const card = h(
     'div',
-    { class: 'c-card c-video c-video-' + o.brand },
+    { class: 'oad-c-card oad-c-video oad-c-video-' + o.brand },
     frame,
-    h('div', { class: 'c-video-foot' }, h('span', { class: 'c-video-brand' }, o.brand === 'youtube' ? 'YouTube' : o.brand === 'bilibili' ? (/^zh/i.test(document.documentElement.lang) ? '哔哩哔哩' : 'Bilibili') : o.brand), o.stats ? h('span', { class: 'c-video-stats' }, o.stats) : null, ext(o.url, 'c-open', ico('external'), t('openOriginal'))),
+    h('div', { class: 'oad-c-video-foot' }, h('span', { class: 'oad-c-video-brand' }, o.brand === 'youtube' ? 'YouTube' : o.brand === 'bilibili' ? (/^zh/i.test(document.documentElement.lang) ? '哔哩哔哩' : 'Bilibili') : o.brand), o.stats ? h('span', { class: 'oad-c-video-stats' }, o.stats) : null, ext(o.url, 'oad-c-open', ico('external'), t('openOriginal'))),
   )
   return [
     card,
@@ -168,7 +168,7 @@ function videoFacade(o: {
   ]
 }
 
-const ytBadge = () => icon('0 0 68 48', 'M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z|M45 24 27 14v20', 'c-yt-badge')
+const ytBadge = () => icon('0 0 68 48', 'M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z|M45 24 27 14v20', 'oad-c-yt-badge')
 
 function youtube(d: Unfurl | null, url: string): [HTMLElement, CardHandle] {
   const e = d?.embed?.type === 'youtube' ? d.embed : null
@@ -200,7 +200,7 @@ function bilibili(d: Unfurl | null, url: string): [HTMLElement, CardHandle] {
     channel: d?.author?.name,
     avatar: d?.author?.avatar,
     thumb: d?.thumbnail?.url,
-    badge: ico('play', 'c-bili-badge'),
+    badge: ico('play', 'oad-c-bili-badge'),
     brand: 'bilibili',
     duration: e?.duration_seconds ? duration(e.duration_seconds) : undefined,
     stats,
@@ -227,17 +227,17 @@ function officialIframe(provider: string, url: string): { src: string; ratio?: s
 }
 
 function iframeFacade(d: Unfurl | null, url: string, frame: { src?: string; srcdoc?: string; ratio?: string; height?: number; sandbox?: string }): HTMLElement {
-  const box = h('div', { class: 'c-frame-box', style: frame.height ? `height:${frame.height}px` : `aspect-ratio:${frame.ratio ?? '16 / 9'}` })
+  const box = h('div', { class: 'oad-c-frame-box', style: frame.height ? `height:${frame.height}px` : `aspect-ratio:${frame.ratio ?? '16 / 9'}` })
   const cover = h(
     'button',
-    { class: 'c-frame-cover', type: 'button' },
-    d?.thumbnail?.url ? img(d.thumbnail.url, 'c-frame-thumb') : null,
-    h('span', { class: 'c-frame-label' }, favicon(d?.favicon), h('b', null, d?.title || host(url)), h('span', null, t('clickToLoad'))),
+    { class: 'oad-c-frame-cover', type: 'button' },
+    d?.thumbnail?.url ? img(d.thumbnail.url, 'oad-c-frame-thumb') : null,
+    h('span', { class: 'oad-c-frame-label' }, favicon(d?.favicon), h('b', null, d?.title || host(url)), h('span', null, t('clickToLoad'))),
   )
   cover.addEventListener('click', (e) => {
     e.preventDefault()
     const f = h('iframe', {
-      class: 'c-frame',
+      class: 'oad-c-frame',
       src: frame.src,
       srcdoc: frame.srcdoc,
       sandbox: frame.sandbox,
@@ -249,7 +249,7 @@ function iframeFacade(d: Unfurl | null, url: string, frame: { src?: string; srcd
     cover.replaceWith(f)
   })
   box.append(cover)
-  return h('div', { class: 'c-card c-embed-frame' }, box, h('div', { class: 'c-video-foot' }, favicon(d?.favicon), h('span', { class: 'c-video-brand' }, d?.site_name || host(url)), ext(url, 'c-open', ico('external'), t('openOriginal'))))
+  return h('div', { class: 'oad-c-card oad-c-embed-frame' }, box, h('div', { class: 'oad-c-video-foot' }, favicon(d?.favicon), h('span', { class: 'oad-c-video-brand' }, d?.site_name || host(url)), ext(url, 'oad-c-open', ico('external'), t('openOriginal'))))
 }
 
 // ---------- X 帖子 ----------
@@ -264,10 +264,10 @@ function xText(p: Omit<XPost, 'type'>): DocumentFragment {
     if (m.index! > last) frag.append(text.slice(last, m.index))
     if (m[1]) {
       const u = urls.get(m[1])
-      if (u) frag.append(ext(u.expanded_url, 'c-x-link', u.display_url))
-    } else if (m[2]) frag.append(ext(`https://x.com/${m[2].slice(1)}`, 'c-x-link', m[2]))
-    else if (m[3]) frag.append(ext(`https://x.com/hashtag/${encodeURIComponent(m[3].slice(1))}`, 'c-x-link', m[3]))
-    else if (m[4]) frag.append(ext(m[4], 'c-x-link', m[4].replace(/^https?:\/\/(www\.)?/, '').replace(/^(.{28}).+$/, '$1…')))
+      if (u) frag.append(ext(u.expanded_url, 'oad-c-x-link', u.display_url))
+    } else if (m[2]) frag.append(ext(`https://x.com/${m[2].slice(1)}`, 'oad-c-x-link', m[2]))
+    else if (m[3]) frag.append(ext(`https://x.com/hashtag/${encodeURIComponent(m[3].slice(1))}`, 'oad-c-x-link', m[3]))
+    else if (m[4]) frag.append(ext(m[4], 'oad-c-x-link', m[4].replace(/^https?:\/\/(www\.)?/, '').replace(/^(.{28}).+$/, '$1…')))
     last = m.index! + m[0].length
   }
   frag.append(text.slice(last))
@@ -277,21 +277,21 @@ function xText(p: Omit<XPost, 'type'>): DocumentFragment {
 function xMedia(list: UMedia[], handles: CardHandle[]): HTMLElement | null {
   if (!list.length) return null
   const n = Math.min(list.length, 4)
-  const grid = h('div', { class: `c-x-media n${n}` })
+  const grid = h('div', { class: `oad-c-x-media oad-n${n}` })
   const one = n === 1 ? list[0] : null
   if (one?.width && one.height) grid.style.aspectRatio = `${Math.max(0.75, Math.min(2, one.width / one.height))}`
   for (const m of list.slice(0, 4)) {
     if (m.kind === 'image') {
-      const a = ext(m.url.replace(/(\?|&)name=\w+/, '$1name=orig'), 'c-x-cell', img(m.url, '', m.alt ?? ''))
+      const a = ext(m.url.replace(/(\?|&)name=\w+/, '$1name=orig'), 'oad-c-x-cell', img(m.url, '', m.alt ?? ''))
       grid.append(a)
     } else {
-      const cell = h('button', { class: 'c-x-cell c-x-video', type: 'button', 'aria-label': t('playVideo') }, img(m.poster, ''), h('span', { class: 'c-play c-play-x' }, ico('play')), m.kind === 'gif' ? h('span', { class: 'c-x-gif' }, 'GIF') : m.duration_ms ? h('span', { class: 'c-video-duration' }, duration(m.duration_ms / 1000)) : null)
+      const cell = h('button', { class: 'oad-c-x-cell oad-c-x-video', type: 'button', 'aria-label': t('playVideo') }, img(m.poster, ''), h('span', { class: 'oad-c-play oad-c-play-x' }, ico('play')), m.kind === 'gif' ? h('span', { class: 'oad-c-x-gif' }, 'GIF') : m.duration_ms ? h('span', { class: 'oad-c-video-duration' }, duration(m.duration_ms / 1000)) : null)
       let v: HTMLVideoElement | null = null
       cell.addEventListener('click', (e) => {
         e.preventDefault()
         v = h('video', { src: m.url, poster: m.poster, controls: true, autoplay: true, playsinline: true, loop: m.kind === 'gif', muted: m.kind === 'gif' }) as HTMLVideoElement
         v.setAttribute('referrerpolicy', 'no-referrer')
-        const wrap = h('div', { class: 'c-x-cell' }, v)
+        const wrap = h('div', { class: 'oad-c-x-cell' }, v)
         cell.replaceWith(wrap)
       })
       handles.push({ pause: () => v?.pause() })
@@ -305,9 +305,9 @@ function xHeader(p: Omit<XPost, 'type'>, small = false) {
   const a = p.author
   return h(
     'div',
-    { class: 'c-x-head' + (small ? ' is-small' : '') },
-    img(a.avatar, 'c-x-avatar'),
-    h('span', { class: 'c-x-names' }, h('span', { class: 'c-x-name' }, a.name ?? a.handle ?? '', p.author_verified ? ico('verified', 'c-x-verified') : null), h('span', { class: 'c-x-handle' }, a.handle ? '@' + a.handle : '')),
+    { class: 'oad-c-x-head' + (small ? ' oad-is-small' : '') },
+    img(a.avatar, 'oad-c-x-avatar'),
+    h('span', { class: 'oad-c-x-names' }, h('span', { class: 'oad-c-x-name' }, a.name ?? a.handle ?? '', p.author_verified ? ico('verified', 'oad-c-x-verified') : null), h('span', { class: 'oad-c-x-handle' }, a.handle ? '@' + a.handle : '')),
   )
 }
 
@@ -316,36 +316,36 @@ function xPost(d: Unfurl | null, url: string): [HTMLElement, CardHandle] {
   if (!p) {
     // 没拿到帖子内容：按网址画个能点的卡片
     const s = sniff(url)
-    return [ext(url, 'c-card c-x c-x-empty', h('div', { class: 'c-x-head' }, h('span', { class: 'c-x-avatar is-empty' }), h('span', { class: 'c-x-names' }, h('span', { class: 'c-x-name' }, d?.author?.name ?? (s.extra?.handle ? '@' + s.extra.handle : 'X')), h('span', { class: 'c-x-handle' }, t('xUnavailable')))), ico('x', 'c-x-logo'), d?.description ? h('div', { class: 'c-x-text' }, d.description) : null), {}]
+    return [ext(url, 'oad-c-card oad-c-x oad-c-x-empty', h('div', { class: 'oad-c-x-head' }, h('span', { class: 'oad-c-x-avatar oad-is-empty' }), h('span', { class: 'oad-c-x-names' }, h('span', { class: 'oad-c-x-name' }, d?.author?.name ?? (s.extra?.handle ? '@' + s.extra.handle : 'X')), h('span', { class: 'oad-c-x-handle' }, t('xUnavailable')))), ico('x', 'oad-c-x-logo'), d?.description ? h('div', { class: 'oad-c-x-text' }, d.description) : null), {}]
   }
   const handles: CardHandle[] = []
   const postUrl = d?.canonical_url ?? url
-  const body = h('div', { class: 'c-x-text', lang: p.lang ?? null }, xText(p))
+  const body = h('div', { class: 'oad-c-x-text', lang: p.lang ?? null }, xText(p))
   let quoted: HTMLElement | null = null
   if (p.quoted) {
     const q = p.quoted
-    quoted = ext(`https://x.com/${q.author.handle ?? 'i'}/status/${q.id}`, 'c-x-quote', xHeader(q, true), h('div', { class: 'c-x-text' }, xText(q)), xMedia(q.media ?? [], handles))
+    quoted = ext(`https://x.com/${q.author.handle ?? 'i'}/status/${q.id}`, 'oad-c-x-quote', xHeader(q, true), h('div', { class: 'oad-c-x-text' }, xText(q)), xMedia(q.media ?? [], handles))
   }
   let card: HTMLElement | null = null
   if (p.card?.url && !(p.media?.length)) {
-    card = ext(p.card.url, 'c-x-linkcard' + (p.card.image ? '' : ' no-image'), p.card.image ? img(p.card.image, 'c-x-linkcard-img') : null, h('span', { class: 'c-x-linkcard-body' }, h('span', { class: 'c-x-linkcard-domain' }, p.card.domain ?? host(p.card.url)), h('span', { class: 'c-x-linkcard-title' }, p.card.title ?? ''), p.card.description ? h('span', { class: 'c-x-linkcard-desc' }, p.card.description) : null))
+    card = ext(p.card.url, 'oad-c-x-linkcard' + (p.card.image ? '' : ' oad-no-image'), p.card.image ? img(p.card.image, 'oad-c-x-linkcard-img') : null, h('span', { class: 'oad-c-x-linkcard-body' }, h('span', { class: 'oad-c-x-linkcard-domain' }, p.card.domain ?? host(p.card.url)), h('span', { class: 'oad-c-x-linkcard-title' }, p.card.title ?? ''), p.card.description ? h('span', { class: 'oad-c-x-linkcard-desc' }, p.card.description) : null))
   }
   const el = h(
     'div',
-    { class: 'c-card c-x' },
-    h('div', { class: 'c-x-top' }, xHeader(p), ext(postUrl, 'c-x-logo-link', ico('x', 'c-x-logo'))),
-    p.in_reply_to ? h('div', { class: 'c-x-reply-to' }, t('replyingTo'), ' ', ext(`https://x.com/${p.in_reply_to}`, 'c-x-link', '@' + p.in_reply_to)) : null,
+    { class: 'oad-c-card oad-c-x' },
+    h('div', { class: 'oad-c-x-top' }, xHeader(p), ext(postUrl, 'oad-c-x-logo-link', ico('x', 'oad-c-x-logo'))),
+    p.in_reply_to ? h('div', { class: 'oad-c-x-reply-to' }, t('replyingTo'), ' ', ext(`https://x.com/${p.in_reply_to}`, 'oad-c-x-link', '@' + p.in_reply_to)) : null,
     body,
     xMedia(p.media ?? [], handles),
     card,
     quoted,
     h(
       'div',
-      { class: 'c-x-foot' },
-      ext(postUrl, 'c-x-time', date(p.created_at, true)),
-      h('span', { class: 'c-x-stat c-x-like' }, ico('heart'), count(p.like_count)),
-      p.reply_count !== undefined ? h('span', { class: 'c-x-stat' }, ico('reply'), count(p.reply_count)) : null,
-      ext(postUrl, 'c-x-view', t('viewOnX')),
+      { class: 'oad-c-x-foot' },
+      ext(postUrl, 'oad-c-x-time', date(p.created_at, true)),
+      h('span', { class: 'oad-c-x-stat oad-c-x-like' }, ico('heart'), count(p.like_count)),
+      p.reply_count !== undefined ? h('span', { class: 'oad-c-x-stat' }, ico('reply'), count(p.reply_count)) : null,
+      ext(postUrl, 'oad-c-x-view', t('viewOnX')),
     ),
   )
   return [el, { pause: () => handles.forEach((x) => x.pause?.()) }]
@@ -359,25 +359,25 @@ function githubRepo(d: Unfurl | null, url: string) {
   const lang = e?.language
   return ext(
     d?.canonical_url ?? url,
-    'c-card c-gh c-gh-repo',
+    'oad-c-card oad-c-gh oad-c-gh-repo',
     h(
       'div',
-      { class: 'c-gh-main' },
-      h('div', { class: 'c-gh-title' }, ico('repo', 'c-gh-icon'), h('span', { class: 'c-gh-owner' }, owner + ' / '), h('b', null, repo), e?.archived ? h('span', { class: 'c-gh-pill is-archived' }, t('archived')) : null),
-      d?.description ? h('div', { class: 'c-gh-desc' }, codeSpans(d.description)) : null,
-      e?.topics?.length ? h('div', { class: 'c-gh-topics' }, ...e.topics.slice(0, 5).map((x) => h('span', { class: 'c-gh-topic' }, x))) : null,
+      { class: 'oad-c-gh-main' },
+      h('div', { class: 'oad-c-gh-title' }, ico('repo', 'oad-c-gh-icon'), h('span', { class: 'oad-c-gh-owner' }, owner + ' / '), h('b', null, repo), e?.archived ? h('span', { class: 'oad-c-gh-pill oad-is-archived' }, t('archived')) : null),
+      d?.description ? h('div', { class: 'oad-c-gh-desc' }, codeSpans(d.description)) : null,
+      e?.topics?.length ? h('div', { class: 'oad-c-gh-topics' }, ...e.topics.slice(0, 5).map((x) => h('span', { class: 'oad-c-gh-topic' }, x))) : null,
       h(
         'div',
-        { class: 'c-gh-meta' },
-        lang ? h('span', { class: 'c-gh-lang' }, h('i', { style: `background:${LANG_COLORS[lang] ?? '#8b949e'}` }), lang) : null,
+        { class: 'oad-c-gh-meta' },
+        lang ? h('span', { class: 'oad-c-gh-lang' }, h('i', { style: `background:${LANG_COLORS[lang] ?? '#8b949e'}` }), lang) : null,
         e?.stars !== undefined ? h('span', null, ico('star'), count(e.stars)) : null,
         e?.forks !== undefined ? h('span', null, ico('fork'), count(e.forks)) : null,
         e?.license ? h('span', null, e.license) : null,
         e?.pushed_at ? h('span', null, t('updatedAt'), ' ', date(e.pushed_at)) : null,
       ),
     ),
-    img(d?.author?.avatar, 'c-gh-avatar'),
-    ico('github', 'c-gh-mark'),
+    img(d?.author?.avatar, 'oad-c-gh-avatar'),
+    ico('github', 'oad-c-gh-mark'),
   )
 }
 
@@ -388,39 +388,39 @@ function githubIssue(d: Unfurl | null, url: string) {
   const state = e?.state ?? 'open'
   const [k, cls, label] = isPr
     ? state === 'merged'
-      ? (['merged', 'is-merged', t('merged')] as const)
+      ? (['merged', 'oad-is-merged', t('merged')] as const)
       : state === 'closed'
-        ? (['prClosed', 'is-closed', t('closed')] as const)
+        ? (['prClosed', 'oad-is-closed', t('closed')] as const)
         : state === 'draft'
-          ? (['pr', 'is-draft', t('draft')] as const)
-          : (['pr', 'is-open', t('open')] as const)
+          ? (['pr', 'oad-is-draft', t('draft')] as const)
+          : (['pr', 'oad-is-open', t('open')] as const)
     : state === 'closed'
       ? e?.state_reason === 'not_planned'
-        ? (['issueSkip', 'is-skip', t('closed')] as const)
-        : (['issueClosed', 'is-done', t('closed')] as const)
-      : (['issueOpen', 'is-open', t('open')] as const)
+        ? (['issueSkip', 'oad-is-skip', t('closed')] as const)
+        : (['issueClosed', 'oad-is-done', t('closed')] as const)
+      : (['issueOpen', 'oad-is-open', t('open')] as const)
   const owner = e?.owner ?? s.id?.split('/')[0]
   const repo = e?.repo ?? s.id?.split('/')[1]
   const num = e?.number ?? s.extra?.number
   const title = (d?.title ?? '').replace(/\s*·\s*#\d+$/, '').replace(/\s*·\s*(Issue|Pull Request) #\d+.*$/, '') || `#${num}`
   return ext(
     d?.canonical_url ?? url,
-    'c-card c-gh c-gh-issue',
+    'oad-c-card oad-c-gh oad-c-gh-issue',
     h(
       'div',
-      { class: 'c-gh-main' },
-      h('div', { class: 'c-gh-repo-line' }, ico('github', 'c-gh-mini'), `${owner}/${repo}`, ' ', h('span', { class: 'c-gh-num' }, '#' + num)),
-      h('div', { class: 'c-gh-issue-title' }, h('span', { class: 'c-gh-state-ico ' + cls }, ico(k)), h('b', null, codeSpans(title))),
+      { class: 'oad-c-gh-main' },
+      h('div', { class: 'oad-c-gh-repo-line' }, ico('github', 'oad-c-gh-mini'), `${owner}/${repo}`, ' ', h('span', { class: 'oad-c-gh-num' }, '#' + num)),
+      h('div', { class: 'oad-c-gh-issue-title' }, h('span', { class: 'oad-c-gh-state-ico ' + cls }, ico(k)), h('b', null, codeSpans(title))),
       h(
         'div',
-        { class: 'c-gh-meta' },
-        h('span', { class: 'c-gh-pill ' + cls }, ico(k), label),
-        d?.author?.name ? h('span', { class: 'c-gh-by' }, img(d.author.avatar, 'c-gh-by-avatar'), d.author.name) : null,
+        { class: 'oad-c-gh-meta' },
+        h('span', { class: 'oad-c-gh-pill ' + cls }, ico(k), label),
+        d?.author?.name ? h('span', { class: 'oad-c-gh-by' }, img(d.author.avatar, 'oad-c-gh-by-avatar'), d.author.name) : null,
         e?.comments ? h('span', null, ico('comment'), String(e.comments)) : null,
-        e?.additions !== undefined ? h('span', { class: 'c-gh-diff' }, h('i', { class: 'add' }, '+' + count(e.additions)), ' ', h('i', { class: 'del' }, '−' + count(e.deletions))) : null,
+        e?.additions !== undefined ? h('span', { class: 'oad-c-gh-diff' }, h('i', { class: 'oad-add' }, '+' + count(e.additions)), ' ', h('i', { class: 'oad-del' }, '−' + count(e.deletions))) : null,
         d?.published_at ? h('span', null, date(d.published_at)) : null,
       ),
-      e?.labels?.length ? h('div', { class: 'c-gh-labels' }, ...e.labels.slice(0, 6).map((l) => h('span', { class: 'c-gh-label', style: l.color ? `--l:#${l.color}` : null }, l.name))) : null,
+      e?.labels?.length ? h('div', { class: 'oad-c-gh-labels' }, ...e.labels.slice(0, 6).map((l) => h('span', { class: 'oad-c-gh-label', style: l.color ? `--oad-l:#${l.color}` : null }, l.name))) : null,
     ),
   )
 }
@@ -435,42 +435,42 @@ function fileCard(d: Unfurl | null, url: string): [HTMLElement, CardHandle] {
   const isPdf = mime === 'application/pdf' || extName === 'pdf'
   const meta = [bytes(d?.size), d?.duration_ms ? duration(d.duration_ms / 1000) : ''].filter(Boolean).join(' · ')
   if (isVideo) {
-    const v = h('video', { class: 'c-file-video', src: url, controls: true, preload: 'metadata', playsinline: true, poster: d?.thumbnail?.url }) as HTMLVideoElement
+    const v = h('video', { class: 'oad-c-file-video', src: url, controls: true, preload: 'metadata', playsinline: true, poster: d?.thumbnail?.url }) as HTMLVideoElement
     if (d?.width && d.height) v.style.aspectRatio = `${d.width} / ${d.height}`
-    return [h('div', { class: 'c-card c-file c-file-media' }, v, h('div', { class: 'c-file-row' }, h('span', { class: 'c-file-name' }, name), h('span', { class: 'c-file-meta' }, meta), ext(url, 'c-open', ico('download'), t('download')))), { pause: () => v.pause() }]
+    return [h('div', { class: 'oad-c-card oad-c-file oad-c-file-media' }, v, h('div', { class: 'oad-c-file-row' }, h('span', { class: 'oad-c-file-name' }, name), h('span', { class: 'oad-c-file-meta' }, meta), ext(url, 'oad-c-open', ico('download'), t('download')))), { pause: () => v.pause() }]
   }
   if (isAudio) {
-    const a = h('audio', { class: 'c-file-audio', src: url, controls: true, preload: 'metadata' }) as HTMLAudioElement
-    return [h('div', { class: 'c-card c-file c-file-audio-card' }, h('div', { class: 'c-file-row' }, h('span', { class: 'c-file-badge is-audio' }, '♪'), h('span', { class: 'c-file-name' }, name), h('span', { class: 'c-file-meta' }, meta)), a), { pause: () => a.pause() }]
+    const a = h('audio', { class: 'oad-c-file-audio', src: url, controls: true, preload: 'metadata' }) as HTMLAudioElement
+    return [h('div', { class: 'oad-c-card oad-c-file oad-c-file-audio-card' }, h('div', { class: 'oad-c-file-row' }, h('span', { class: 'oad-c-file-badge oad-is-audio' }, '♪'), h('span', { class: 'oad-c-file-name' }, name), h('span', { class: 'oad-c-file-meta' }, meta)), a), { pause: () => a.pause() }]
   }
   const row = h(
     'div',
-    { class: 'c-file-row' },
-    h('span', { class: 'c-file-badge' + (isPdf ? ' is-pdf' : '') }, isPdf ? 'PDF' : (extName.slice(0, 4).toUpperCase() || ico('file'))),
-    h('span', { class: 'c-file-text' }, h('span', { class: 'c-file-name' }, name), h('span', { class: 'c-file-meta' }, meta || mime)),
+    { class: 'oad-c-file-row' },
+    h('span', { class: 'oad-c-file-badge' + (isPdf ? ' oad-is-pdf' : '') }, isPdf ? 'PDF' : (extName.slice(0, 4).toUpperCase() || ico('file'))),
+    h('span', { class: 'oad-c-file-text' }, h('span', { class: 'oad-c-file-name' }, name), h('span', { class: 'oad-c-file-meta' }, meta || mime)),
   )
-  const card = h('div', { class: 'c-card c-file' }, row)
+  const card = h('div', { class: 'oad-c-card oad-c-file' }, row)
   if (isPdf) {
-    const btn = h('button', { class: 'c-btn', type: 'button' }, t('preview'))
+    const btn = h('button', { class: 'oad-c-btn', type: 'button' }, t('preview'))
     let open = false
     let frame: HTMLIFrameElement | null = null
     btn.addEventListener('click', () => {
       open = !open
       btn.textContent = open ? t('collapsePreview') : t('preview')
       if (open) {
-        frame ??= h('iframe', { class: 'c-pdf', src: url, title: name }) as HTMLIFrameElement
+        frame ??= h('iframe', { class: 'oad-c-pdf', src: url, title: name }) as HTMLIFrameElement
         card.append(frame)
       } else frame?.remove()
     })
     row.append(btn)
   }
-  row.append(h('a', { class: 'c-btn', href: url, download: name }, ico('download'), t('download')))
+  row.append(h('a', { class: 'oad-c-btn', href: url, download: name }, ico('download'), t('download')))
   return [card, {}]
 }
 
 function imageCard(d: Unfurl | null, url: string) {
   const src = d?.thumbnail?.url ?? url
-  return ext(url, 'c-card c-image', img(src, '', d?.title ?? '', srcset(src) ? { srcset: srcset(src)!, sizes: '(max-width: 760px) 100vw, 720px' } : {}))
+  return ext(url, 'oad-c-card oad-c-image', img(src, '', d?.title ?? '', srcset(src) ? { srcset: srcset(src)!, sizes: '(max-width: 760px) 100vw, 720px' } : {}))
 }
 
 // ---------- 入口 ----------

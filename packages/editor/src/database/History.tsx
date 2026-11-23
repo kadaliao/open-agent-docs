@@ -84,11 +84,11 @@ export function DbHistory({ rowId, onClose }: { rowId?: string; onClose?: () => 
 
   const shown = (items ?? []).filter((x) => !only || x.kind === 'schema')
   return (
-    <div className="dbh" aria-label={rowId ? t('historyRowTitle') : t('historyTitle')}>
-      <div className="dbh-head">
+    <div className="oad-dbh" aria-label={rowId ? t('historyRowTitle') : t('historyTitle')}>
+      <div className="oad-dbh-head">
         <b>{rowId ? t('historyRowTitle') : t('historyTitle')}</b>
         {!rowId && (
-          <div className="db-menu-seg dbh-seg">
+          <div className="oad-db-menu-seg oad-dbh-seg">
             <button type="button" aria-pressed={!only} onClick={() => setOnly(false)}>
               {t('historyAll')}
             </button>
@@ -98,39 +98,39 @@ export function DbHistory({ rowId, onClose }: { rowId?: string; onClose?: () => 
           </div>
         )}
         {onClose && (
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('closePanel')}>
+          <button type="button" className="oad-icon-btn" onClick={onClose} aria-label={t('closePanel')}>
             ×
           </button>
         )}
       </div>
-      {error && <div className="db-empty-note">{error}</div>}
-      {items && !shown.length && !error && <div className="db-empty-note">{t('historyEmpty')}</div>}
-      <div className="dbh-list">
+      {error && <div className="oad-db-empty-note">{error}</div>}
+      {items && !shown.length && !error && <div className="oad-db-empty-note">{t('historyEmpty')}</div>}
+      <div className="oad-dbh-list">
         {shown.map((x) => {
           const who = personOf(x.by, people)
           const row = x.row_id ? x.row_title ?? (store.rowTitle(store.rows.get(x.row_id)) || undefined) : null
           return (
-            <div key={x.seq} className={'dbh-item is-' + x.kind + (x.undone ? ' is-undone' : '')} data-seq={x.seq}>
+            <div key={x.seq} className={'oad-dbh-item oad-is-' + x.kind + (x.undone ? ' oad-is-undone' : '')} data-seq={x.seq}>
               {who ? (
-                <span className={'avatar avatar-xs' + (who.kind === 'agent' ? ' is-agent' : '')} style={{ background: colorFor(who.id) }} title={who.name}>
+                <span className={'oad-avatar oad-avatar-xs' + (who.kind === 'agent' ? ' oad-is-agent' : '')} style={{ background: colorFor(who.id) }} title={who.name}>
                   {who.kind === 'agent' ? '✦' : initials(who.name)}
                 </span>
               ) : (
-                <span className="avatar avatar-xs" />
+                <span className="oad-avatar oad-avatar-xs" />
               )}
-              <div className="dbh-main">
-                <div className="dbh-text">
+              <div className="oad-dbh-main">
+                <div className="oad-dbh-text">
                   {who && <b>{who.name} </b>}
                   {describe(x)}
                 </div>
-                <div className="dbh-meta">
-                  {!rowId && row !== null && row !== undefined && <span className="dbh-row">{row || t('untitled')}</span>}
+                <div className="oad-dbh-meta">
+                  {!rowId && row !== null && row !== undefined && <span className="oad-dbh-row">{row || t('untitled')}</span>}
                   <span title={fmtDate(x.at, true)}>{fmtAgo(x.at)}</span>
                   {x.undone && <span>· {t('historyUndone')}</span>}
                 </div>
               </div>
               {canWrite && !x.undone && x.prop !== '@position' && (
-                <button type="button" className="db-link-btn" disabled={busy === x.seq} onClick={() => undo(x)}>
+                <button type="button" className="oad-db-link-btn" disabled={busy === x.seq} onClick={() => undo(x)}>
                   {t('historyUndo')}
                 </button>
               )}

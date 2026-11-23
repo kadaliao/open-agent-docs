@@ -42,7 +42,7 @@ export const detailsView: NodeViewRenderer = (p) => {
   const content = el('div', 'oad-details-body')
   dom.append(toggle, content)
   const apply = (open: boolean) => {
-    dom.classList.toggle('is-open', open)
+    dom.classList.toggle('oad-is-open', open)
     toggle.setAttribute('aria-expanded', String(open))
     toggle.setAttribute('aria-label', open ? t('collapse') : t('expand'))
   }
@@ -53,7 +53,7 @@ export const detailsView: NodeViewRenderer = (p) => {
     if (p.editor.isEditable) setAttr(p, 'open', open)
     else apply(open)
   })
-  // 收起时内容区靠 CSS 隐藏（.oad-details:not(.is-open)）
+  // 收起时内容区靠 CSS 隐藏（.oad-details:not(.oad-is-open)）
   apply(!!node.attrs.open)
   return {
     dom,
@@ -112,7 +112,7 @@ export const calloutView: NodeViewRenderer = (p) => {
     icon.textContent = CALLOUT_ICONS[kind]
     icon.title = t(`callout.${kind}` as 'callout.note')
     if (!isFocused(title)) title.value = n.attrs.title ?? ''
-    dom.classList.toggle('has-title', !!n.attrs.title)
+    dom.classList.toggle('oad-has-title', !!n.attrs.title)
     blockAttrs(dom, n)
   }
   sync(node)
@@ -183,7 +183,7 @@ export const mathBlockView: NodeViewRenderer = (p) => {
   const open = () => {
     if (!p.editor.isEditable || editing) return
     editing = true
-    dom.classList.add('is-editing')
+    dom.classList.add('oad-is-editing')
     editor.hidden = false
     ta.value = node.attrs.latex || ''
     renderMath(preview, ta.value, true, '')
@@ -193,7 +193,7 @@ export const mathBlockView: NodeViewRenderer = (p) => {
   const close = (moveOut: 1 | 0) => {
     if (!editing) return
     editing = false
-    dom.classList.remove('is-editing')
+    dom.classList.remove('oad-is-editing')
     editor.hidden = true
     setAttr(p, 'latex', ta.value)
     draw()
@@ -235,10 +235,10 @@ export const mathBlockView: NodeViewRenderer = (p) => {
       return true
     },
     selectNode() {
-      dom.classList.add('is-selected')
+      dom.classList.add('oad-is-selected')
     },
     deselectNode() {
-      dom.classList.remove('is-selected')
+      dom.classList.remove('oad-is-selected')
     },
     stopEvent: (e) => editor.contains(e.target as Node),
     ignoreMutation: () => true,
@@ -309,10 +309,10 @@ export const mathInlineView: NodeViewRenderer = (p) => {
       return true
     },
     selectNode() {
-      dom.classList.add('is-selected')
+      dom.classList.add('oad-is-selected')
     },
     deselectNode() {
-      dom.classList.remove('is-selected')
+      dom.classList.remove('oad-is-selected')
     },
     stopEvent: (e) => input.contains(e.target as Node),
     ignoreMutation: () => true,

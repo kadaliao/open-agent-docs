@@ -66,12 +66,12 @@ export function DbPageBody({ pageId, me, store, canWrite }: { pageId: string; me
       save()
     }
   }, [live, pageId, db])
-  if (snap && !live) return <div className="db-page db-snapshot" aria-busy="true" dangerouslySetInnerHTML={{ __html: snap }} />
+  if (snap && !live) return <div className="oad-db-page oad-db-snapshot" aria-busy="true" dangerouslySetInnerHTML={{ __html: snap }} />
   return (
-    <div className="db-page" ref={box}>
-      <div className="db-page-head">
+    <div className="oad-db-page" ref={box}>
+      <div className="oad-db-page-head">
         <input
-          className="db-page-title"
+          className="oad-db-page-title"
           value={title}
           placeholder={t('untitled')}
           readOnly={!canWrite}

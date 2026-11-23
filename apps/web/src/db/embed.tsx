@@ -14,7 +14,7 @@ export interface EmbedCtx {
 
 export function mountDatabaseEmbed(box: HTMLElement, dbId: string, viewId: string | null, ctx: EmbedCtx) {
   const host = document.createElement('div')
-  host.className = 'db-embed'
+  host.className = 'oad-db-embed'
   box.replaceChildren(host)
   const root = createRoot(host)
   const dbs = [...ctx.store.pages.values()].filter((p) => p.kind === 'database').map((p) => ({ id: p.id, title: p.title }))

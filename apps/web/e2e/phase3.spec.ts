@@ -70,13 +70,13 @@ test('空行里贴 X 链接：马上出卡片和小菜单，选“书签”换�
   await expect(page.locator('.oad-embed')).toHaveCount(1)
   await expect(page.locator('.oad-paste-menu')).toBeVisible()
   // 卡片：骨架很快换成帖子
-  await expect(page.locator('.c-x .c-x-name')).toContainText('Vercel', { timeout: 5_000 })
-  await expect(page.locator('.c-x .c-x-linkcard')).toBeVisible()
+  await expect(page.locator('.oad-c-x .oad-c-x-name')).toContainText('Vercel', { timeout: 5_000 })
+  await expect(page.locator('.oad-c-x .oad-c-x-linkcard')).toBeVisible()
   // 选“书签”
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect(page.locator('.oad-paste-menu')).toHaveCount(0)
-  await expect(page.locator('.c-bookmark')).toBeVisible()
+  await expect(page.locator('.oad-c-bookmark')).toBeVisible()
   expect((await json(page)).find((n) => n.type === 'embed').attrs).toMatchObject({ url, view: 'bookmark' })
   // 块菜单 → 显示成“提及”
   const box = (await page.locator('.oad-embed').boundingBox())!
@@ -154,9 +154,9 @@ test('代码块高亮、mermaid 画图；图片改宽度、图注、大图', asy
   await expect(page.locator('.oad-code code span[style*="--shiki-light"]').first()).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.oad-mermaid svg')).toBeVisible({ timeout: 10_000 })
   // 切到源码再切回图
-  await page.locator('.oad-code.is-mermaid .oad-code-mode').click()
-  await expect(page.locator('.oad-code.is-mermaid pre')).toBeVisible()
-  await page.locator('.oad-code.is-mermaid .oad-code-mode').click()
+  await page.locator('.oad-code.oad-is-mermaid .oad-code-mode').click()
+  await expect(page.locator('.oad-code.oad-is-mermaid pre')).toBeVisible()
+  await page.locator('.oad-code.oad-is-mermaid .oad-code-mode').click()
   // 自动换行开关写进文档
   await page.locator('.oad-code').first().hover()
   await page.locator('.oad-code').first().getByRole('button', { name: '自动换行' }).click()
@@ -164,9 +164,9 @@ test('代码块高亮、mermaid 画图；图片改宽度、图注、大图', asy
   // 图片：拖右边改宽度
   const img = page.locator('.oad-image')
   await img.scrollIntoViewIfNeeded()
-  await expect(page.locator('.oad-image.is-loaded')).toBeVisible()
+  await expect(page.locator('.oad-image.oad-is-loaded')).toBeVisible()
   await img.hover()
-  const h = (await page.locator('.oad-image-handle.is-right').boundingBox())!
+  const h = (await page.locator('.oad-image-handle.oad-is-right').boundingBox())!
   await page.mouse.move(h.x + 3, h.y + 20)
   await page.mouse.down()
   await page.mouse.move(h.x - 60, h.y + 20, { steps: 6 })
@@ -203,6 +203,6 @@ test('贴图片：先显示本地预览和进度，传完换成服务器地址',
   await expect(page.locator('.oad-upload')).toHaveCount(0)
   // 共享文档里从来没有 blob: 地址
   expect(JSON.stringify(await json(page))).not.toContain('blob:')
-  await expect(page.locator('.oad-image.is-loaded')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.oad-image.oad-is-loaded')).toBeVisible({ timeout: 10_000 })
   await ctx.close()
 })

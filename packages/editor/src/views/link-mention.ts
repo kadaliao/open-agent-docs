@@ -81,8 +81,8 @@ export const linkMentionView: NodeViewRenderer = (p) => {
       if (changed) start()
       return true
     },
-    selectNode: () => dom.classList.add('is-selected'),
-    deselectNode: () => dom.classList.remove('is-selected'),
+    selectNode: () => dom.classList.add('oad-is-selected'),
+    deselectNode: () => dom.classList.remove('oad-is-selected'),
     ignoreMutation: () => true,
     destroy() {
       alive = false

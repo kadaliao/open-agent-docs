@@ -61,7 +61,9 @@ Colors and fonts are CSS variables; override them in the host's own styles. Dark
 }
 ```
 
-The styles of the shared controls inside the components (buttons, avatars, popovers) only apply within `.oad-root`, so they don't affect classes of the same name in the host page.
+Every class, animation and CSS variable the components use starts with `oad-` (except ProseMirror's own `ProseMirror-*` classes), so the
+stylesheet doesn't touch the host page's own classes. Older versions used generic names (`.composer`, `.thread`, `.btn`, `.db-table`…); if your
+CSS overrode those, add the prefix (`.composer` → `.oad-composer`, `.is-active` → `.oad-is-active`).
 
 ## More
 

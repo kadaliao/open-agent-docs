@@ -43,17 +43,17 @@ async function comment(page: Page, quote: string, block: number, typed: string, 
   const btn = page.locator('.oad-bubble button', { hasText: '评论' })
   await expect(btn).toBeVisible()
   await btn.click()
-  const box = page.locator('.thread.is-draft textarea')
+  const box = page.locator('.oad-thread.oad-is-draft textarea')
   await expect(box).toBeFocused()
   await box.pressSequentially(typed)
   if (mention) {
     await box.pressSequentially(' @' + mention)
-    await expect(page.locator('.mention-item', { hasText: mention })).toBeVisible()
+    await expect(page.locator('.oad-mention-item', { hasText: mention })).toBeVisible()
     await box.press('Enter')
     await box.pressSequentially('看一下')
   }
   await box.press('Control+Enter')
-  await expect(page.locator('.thread.is-draft')).toHaveCount(0)
+  await expect(page.locator('.oad-thread.oad-is-draft')).toHaveCount(0)
 }
 
 test('在网页上建 Agent，token 只显示一次', async ({ page, request }) => {
@@ -96,9 +96,9 @@ test('评论 @Agent → Agent 收到通知 → 回复 → 网页实时看到；�
 
   await openPage(page, doc.id)
   await comment(page, '需要讨论的话', 0, '这句话说得不清楚', a.name)
-  const th = page.locator('.thread').first()
-  await expect(th.locator('.comment-body .mention.is-agent')).toHaveText('@' + a.name)
-  await expect(page.locator('.oad-prose .oad-comment')).toHaveText('需要讨论的话')
+  const th = page.locator('.oad-thread').first()
+  await expect(th.locator('.oad-comment-body .oad-mention.oad-is-agent')).toHaveText('@' + a.name)
+  await expect(page.locator('.oad-prose .oad-comment-mark')).toHaveText('需要讨论的话')
 
   // Agent 长轮询收通知
   const r = await request.get(`/api/v1/agent/notifications?after=${after}&wait=20`, { headers: bearer(a.token) })
@@ -116,9 +116,9 @@ test('评论 @Agent → Agent 收到通知 → 回复 → 网页实时看到；�
   // Agent 回复，网页马上看到
   const rep = await request.post(`/api/v1/threads/${n.thread_id}/comments`, { headers: bearer(a.token), data: { body: '已改成更清楚的说法，**请确认**。' } })
   expect(rep.ok(), await rep.text()).toBeTruthy()
-  await expect(th.locator('.comment')).toHaveCount(2, { timeout: 5_000 })
-  await expect(th.locator('.comment').nth(1).locator('.comment-author')).toHaveText(a.name)
-  await expect(th.locator('.comment').nth(1).locator('strong')).toHaveText('请确认')
+  await expect(th.locator('.oad-comment')).toHaveCount(2, { timeout: 5_000 })
+  await expect(th.locator('.oad-comment').nth(1).locator('.oad-comment-author')).toHaveText(a.name)
+  await expect(th.locator('.oad-comment').nth(1).locator('strong')).toHaveText('请确认')
   await request.post('/api/v1/agent/notifications/ack', { headers: bearer(a.token), data: { ids: [n.id] } })
 
   // 收件箱：自己参与的那串有新回复
@@ -132,8 +132,8 @@ test('评论 @Agent → Agent 收到通知 → 回复 → 网页实时看到；�
   await expect(item).toBeVisible()
   await item.click()
   await expect(page).toHaveURL(new RegExp(`/p/${doc.id}\\?thread=${n.thread_id}`))
-  await expect(page.locator(`.thread.is-active[data-thread-id="${n.thread_id}"]`)).toBeVisible()
-  await expect(page.locator('.oad-prose .oad-comment.is-active')).toHaveText('需要讨论的话')
+  await expect(page.locator(`.oad-thread.oad-is-active[data-thread-id="${n.thread_id}"]`)).toBeVisible()
+  await expect(page.locator('.oad-prose .oad-comment-mark.oad-is-active')).toHaveText('需要讨论的话')
 })
 
 test('别的客户端在评论文字的前面、中间改字，锚点跟着走；解决 / 重新打开', async ({ browser, request }) => {
@@ -145,7 +145,7 @@ test('别的客户端在评论文字的前面、中间改字，锚点跟着走�
   await openPage(pa, doc.id)
   await openPage(pb, doc.id)
   await comment(pa, '被评论的一段文字', 0, '锚点测试')
-  await expect(pb.locator('.oad-prose .oad-comment')).toHaveText('被评论的一段文字', { timeout: 5_000 })
+  await expect(pb.locator('.oad-prose .oad-comment-mark')).toHaveText('被评论的一段文字', { timeout: 5_000 })
 
   // B 在前面和中间插字
   await pb.bringToFront()
@@ -156,22 +156,22 @@ test('别的客户端在评论文字的前面、中间改字，锚点跟着走�
     const at = 1 + t.indexOf('一段文字')
     editor.view.dispatch(editor.state.tr.insertText('（插入）', at))
   })
-  await expect(pa.locator('.oad-prose .oad-comment')).toHaveText('被评论的（插入）一段文字', { timeout: 5_000 })
+  await expect(pa.locator('.oad-prose .oad-comment-mark')).toHaveText('被评论的（插入）一段文字', { timeout: 5_000 })
   // 刷新以后从服务器读回来也对
   await pb.reload()
   await pb.waitForFunction(() => !!(window as any).__oad?.editor)
-  await expect(pb.locator('.oad-prose .oad-comment')).toHaveText('被评论的（插入）一段文字', { timeout: 10_000 })
+  await expect(pb.locator('.oad-prose .oad-comment-mark')).toHaveText('被评论的（插入）一段文字', { timeout: 10_000 })
 
   // 解决：正文里的底色没了，评论去了“已解决”；重新打开又回来；B 实时看到
-  const th = pa.locator('.thread').first()
+  const th = pa.locator('.oad-thread').first()
   await th.click()
-  await th.locator('.thread-resolve').click()
-  await expect(pa.locator('.oad-prose .oad-comment')).toHaveCount(0)
-  await expect(pb.locator('.oad-prose .oad-comment')).toHaveCount(0, { timeout: 5_000 })
-  await expect(pa.locator('.seg button', { hasText: '已解决' })).toHaveAttribute('aria-selected', 'true')
-  await pa.locator('.thread').first().locator('.thread-resolve').click()
-  await expect(pa.locator('.oad-prose .oad-comment')).toHaveText('被评论的（插入）一段文字')
-  await expect(pb.locator('.oad-prose .oad-comment')).toHaveText('被评论的（插入）一段文字', { timeout: 5_000 })
+  await th.locator('.oad-thread-resolve').click()
+  await expect(pa.locator('.oad-prose .oad-comment-mark')).toHaveCount(0)
+  await expect(pb.locator('.oad-prose .oad-comment-mark')).toHaveCount(0, { timeout: 5_000 })
+  await expect(pa.locator('.oad-seg button', { hasText: '已解决' })).toHaveAttribute('aria-selected', 'true')
+  await pa.locator('.oad-thread').first().locator('.oad-thread-resolve').click()
+  await expect(pa.locator('.oad-prose .oad-comment-mark')).toHaveText('被评论的（插入）一段文字')
+  await expect(pb.locator('.oad-prose .oad-comment-mark')).toHaveText('被评论的（插入）一段文字', { timeout: 5_000 })
   await ca.close()
   await cb.close()
 })
@@ -180,19 +180,19 @@ test('回复、编辑、删除自己的评论', async ({ page, request }) => {
   const doc = await createPage(request, '编辑评论', '一段可以评论的文字。\n')
   await openPage(page, doc.id)
   await comment(page, '可以评论', 0, '第一条')
-  const th = page.locator('.thread').first()
+  const th = page.locator('.oad-thread').first()
   await th.locator('textarea').fill('第二条回复')
   await th.locator('textarea').press('Control+Enter')
-  await expect(th.locator('.comment')).toHaveCount(2)
-  const second = th.locator('.comment').nth(1)
+  await expect(th.locator('.oad-comment')).toHaveCount(2)
+  const second = th.locator('.oad-comment').nth(1)
   await second.hover()
   await second.getByRole('button', { name: '编辑' }).click()
   await second.locator('textarea').fill('改过的回复')
   await second.locator('textarea').press('Control+Enter')
-  await expect(second.locator('.comment-body')).toHaveText('改过的回复')
-  await expect(second.locator('.comment-time')).toContainText('已编辑')
+  await expect(second.locator('.oad-comment-body')).toHaveText('改过的回复')
+  await expect(second.locator('.oad-comment-time')).toContainText('已编辑')
   page.once('dialog', (d) => d.accept())
   await second.hover()
   await second.getByRole('button', { name: '删除' }).click()
-  await expect(th.locator('.comment-body', { hasText: '改过的回复' })).toHaveCount(0)
+  await expect(th.locator('.oad-comment-body', { hasText: '改过的回复' })).toHaveCount(0)
 })

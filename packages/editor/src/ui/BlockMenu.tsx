@@ -149,7 +149,7 @@ export function BlockMenu({ editor }: { editor: Editor }) {
       <button type="button" role="menuitem" className="oad-menu-item" onClick={duplicate}>
         {t('duplicate')}
       </button>
-      <button type="button" role="menuitem" className="oad-menu-item is-danger" onClick={remove}>
+      <button type="button" role="menuitem" className="oad-menu-item oad-is-danger" onClick={remove}>
         {t('deleteBlock')}
       </button>
     </div>

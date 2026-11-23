@@ -117,7 +117,7 @@ function DatabasePage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandS
         </div>
       </header>
       <div className="page-body">
-        <div className="page-scroll db-scroll">{mod ? <mod.DbPageBody pageId={pageId} me={me} store={store} canWrite={canWrite} /> : <div className="db-page" aria-busy="true" />}</div>
+        <div className="page-scroll db-scroll">{mod ? <mod.DbPageBody pageId={pageId} me={me} store={store} canWrite={canWrite} /> : <div className="oad-db-page" aria-busy="true" />}</div>
       </div>
     </div>
   )
@@ -431,7 +431,7 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
                 }}
                 onEnter={() => editorRef.current && focusStart(editorRef.current)}
               />
-              {isRow && (rowMod ? <rowMod.RowHeader client={client} navigate={navigate} pageHref={pagePath} rowId={pageId} dbId={page!.parent_id!} me={me} ws={store.ws} canWrite={editable} events={store} /> : <div className="db-rowprops is-loading" />)}
+              {isRow && (rowMod ? <rowMod.RowHeader client={client} navigate={navigate} pageHref={pagePath} rowId={pageId} dbId={page!.parent_id!} me={me} ws={store.ws} canWrite={editable} events={store} /> : <div className="oad-db-rowprops oad-is-loading" />)}
               <OadEditor
                 ydoc={conn.ydoc}
                 provider={conn.provider}

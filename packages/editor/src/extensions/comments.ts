@@ -95,7 +95,7 @@ function build(state: EditorState, threads: CommentMark[], active: string | null
     ranges.set(t.id, r)
     if (!r || t.resolved) continue
     decos.push(
-      Decoration.inline(r.from, r.to, { class: 'oad-comment' + (t.id === active ? ' is-active' : ''), 'data-thread': t.id }, { thread: t.id }),
+      Decoration.inline(r.from, r.to, { class: 'oad-comment-mark' + (t.id === active ? ' oad-is-active' : ''), 'data-thread': t.id }, { thread: t.id }),
     )
   }
   return { ranges, deco: DecorationSet.create(state.doc, decos) }

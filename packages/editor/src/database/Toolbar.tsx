@@ -23,25 +23,25 @@ export function Toolbar({ view, onView, search, onSearch, onNew }: Props) {
   const nSort = view.sorts?.length ?? 0
   const groupProp = store.prop(view.group_by ?? '')
   const tool = (kind: 'filter' | 'sort' | 'group' | 'props', label: string, active: boolean) => (
-    <button type="button" data-db-tool={kind} title={label} aria-label={label} className={'db-tool' + (active ? ' is-on' : '')} onClick={(e) => setOpen({ kind, anchor: rectOf(e.currentTarget) })}>
-      <svg className="db-tool-ico" viewBox="0 0 24 24" aria-hidden>
+    <button type="button" data-db-tool={kind} title={label} aria-label={label} className={'oad-db-tool' + (active ? ' oad-is-on' : '')} onClick={(e) => setOpen({ kind, anchor: rectOf(e.currentTarget) })}>
+      <svg className="oad-db-tool-ico" viewBox="0 0 24 24" aria-hidden>
         <path fill="currentColor" d={TOOL_ICONS[kind]} />
       </svg>
-      <span className="db-tool-label">{label}</span>
+      <span className="oad-db-tool-label">{label}</span>
     </button>
   )
   return (
-    <div className="db-toolbar">
+    <div className="oad-db-toolbar">
       {tool('filter', nFilter ? `${t('filter')} · ${nFilter}` : t('filter'), !!nFilter)}
       {tool('sort', nSort ? `${t('sort')} · ${nSort}` : t('sort'), !!nSort)}
       {view.type !== 'calendar' && tool('group', groupProp ? `${t('group')} · ${groupProp.name}` : t('group'), !!groupProp)}
       {view.type === 'calendar' && tool('group', `${t('calendarBy')} · ${store.prop(view.calendar_by ?? '')?.name ?? '—'}`, true)}
       {tool('props', (view.hidden?.length ?? 0) ? `${t('props')} · ${t('hiddenCount', { n: view.hidden!.length })}` : t('props'), false)}
-      <span className="db-toolbar-gap" />
+      <span className="oad-db-toolbar-gap" />
       {searching ? (
         <input
           autoFocus
-          className="db-search"
+          className="oad-db-search"
           value={search}
           placeholder={t('search')}
           onChange={(e) => onSearch(e.target.value)}
@@ -54,44 +54,44 @@ export function Toolbar({ view, onView, search, onSearch, onNew }: Props) {
           }}
         />
       ) : (
-        <button type="button" className="db-tool db-tool-icon" aria-label={t('search')} title={t('search')} onClick={() => setSearching(true)}>
+        <button type="button" className="oad-db-tool oad-db-tool-icon" aria-label={t('search')} title={t('search')} onClick={() => setSearching(true)}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
             <path fill="currentColor" d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" />
           </svg>
         </button>
       )}
-      <button type="button" className={'db-tool db-tool-icon' + (open?.kind === 'history' ? ' is-on' : '')} data-db-tool="history" aria-label={t('history')} title={t('history')} onClick={(e) => setOpen({ kind: 'history', anchor: rectOf(e.currentTarget) })}>
+      <button type="button" className={'oad-db-tool oad-db-tool-icon' + (open?.kind === 'history' ? ' oad-is-on' : '')} data-db-tool="history" aria-label={t('history')} title={t('history')} onClick={(e) => setOpen({ kind: 'history', anchor: rectOf(e.currentTarget) })}>
         <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
           <path fill="currentColor" d="M13 3a9 9 0 1 1-8.5 12h2.1A7 7 0 1 0 6 9.3L8.7 12H2V5.3l2.6 2.6A9 9 0 0 1 13 3zm-1 4h2v5.2l3.4 2-1 1.7-4.4-2.6z" />
         </svg>
       </button>
       {canWrite && (
-        <button type="button" className="db-new" onClick={onNew}>
+        <button type="button" className="oad-db-new" onClick={onNew}>
           {t('newRow')}
         </button>
       )}
       {open?.kind === 'history' && (
-        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={440} align="right" className="db-menu db-history-pop">
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={440} align="right" className="oad-db-menu oad-db-history-pop">
           <DbHistory />
         </Popover>
       )}
       {open?.kind === 'filter' && (
-        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={560} className="db-menu db-filter-pop">
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={560} className="oad-db-menu oad-db-filter-pop">
           <FilterGroup f={view.filter ?? { op: 'and', items: [] }} depth={0} onChange={(f) => onView({ filter: f.items.length ? f : null })} />
         </Popover>
       )}
       {open?.kind === 'sort' && (
-        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={400} className="db-menu">
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={400} className="oad-db-menu">
           <SortEditor view={view} onView={onView} />
         </Popover>
       )}
       {open?.kind === 'group' && (
-        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={280} className="db-menu">
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={280} className="oad-db-menu">
           <GroupEditor view={view} onView={onView} close={() => setOpen(null)} />
         </Popover>
       )}
       {open?.kind === 'props' && (
-        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={280} className="db-menu" align="right">
+        <Popover anchor={open.anchor} onClose={() => setOpen(null)} width={280} className="oad-db-menu" align="right">
           <PropsEditor view={view} onView={onView} />
         </Popover>
       )}
@@ -113,10 +113,10 @@ function FilterGroup({ f, depth, onChange, onRemove }: { f: Filter; depth: numbe
   const props = store.schema.props.filter((p) => p.type !== 'button')
   const set = (i: number, x: Cond | Filter | null) => onChange({ ...f, items: x ? f.items.map((y, j) => (j === i ? x : y)) : f.items.filter((_, j) => j !== i) })
   return (
-    <div className={'db-fgroup' + (depth ? ' is-nested' : '')}>
+    <div className={'oad-db-fgroup' + (depth ? ' oad-is-nested' : '')}>
       {f.items.map((it, i) => (
-        <div key={i} className="db-frow">
-          <span className="db-fjoin">
+        <div key={i} className="oad-db-frow">
+          <span className="oad-db-fjoin">
             {i === 0 ? (
               t('where')
             ) : i === 1 ? (
@@ -135,10 +135,10 @@ function FilterGroup({ f, depth, onChange, onRemove }: { f: Filter; depth: numbe
           )}
         </div>
       ))}
-      <div className="db-fadd">
+      <div className="oad-db-fadd">
         <button
           type="button"
-          className="db-link-btn"
+          className="oad-db-link-btn"
           onClick={() => {
             const p = props[0]
             onChange({ ...f, items: [...f.items, { prop: p.key, cond: condsFor(p)[0] }] })
@@ -147,12 +147,12 @@ function FilterGroup({ f, depth, onChange, onRemove }: { f: Filter; depth: numbe
           + {t('addFilter')}
         </button>
         {depth < 2 && (
-          <button type="button" className="db-link-btn" onClick={() => onChange({ ...f, items: [...f.items, { op: f.op === 'and' ? 'or' : 'and', items: [{ prop: props[0].key, cond: condsFor(props[0])[0] }] }] })}>
+          <button type="button" className="oad-db-link-btn" onClick={() => onChange({ ...f, items: [...f.items, { op: f.op === 'and' ? 'or' : 'and', items: [{ prop: props[0].key, cond: condsFor(props[0])[0] }] }] })}>
             + {t('addFilterGroup')}
           </button>
         )}
         {onRemove && (
-          <button type="button" className="db-link-btn is-danger" onClick={onRemove}>
+          <button type="button" className="oad-db-link-btn oad-is-danger" onClick={onRemove}>
             ✕
           </button>
         )}
@@ -165,7 +165,7 @@ function CondRow({ c, props, onChange, onRemove }: { c: Cond; props: Prop[]; onC
   const p = props.find((x) => x.key === c.prop) ?? props[0]
   const conds = condsFor(p)
   return (
-    <div className="db-cond">
+    <div className="oad-db-cond">
       <select
         value={p.key}
         onChange={(e) => {
@@ -187,7 +187,7 @@ function CondRow({ c, props, onChange, onRemove }: { c: Cond; props: Prop[]; onC
         ))}
       </select>
       {!NO_VALUE.has(c.cond) && <CondValue p={p} c={c} onChange={onChange} />}
-      <button type="button" className="db-pill-x" onClick={onRemove} aria-label="remove">
+      <button type="button" className="oad-db-pill-x" onClick={onRemove} aria-label="remove">
         ×
       </button>
     </div>
@@ -233,7 +233,7 @@ function CondValue({ p, c, onChange }: { p: Prop; c: Cond; onChange: (c: Cond) =
     return <input type="date" value={String((c.value as { start?: string })?.start ?? c.value ?? '').slice(0, 10)} onChange={(e) => onChange({ ...c, value: e.target.value ? { start: e.target.value } : undefined })} />
   return (
     <input
-      className="db-cond-input"
+      className="oad-db-cond-input"
       type={p.type === 'number' ? 'number' : 'text'}
       value={String(c.value ?? '')}
       placeholder="…"
@@ -248,9 +248,9 @@ function SortEditor({ view, onView }: { view: View; onView: (p: Partial<View>) =
   const sorts = view.sorts ?? []
   const props = store.schema.props.filter((p) => p.type !== 'button')
   return (
-    <div className="db-sorts">
+    <div className="oad-db-sorts">
       {sorts.map((s, i) => (
-        <div key={i} className="db-cond">
+        <div key={i} className="oad-db-cond">
           <select value={s.prop} onChange={(e) => onView({ sorts: sorts.map((x, j) => (j === i ? { ...x, prop: e.target.value } : x)) })}>
             {props.map((p) => (
               <option key={p.key} value={p.key}>
@@ -262,12 +262,12 @@ function SortEditor({ view, onView }: { view: View; onView: (p: Partial<View>) =
             <option value="asc">{t('asc')}</option>
             <option value="desc">{t('desc')}</option>
           </select>
-          <button type="button" className="db-pill-x" onClick={() => onView({ sorts: sorts.filter((_, j) => j !== i) })}>
+          <button type="button" className="oad-db-pill-x" onClick={() => onView({ sorts: sorts.filter((_, j) => j !== i) })}>
             ×
           </button>
         </div>
       ))}
-      <button type="button" className="db-link-btn" onClick={() => onView({ sorts: [...sorts, { prop: props.find((p) => !sorts.some((s) => s.prop === p.key))?.key ?? props[0].key, dir: 'asc' }] })}>
+      <button type="button" className="oad-db-link-btn" onClick={() => onView({ sorts: [...sorts, { prop: props.find((p) => !sorts.some((s) => s.prop === p.key))?.key ?? props[0].key, dir: 'asc' }] })}>
         + {t('addSort')}
       </button>
     </div>
@@ -282,9 +282,9 @@ function GroupEditor({ view, onView, close }: { view: View; onView: (p: Partial<
     const dates = store.schema.props.filter((p) => p.type === 'date' || p.type === 'created_time' || p.type === 'updated_time')
     return (
       <>
-        <div className="db-menu-label">{t('calendarBy')}</div>
+        <div className="oad-db-menu-label">{t('calendarBy')}</div>
         {dates.map((p) => (
-          <button key={p.key} type="button" className={'db-menu-item' + (view.calendar_by === p.key ? ' is-on' : '')} onClick={() => (onView({ calendar_by: p.key }), close())}>
+          <button key={p.key} type="button" className={'oad-db-menu-item' + (view.calendar_by === p.key ? ' oad-is-on' : '')} onClick={() => (onView({ calendar_by: p.key }), close())}>
             <TypeIcon type={p.type} />
             {p.name}
           </button>
@@ -295,17 +295,17 @@ function GroupEditor({ view, onView, close }: { view: View; onView: (p: Partial<
   const props = store.schema.props.filter((p) => GROUPABLE.has(p.type))
   return (
     <>
-      <div className="db-menu-label">{t('groupBy')}</div>
+      <div className="oad-db-menu-label">{t('groupBy')}</div>
       {view.type !== 'board' && (
-        <button type="button" className={'db-menu-item' + (!view.group_by ? ' is-on' : '')} onClick={() => (onView({ group_by: null }), close())}>
+        <button type="button" className={'oad-db-menu-item' + (!view.group_by ? ' oad-is-on' : '')} onClick={() => (onView({ group_by: null }), close())}>
           {t('noGroup')}
         </button>
       )}
       {props.map((p) => (
-        <button key={p.key} type="button" className={'db-menu-item' + (view.group_by === p.key ? ' is-on' : '')} onClick={() => (onView({ group_by: p.key, collapsed: [] }), close())}>
+        <button key={p.key} type="button" className={'oad-db-menu-item' + (view.group_by === p.key ? ' oad-is-on' : '')} onClick={() => (onView({ group_by: p.key, collapsed: [] }), close())}>
           <TypeIcon type={p.type} />
           {p.name}
-          <span className="db-menu-aside">{TYPE_NAMES[p.type]}</span>
+          <span className="oad-db-menu-aside">{TYPE_NAMES[p.type]}</span>
         </button>
       ))}
       {view.type === 'gallery' && <CoverPicker view={view} onView={onView} />}
@@ -317,17 +317,17 @@ function CoverPicker({ view, onView }: { view: View; onView: (p: Partial<View>) 
   const { store } = useDb()
   return (
     <>
-      <div className="db-menu-sep" />
-      <div className="db-menu-label">{t('cover')}</div>
-      <div className="db-menu-seg">
+      <div className="oad-db-menu-sep" />
+      <div className="oad-db-menu-label">{t('cover')}</div>
+      <div className="oad-db-menu-seg">
         {[{ k: '', n: t('noCover') }, { k: 'body', n: t('bodyCover') }, ...store.schema.props.filter((p) => p.type === 'files').map((p) => ({ k: p.key, n: p.name }))].map((x) => (
           <button key={x.k} type="button" aria-pressed={(view.cover ?? '') === x.k} onClick={() => onView({ cover: x.k || null })}>
             {x.n}
           </button>
         ))}
       </div>
-      <div className="db-menu-label">{t('cardSize')}</div>
-      <div className="db-menu-seg">
+      <div className="oad-db-menu-label">{t('cardSize')}</div>
+      <div className="oad-db-menu-seg">
         {(['small', 'medium', 'large'] as const).map((s) => (
           <button key={s} type="button" aria-pressed={(view.card_size ?? 'medium') === s} onClick={() => onView({ card_size: s })}>
             {t(s)}
@@ -344,22 +344,22 @@ function PropsEditor({ view, onView }: { view: View; onView: (p: Partial<View>) 
   const props = store.schema.props.filter((p) => p.type !== 'title')
   return (
     <>
-      <div className="db-menu-row">
-        <button type="button" className="db-link-btn" onClick={() => onView({ hidden: [] })}>
+      <div className="oad-db-menu-row">
+        <button type="button" className="oad-db-link-btn" onClick={() => onView({ hidden: [] })}>
           {t('showAll')}
         </button>
-        <button type="button" className="db-link-btn" onClick={() => onView({ hidden: props.map((p) => p.key) })}>
+        <button type="button" className="oad-db-link-btn" onClick={() => onView({ hidden: props.map((p) => p.key) })}>
           {t('hideAll')}
         </button>
       </div>
-      <div className="db-menu-scroll">
+      <div className="oad-db-menu-scroll">
         {props.map((p) => (
-          <label key={p.key} className="db-menu-item db-prop-toggle">
+          <label key={p.key} className="oad-db-menu-item oad-db-prop-toggle">
             <TypeIcon type={p.type} />
-            <span className="db-prop-name">{p.name}</span>
+            <span className="oad-db-prop-name">{p.name}</span>
             <input
               type="checkbox"
-              className="db-switch"
+              className="oad-db-switch"
               checked={!hidden.has(p.key)}
               onChange={(e) => onView({ hidden: e.target.checked ? [...hidden].filter((k) => k !== p.key) : [...hidden, p.key] })}
             />
@@ -376,19 +376,19 @@ export function FilterChips({ view, onOpen }: { view: View; onOpen: () => void }
   if (!view.filter?.items.length) return null
   const flat = view.filter.items.filter((x): x is Cond => !isGroup(x))
   return (
-    <div className="db-chips">
+    <div className="oad-db-chips">
       {flat.map((c, i) => {
         const p = store.prop(c.prop)
         if (!p) return null
         const opt = p.options?.find((o) => o.id === c.value)
         return (
-          <button key={i} type="button" className="db-chip" onClick={onOpen}>
+          <button key={i} type="button" className="oad-db-chip" onClick={onOpen}>
             <TypeIcon type={p.type} />
             {p.name} {COND_NAMES[c.cond]} {opt ? <Pill opt={opt} /> : NO_VALUE.has(c.cond) ? '' : typeof c.value === 'object' ? (c.value as { start?: string })?.start : String(c.value ?? '…')}
           </button>
         )
       })}
-      {view.filter.items.length > flat.length && <span className="db-chip is-more">+{view.filter.items.length - flat.length}</span>}
+      {view.filter.items.length > flat.length && <span className="oad-db-chip oad-is-more">+{view.filter.items.length - flat.length}</span>}
     </div>
   )
 }

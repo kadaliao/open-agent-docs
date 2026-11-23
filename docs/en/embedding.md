@@ -257,8 +257,10 @@ function Doc({ pageId, me }) {
 }
 ```
 
-`react`, `react-dom`, `yjs` and `@open-agent-docs/client` are peer dependencies. Component styles apply only inside `.oad-root` and don't
-leak into the host; change colors and fonts with CSS variables. UI language: `import { setLocale } from '@open-agent-docs/editor/i18n'`.
+`react`, `react-dom`, `yjs` and `@open-agent-docs/client` are peer dependencies. Every class, animation and CSS variable in
+`style.css` starts with `oad-` (the only exceptions are ProseMirror's own `ProseMirror-*` classes), so the stylesheet doesn't restyle the host's
+elements; change colors and fonts with CSS variables. Older versions used generic class names (`.composer`, `.thread`, `.btn`, `.db-table`…):
+host CSS that targeted those needs the `oad-` prefix added (`.composer` → `.oad-composer`). UI language: `import { setLocale } from '@open-agent-docs/editor/i18n'`.
 Full example (editor + comments + database views + two users): [examples/embed-react](../../examples/embed-react).
 
 Images, videos, uploaded files: nothing to do with same-origin cookie sign-in. When the server is on another domain, or you sign in with a token

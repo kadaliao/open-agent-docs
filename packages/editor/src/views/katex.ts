@@ -15,10 +15,10 @@ export function loadKatex(): Promise<Katex> {
 export function renderMath(el: HTMLElement, latex: string, display: boolean, empty: string) {
   if (!latex.trim()) {
     el.textContent = empty
-    el.classList.add('is-empty')
+    el.classList.add('oad-is-empty')
     return
   }
-  el.classList.remove('is-empty')
+  el.classList.remove('oad-is-empty')
   el.dataset.latex = latex
   const draw = (k: Katex) => {
     try {

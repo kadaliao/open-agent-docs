@@ -91,11 +91,11 @@ export const embedView: NodeViewRenderer = (p) => {
       if (h) {
         handle = h
         shown = k
-        dom.classList.add('is-db')
+        dom.classList.add('oad-is-db')
         return
       }
     }
-    dom.classList.remove('is-db')
+    dom.classList.remove('oad-is-db')
     const view = node.attrs.view === 'bookmark' ? 'bookmark' : 'embed'
     // 卡片里服务器上的地址（文件本身、封面、头像、图标）先换成能直接打开的（跨域、token 登录时）
     const got = resolveDeep({ d: data, u: url }, svc.resolveUrl)
@@ -204,14 +204,14 @@ export const embedView: NodeViewRenderer = (p) => {
       }
       return true
     },
-    selectNode: () => dom.classList.add('is-selected'),
-    deselectNode: () => dom.classList.remove('is-selected'),
+    selectNode: () => dom.classList.add('oad-is-selected'),
+    deselectNode: () => dom.classList.remove('oad-is-selected'),
     // 卡片里的按钮、播放器、视频控件自己处理事件
     stopEvent: (e) => {
       const t = e.target as HTMLElement
       // 内嵌库里的事件（打字、拖动、键盘导航）都归它自己
-      if (dom.classList.contains('is-db') && t.closest?.('.db')) return true
-      if (e.type === 'dragstart' || e.type === 'mousedown') return !!t.closest('button, video, audio, iframe, .c-frame-box')
+      if (dom.classList.contains('oad-is-db') && t.closest?.('.oad-db')) return true
+      if (e.type === 'dragstart' || e.type === 'mousedown') return !!t.closest('button, video, audio, iframe, .oad-c-frame-box')
       return !!t.closest('button, video, audio, iframe')
     },
     ignoreMutation: () => true,

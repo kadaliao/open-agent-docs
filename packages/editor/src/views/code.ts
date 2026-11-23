@@ -71,20 +71,20 @@ export const codeBlockView: NodeViewRenderer = (p) => {
         (svg) => {
           if (drawn === src) {
             diagram.innerHTML = svg
-            diagram.classList.remove('is-error')
+            diagram.classList.remove('oad-is-error')
           }
         },
         (err) => {
           if (drawn !== src) return
           diagram.textContent = t('diagramError') + String(err?.message ?? err).split('\n')[0]
-          diagram.classList.add('is-error')
+          diagram.classList.add('oad-is-error')
         },
       )
     }, 250)
   }
   const syncMode = () => {
     const m = isMermaid()
-    dom.classList.toggle('is-mermaid', m)
+    dom.classList.toggle('oad-is-mermaid', m)
     toggle.hidden = !m
     diagram.hidden = !m || mode === 'source'
     pre.hidden = m && mode === 'diagram' && !!node.textContent.trim()
@@ -95,7 +95,7 @@ export const codeBlockView: NodeViewRenderer = (p) => {
   const sync = (n: PMNode) => {
     if (!isFocused(lang)) lang.value = n.attrs.language ?? ''
     lang.readOnly = !p.editor.isEditable
-    dom.classList.toggle('is-wrap', !!n.attrs.wrap)
+    dom.classList.toggle('oad-is-wrap', !!n.attrs.wrap)
     wrap.setAttribute('aria-pressed', String(!!n.attrs.wrap))
     dom.dataset.lang = n.attrs.language ?? ''
     blockAttrs(dom, n)

@@ -55,7 +55,7 @@ let seq = 0
 
 function placeholderDom(u: Pending) {
   const box = document.createElement('div')
-  box.className = 'oad-upload' + (u.error ? ' is-error' : '')
+  box.className = 'oad-upload' + (u.error ? ' oad-is-error' : '')
   box.contentEditable = 'false'
   if (u.preview) {
     const im = document.createElement('img')

@@ -137,7 +137,7 @@ await logHas('oad-database ready')
 await page.locator('oad-database').getByText('看评论').first().waitFor({ timeout: 10_000 })
 // 弹出菜单挂在 Shadow DOM 里（有样式），点菜单里面不会把它关掉
 await page.locator('oad-database [data-db-tool="filter"]').click()
-const pop = page.locator('oad-database .db-pop')
+const pop = page.locator('oad-database .oad-db-pop')
 await pop.waitFor({ timeout: 5000 })
 await pop.click({ position: { x: 10, y: 10 } })
 await page.waitForTimeout(200)

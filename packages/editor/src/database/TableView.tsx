@@ -345,7 +345,7 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
   const headCell = (p: Prop, idx: number, style: React.CSSProperties) => (
     <div
       key={p.key}
-      className={'db-th' + (p.type === 'title' ? ' is-sticky' : '') + (dropCol === p.key ? ' is-drop' : '')}
+      className={'oad-db-th' + (p.type === 'title' ? ' oad-is-sticky' : '') + (dropCol === p.key ? ' oad-is-drop' : '')}
       style={style}
       draggable={canWrite && p.type !== 'title'}
       onDragStart={(e) => {
@@ -372,9 +372,9 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
       data-col={idx}
     >
       <TypeIcon type={p.type} />
-      <span className="db-th-name">{p.name}</span>
-      {view.sorts?.some((s) => s.prop === p.key) && <span className="db-th-sort">{view.sorts.find((s) => s.prop === p.key)!.dir === 'asc' ? '↑' : '↓'}</span>}
-      {canWrite && <span className="db-th-resize" onPointerDown={resize(p)} onClick={(e) => e.stopPropagation()} />}
+      <span className="oad-db-th-name">{p.name}</span>
+      {view.sorts?.some((s) => s.prop === p.key) && <span className="oad-db-th-sort">{view.sorts.find((s) => s.prop === p.key)!.dir === 'asc' ? '↑' : '↓'}</span>}
+      {canWrite && <span className="oad-db-th-resize" onPointerDown={resize(p)} onClick={(e) => e.stopPropagation()} />}
     </div>
   )
 
@@ -406,10 +406,10 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
   const empty = !result.ids.length
 
   return (
-    <div className="db-table-wrap" style={maxHeight ? { maxHeight } : undefined}>
+    <div className="oad-db-table-wrap" style={maxHeight ? { maxHeight } : undefined}>
       <div
         ref={scroll}
-        className="db-table"
+        className="oad-db-table"
         tabIndex={0}
         onKeyDown={onKey}
         role="grid"
@@ -417,14 +417,14 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
         aria-colcount={cols.length}
         style={maxHeight ? { maxHeight } : undefined}
       >
-        <div className="db-table-inner" style={{ width: totalW }}>
+        <div className="oad-db-table-inner" style={{ width: totalW }}>
           {/* 表头 */}
-          <div className="db-thead" style={{ width: totalW }}>
+          <div className="oad-db-thead" style={{ width: totalW }}>
             {cols[0] && headCell(cols[0], 0, { width: titleW })}
             <div style={{ width: leftPad, flex: 'none' }} />
             {visibleCols.map(({ v, p }) => headCell(p, v.index + 1, { width: width(p) }))}
             {canWrite && (
-              <button type="button" className="db-th db-th-add" onClick={(e) => setAddProp(rectOf(e.currentTarget))} aria-label={t('addProp')}>
+              <button type="button" className="oad-db-th oad-db-th-add" onClick={(e) => setAddProp(rectOf(e.currentTarget))} aria-label={t('addProp')}>
                 +
               </button>
             )}
@@ -449,12 +449,12 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
                 <button
                   key={'add' + (it.g?.key ?? '')}
                   type="button"
-                  className="db-add-row"
+                  className="oad-db-add-row"
                   style={{ top: vi.start, width: totalW }}
                   onClick={() => store.addRow(groupDefaults(store, view, it.g))}
                 >
-                  <span className="db-add-in">
-                    <span className="db-add-plus">+</span>
+                  <span className="oad-db-add-in">
+                    <span className="oad-db-add-plus">+</span>
                     {t('newRow')}
                   </span>
                 </button>
@@ -485,10 +485,10 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
           {/* 行都是绝对定位的，这里占住它们的高度；汇总行跟在后面、贴着底边 */}
           <div style={{ height: Math.max(0, rv.getTotalSize() - HEAD_H - FOOT_H - 8) }} />
           {/* 汇总 */}
-          <div className="db-tfoot" style={{ width: totalW }}>
+          <div className="oad-db-tfoot" style={{ width: totalW }}>
             {cols[0] && (
-              <div className="db-tf is-sticky" style={{ width: titleW }}>
-                <span className="db-tf-count">{t('rows', { n: result.ids.length })}</span>
+              <div className="oad-db-tf oad-is-sticky" style={{ width: titleW }}>
+                <span className="oad-db-tf-count">{t('rows', { n: result.ids.length })}</span>
               </div>
             )}
             <div style={{ width: leftPad, flex: 'none' }} />
@@ -496,26 +496,26 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
               <button
                 type="button"
                 key={p.key}
-                className={'db-tf' + (view.totals?.[p.key] ? ' is-set' : '')}
+                className={'oad-db-tf' + (view.totals?.[p.key] ? ' oad-is-set' : '')}
                 style={{ width: width(p) }}
                 onClick={(e) => canWrite && setTotalMenu({ p, anchor: rectOf(e.currentTarget) })}
               >
                 {view.totals?.[p.key] ? (
                   <>
-                    <span className="db-tf-label">{TOTAL_NAMES[view.totals[p.key]]}</span>
-                    <span className="db-tf-val">{fmtTotal(store, p, view.totals[p.key], totals[p.key])}</span>
+                    <span className="oad-db-tf-label">{TOTAL_NAMES[view.totals[p.key]]}</span>
+                    <span className="oad-db-tf-val">{fmtTotal(store, p, view.totals[p.key], totals[p.key])}</span>
                   </>
                 ) : (
-                  <span className="db-tf-hint">{t('calc')}</span>
+                  <span className="oad-db-tf-hint">{t('calc')}</span>
                 )}
               </button>
             ))}
           </div>
         </div>
-        {empty && <div className="db-empty">{t('emptyDb')}</div>}
+        {empty && <div className="oad-db-empty">{t('emptyDb')}</div>}
         <textarea
           ref={sink}
-          className={'db-ime-sink' + (composing ? ' is-on' : '')}
+          className={'oad-db-ime-sink' + (composing ? ' oad-is-on' : '')}
           style={composing ? { left: composing.left, top: composing.top, width: composing.width } : undefined}
           aria-hidden
           tabIndex={-1}
@@ -551,10 +551,10 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
       {colMenu && <ColumnMenu p={colMenu.p} anchor={colMenu.anchor} view={view} onView={onView} onClose={() => setColMenu(null)} />}
       {addProp && <AddPropMenu anchor={addProp} view={view} onView={onView} onClose={() => setAddProp(null)} />}
       {totalMenu && (
-        <Popover anchor={totalMenu.anchor} onClose={() => setTotalMenu(null)} width={180} className="db-menu">
+        <Popover anchor={totalMenu.anchor} onClose={() => setTotalMenu(null)} width={180} className="oad-db-menu">
           <button
             type="button"
-            className="db-menu-item"
+            className="oad-db-menu-item"
             onClick={() => {
               const next = { ...(view.totals ?? {}) }
               delete next[totalMenu.p.key]
@@ -568,7 +568,7 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
             <button
               key={fn}
               type="button"
-              className={'db-menu-item' + (view.totals?.[totalMenu.p.key] === fn ? ' is-on' : '')}
+              className={'oad-db-menu-item' + (view.totals?.[totalMenu.p.key] === fn ? ' oad-is-on' : '')}
               onClick={() => {
                 onView({ totals: { ...(view.totals ?? {}), [totalMenu.p.key]: fn } })
                 setTotalMenu(null)
@@ -579,7 +579,7 @@ export function TableView({ view, result, onView, maxHeight }: Props) {
           ))}
         </Popover>
       )}
-      {toast && <div className="db-toast">{toast}</div>}
+      {toast && <div className="oad-db-toast">{toast}</div>}
     </div>
   )
 }
@@ -614,15 +614,15 @@ export function groupDefaults(store: ReturnType<typeof useDb>['store'], view: Vi
 
 function GroupRow({ g, top, width, collapsed, prop, onToggle }: { g: Group; top: number; width: number; collapsed: boolean; prop?: Prop; onToggle: () => void }) {
   return (
-    <div className="db-group-row" style={{ top, width }}>
-      <div className="db-group-in">
-      <button type="button" className={'db-group-toggle' + (collapsed ? '' : ' is-open')} onClick={onToggle} aria-label="toggle" aria-expanded={!collapsed}>
+    <div className="oad-db-group-row" style={{ top, width }}>
+      <div className="oad-db-group-in">
+      <button type="button" className={'oad-db-group-toggle' + (collapsed ? '' : ' oad-is-open')} onClick={onToggle} aria-label="toggle" aria-expanded={!collapsed}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
           <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {g.key === '' ? <span className="db-group-none">{t('none')}</span> : prop?.options ? <Pill opt={{ name: g.name, color: (g.color as never) ?? 'default' }} status={prop.type === 'status'} /> : <span className="db-group-name">{g.name}</span>}
-      <span className="db-group-count">{g.count}</span>
+      {g.key === '' ? <span className="oad-db-group-none">{t('none')}</span> : prop?.options ? <Pill opt={{ name: g.name, color: (g.color as never) ?? 'default' }} status={prop.type === 'status'} /> : <span className="oad-db-group-name">{g.name}</span>}
+      <span className="oad-db-group-count">{g.count}</span>
       </div>
     </div>
   )
@@ -650,20 +650,20 @@ const TableRow = memo(
     const { openRow } = useDb()
     useLocale()
     const cls = (c: number) => {
-      let s = 'db-td'
-      if (sel && sel.r === r && sel.c === c) s += ' is-active'
-      if (range && r >= range.r0 && r <= range.r1 && c >= range.c0 && c <= range.c1 && (range.r1 > range.r0 || range.c1 > range.c0)) s += ' is-range'
+      let s = 'oad-db-td'
+      if (sel && sel.r === r && sel.c === c) s += ' oad-is-active'
+      if (range && r >= range.r0 && r <= range.r1 && c >= range.c0 && c <= range.c1 && (range.r1 > range.r0 || range.c1 > range.c0)) s += ' oad-is-range'
       return s
     }
     const title = cols[0]
     return (
-      <div className="db-tr" style={{ top, width: totalW }} role="row">
+      <div className="oad-db-tr" style={{ top, width: totalW }} role="row">
         {title && (
-          <div className={cls(0) + ' is-sticky is-title'} style={{ width: titleW }} data-cell={`${r}:0`} onMouseDown={(e) => onCell(r, 0, e)} onDoubleClick={() => onEdit(r, 0)}>
+          <div className={cls(0) + ' oad-is-sticky oad-is-title'} style={{ width: titleW }} data-cell={`${r}:0`} onMouseDown={(e) => onCell(r, 0, e)} onDoubleClick={() => onEdit(r, 0)}>
             <CellView p={title} row={row} />
             <button
               type="button"
-              className="db-open"
+              className="oad-db-open"
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
@@ -680,14 +680,14 @@ const TableRow = memo(
           return (
             <div
               key={p.key}
-              className={cls(c) + (p.type === 'number' || p.type === 'unique_id' ? ' is-num' : '') + (isEmptyVal(row.props[p.key]) ? ' is-empty' : '')}
+              className={cls(c) + (p.type === 'number' || p.type === 'unique_id' ? ' oad-is-num' : '') + (isEmptyVal(row.props[p.key]) ? ' oad-is-empty' : '')}
               style={{ width: width(p) }}
               data-cell={`${r}:${c}`}
               onMouseDown={(e) => onCell(r, c, e)}
               onDoubleClick={() => onEdit(r, c)}
               onClick={(e) => {
                 // 勾选、按钮单击就生效
-                if (p.type === 'checkbox' && (e.target as HTMLElement).classList.contains('db-check')) onEdit(r, c)
+                if (p.type === 'checkbox' && (e.target as HTMLElement).classList.contains('oad-db-check')) onEdit(r, c)
               }}
             >
               <CellView p={p} row={row} />

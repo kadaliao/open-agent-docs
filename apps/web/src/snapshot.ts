@@ -1,7 +1,9 @@
 // 首屏快照：每页记下编辑器最前面几十块的 HTML 和标题，存在 localStorage（同步读，不用等 IndexedDB）。
 // 再打开这页时先把快照画出来，编辑器在后面装好后换上，看起来就是一打开就有内容。
-const PREFIX = 'oad:snap:'
-const INDEX = 'oad:snap-index'
+// 键名带版本：编辑器的 class 换成了 oad- 前缀，旧快照里是旧 class，画出来没样式，不用了（第一次存的时候顺手删掉）
+const PREFIX = 'oad:snap2:'
+const INDEX = 'oad:snap2-index'
+const OLD = ['oad:snap:', 'oad:snap-index'] as const
 const MAX_PAGES = 40
 const MAX_BLOCKS = 60
 const MAX_BYTES = 120_000
@@ -33,7 +35,7 @@ export function takeSnapshot(dom: HTMLElement, title: string): Snapshot {
       n.removeAttribute('class')
       n.removeAttribute('style')
     })
-    c.classList.remove('oad-agent-writing', 'is-empty', 'is-editor-empty', 'ProseMirror-selectednode')
+    c.classList.remove('oad-agent-writing', 'oad-is-empty', 'oad-is-editor-empty', 'ProseMirror-selectednode')
     c.removeAttribute('style')
     c.removeAttribute('data-agent')
     c.removeAttribute('data-placeholder')
@@ -44,8 +46,16 @@ export function takeSnapshot(dom: HTMLElement, title: string): Snapshot {
   return { title, html: box.innerHTML }
 }
 
+function dropOld() {
+  const raw = localStorage.getItem(OLD[1])
+  if (raw === null) return
+  for (const id of JSON.parse(raw) as string[]) localStorage.removeItem(OLD[0] + id)
+  localStorage.removeItem(OLD[1])
+}
+
 export function saveSnapshot(pageId: string, s: Snapshot) {
   try {
+    dropOld()
     localStorage.setItem(PREFIX + pageId, JSON.stringify(s))
     const idx = (JSON.parse(localStorage.getItem(INDEX) || '[]') as string[]).filter((x) => x !== pageId)
     idx.unshift(pageId)

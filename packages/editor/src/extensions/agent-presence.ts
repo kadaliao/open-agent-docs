@@ -39,7 +39,7 @@ function build(doc: PMNode, ws: Writer[]): DecorationSet {
       decos.push(
         Decoration.node(pos, pos + node.nodeSize, {
           class: 'oad-agent-writing',
-          style: `--agent-color: ${w.color}`,
+          style: `--oad-agent-color: ${w.color}`,
           'data-agent': w.name,
         }),
       )

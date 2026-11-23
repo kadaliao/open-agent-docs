@@ -30,17 +30,17 @@ export function RowProps({ rowId }: { rowId: string }) {
   const shown = showEmpty ? props : props.filter((p) => !empty.includes(p))
   const view = store.views[0]
   return (
-    <div className="db-rowprops">
+    <div className="oad-db-rowprops">
       {shown.map((p) => {
         const ro = !canWrite || READONLY.has(p.type) || !!p.relation?.mirror_of
         return (
-          <div key={p.key} className="db-rowprop">
-            <div className="db-rowprop-name" title={p.name}>
+          <div key={p.key} className="oad-db-rowprop">
+            <div className="oad-db-rowprop-name" title={p.name}>
               <TypeIcon type={p.type} />
               <span>{p.name}</span>
             </div>
             <div
-              className={'db-rowprop-val' + (ro ? ' is-ro' : '') + (isEmptyVal(cellValue(store, p, row)) ? ' is-empty' : '')}
+              className={'oad-db-rowprop-val' + (ro ? ' oad-is-ro' : '') + (isEmptyVal(cellValue(store, p, row)) ? ' oad-is-empty' : '')}
               role={ro ? undefined : 'button'}
               tabIndex={ro ? undefined : 0}
               data-prop={p.key}
@@ -54,23 +54,23 @@ export function RowProps({ rowId }: { rowId: string }) {
                 if (!ro && e.key === 'Enter') setEditing({ p, anchor: rectOf(e.currentTarget) })
               }}
             >
-              {isEmptyVal(cellValue(store, p, row)) && p.type !== 'checkbox' && p.type !== 'button' ? <span className="db-placeholder">{t('empty')}</span> : <CellView p={p} row={row} wrap />}
+              {isEmptyVal(cellValue(store, p, row)) && p.type !== 'checkbox' && p.type !== 'button' ? <span className="oad-db-placeholder">{t('empty')}</span> : <CellView p={p} row={row} wrap />}
             </div>
           </div>
         )
       })}
-      <div className="db-rowprops-foot">
+      <div className="oad-db-rowprops-foot">
         {empty.length > 0 && (
-          <button type="button" className="db-link-btn" onClick={() => setShowEmpty((v) => !v)}>
+          <button type="button" className="oad-db-link-btn" onClick={() => setShowEmpty((v) => !v)}>
             {showEmpty ? t('hideEmptyProps', { n: empty.length }) : t('showEmptyProps', { n: empty.length })}
           </button>
         )}
         {canWrite && (
-          <button type="button" className="db-link-btn" onClick={(e) => setAdding(rectOf(e.currentTarget))}>
+          <button type="button" className="oad-db-link-btn" onClick={(e) => setAdding(rectOf(e.currentTarget))}>
             + {t('addProp')}
           </button>
         )}
-        <button type="button" className={'db-link-btn' + (history ? ' is-on' : '')} onClick={() => setHistory((v) => !v)} aria-expanded={history}>
+        <button type="button" className={'oad-db-link-btn' + (history ? ' oad-is-on' : '')} onClick={() => setHistory((v) => !v)} aria-expanded={history}>
           ↺ {t('history')}
         </button>
       </div>
@@ -110,11 +110,11 @@ function RowDoc({ rowId, me, canWrite, ws, onTitle }: { rowId: string; me: Me; c
   if (!conn) return null
   return (
     <>
-      <div className="db-row-title">
+      <div className="oad-db-row-title">
         <OadTitle ydoc={conn.ydoc} readOnly={!editable} placeholder={t('untitled')} onChange={onTitle} onEnter={() => editor.current && focusStart(editor.current)} />
       </div>
       <RowProps rowId={rowId} />
-      <div className={'db-row-body' + (ready ? '' : ' is-pending')}>
+      <div className={'oad-db-row-body' + (ready ? '' : ' oad-is-pending')}>
         <OadEditor ydoc={conn.ydoc} provider={conn.provider} user={user} editable={editable} media={services} onReady={(e) => (editor.current = e)} />
       </div>
     </>
@@ -130,7 +130,7 @@ export function RowPanel({ rowId, me, onClose }: { rowId: string; me: Me; onClos
   const portal = usePortalRoot()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || portal.querySelector('.db-pop')) return
+      if (e.key !== 'Escape' || portal.querySelector('.oad-db-pop')) return
       // 正文、标题里按 Esc 不关。composedPath()[0]：在 Shadow DOM 里 e.target 只是宿主元素
       if (((e.composedPath()[0] ?? e.target) as HTMLElement).closest?.('.ProseMirror, .oad-title')) return
       onClose()
@@ -139,24 +139,24 @@ export function RowPanel({ rowId, me, onClose }: { rowId: string; me: Me; onClos
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, portal])
   return (
-    <aside className="db-peek oad-root" ref={panel} role="dialog" aria-label={t('openRow')} data-row={rowId}>
-      <div className="db-peek-bar">
-        <button type="button" className="icon-btn" onClick={onClose} aria-label={t('closePanel')} title={t('closePanel')}>
+    <aside className="oad-db-peek oad-root" ref={panel} role="dialog" aria-label={t('openRow')} data-row={rowId}>
+      <div className="oad-db-peek-bar">
+        <button type="button" className="oad-icon-btn" onClick={onClose} aria-label={t('closePanel')} title={t('closePanel')}>
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
             <path fill="currentColor" d="M13.6 5.4 20.2 12l-6.6 6.6-1.4-1.4 4.2-4.2H4v-2h12.4L12.2 6.8z" />
           </svg>
         </button>
-        <button type="button" className="icon-btn" onClick={() => navigate(pageHref(rowId))} aria-label={t('openFullPage')} title={t('openFullPage')}>
+        <button type="button" className="oad-icon-btn" onClick={() => navigate(pageHref(rowId))} aria-label={t('openFullPage')} title={t('openFullPage')}>
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
             <path fill="currentColor" d="M5 5h6v2H8.4l4.3 4.3-1.4 1.4L7 8.4V11H5zm14 14h-6v-2h2.6l-4.3-4.3 1.4-1.4 4.3 4.3V13h2z" />
           </svg>
         </button>
-        <span className="db-peek-crumb">{store.meta?.page.title || t('untitled')}</span>
-        <span className="db-toolbar-gap" />
+        <span className="oad-db-peek-crumb">{store.meta?.page.title || t('untitled')}</span>
+        <span className="oad-db-toolbar-gap" />
         {canWrite && (
           <button
             type="button"
-            className="db-link-btn is-danger"
+            className="oad-db-link-btn oad-is-danger"
             onClick={() => {
               store.deleteRows([rowId])
               onClose()
@@ -166,8 +166,8 @@ export function RowPanel({ rowId, me, onClose }: { rowId: string; me: Me; onClos
           </button>
         )}
       </div>
-      <div className="db-peek-scroll">
-        <article className="db-peek-doc">
+      <div className="oad-db-peek-scroll">
+        <article className="oad-db-peek-doc">
           <RowDoc key={rowId} rowId={rowId} me={me} canWrite={canWrite} ws={ws} onTitle={(s) => store.localTitle(rowId, s)} />
         </article>
       </div>
@@ -204,7 +204,7 @@ export function RowHeader({
   }, [store, events])
   const people = useDbPeople(client, ws, me)
   const ctx: DbCtx = useMemo(() => ({ store, ws, people, canWrite, dbs: [], navigate, pageHref, openRow: (id) => navigate(pageHref(id)) }), [store, ws, people, canWrite]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (!store.rows.has(rowId)) return <div className="db-rowprops is-loading" />
+  if (!store.rows.has(rowId)) return <div className="oad-db-rowprops oad-is-loading" />
   return (
     <DbContext.Provider value={ctx}>
       <RowProps rowId={rowId} />

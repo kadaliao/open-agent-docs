@@ -26,7 +26,7 @@ export const OadPlaceholder = Extension.create<PlaceholderOptions>({
             const first = doc.firstChild
             if (doc.childCount === 1 && first && first.type.name === 'paragraph' && first.content.size === 0) {
               return DecorationSet.create(doc, [
-                Decoration.node(0, first.nodeSize, { class: 'is-empty is-editor-empty', 'data-placeholder': opts.empty() }),
+                Decoration.node(0, first.nodeSize, { class: 'oad-is-empty oad-is-editor-empty', 'data-placeholder': opts.empty() }),
               ])
             }
             const { $from, empty } = selection
@@ -38,7 +38,7 @@ export const OadPlaceholder = Extension.create<PlaceholderOptions>({
             if (outer !== 'doc' && outer !== 'callout' && outer !== 'blockquote' && outer !== 'detailsContent') return null
             const pos = $from.before()
             return DecorationSet.create(doc, [
-              Decoration.node(pos, pos + parent.nodeSize, { class: 'is-empty', 'data-placeholder': opts.line() }),
+              Decoration.node(pos, pos + parent.nodeSize, { class: 'oad-is-empty', 'data-placeholder': opts.line() }),
             ])
           },
         },

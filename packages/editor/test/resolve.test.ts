@@ -157,7 +157,7 @@ describe('图片节点用上钩子', () => {
     expect(img.getAttribute('src')).toContain('sig=S2')
     // 第二次失败：显示坏图
     img.dispatchEvent(new Event('error'))
-    expect(el.querySelector('figure.oad-image')!.classList.contains('is-broken')).toBe(true)
+    expect(el.querySelector('figure.oad-image')!.classList.contains('oad-is-broken')).toBe(true)
     el.remove()
   })
 })

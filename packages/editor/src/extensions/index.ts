@@ -48,11 +48,11 @@ export interface EditorExtensionOptions {
 function caret(user: { name: string; color: string; kind?: string }) {
   const el = document.createElement('span')
   el.className = 'oad-caret'
-  el.style.setProperty('--caret-color', user.color)
+  el.style.setProperty('--oad-caret-color', user.color)
   const label = document.createElement('span')
   label.className = 'oad-caret-label'
   label.textContent = user.name
-  if (user.kind === 'agent') el.classList.add('is-agent')
+  if (user.kind === 'agent') el.classList.add('oad-is-agent')
   el.append(label)
   return el
 }

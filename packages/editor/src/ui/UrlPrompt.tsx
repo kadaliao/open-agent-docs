@@ -58,7 +58,7 @@ export function UrlPrompt({ state, onClose }: { state: UrlPromptState; onClose: 
         }}
         onBlur={() => done(null)}
       />
-      <button type="button" className="oad-btn-primary" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
+      <button type="button" className="oad-prompt-btn" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
         {t('confirm')}
       </button>
     </div>

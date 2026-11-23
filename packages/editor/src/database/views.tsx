@@ -18,9 +18,9 @@ interface VProps {
 const LABELED = new Set<Prop['type']>(['number', 'formula', 'rollup', 'date', 'created_time', 'updated_time', 'checkbox', 'unique_id', 'url', 'email', 'phone', 'text'])
 function PropLabel({ p }: { p: Prop }) {
   return (
-    <span className="db-card-label">
+    <span className="oad-db-card-label">
       <TypeIcon type={p.type} />
-      <span className="db-card-label-text">{p.name}</span>
+      <span className="oad-db-card-label-text">{p.name}</span>
     </span>
   )
 }
@@ -35,14 +35,14 @@ function Card({ row, props, onOpen, cover, draggable, onDragStart }: { row: Row;
   const shown = props.filter((p) => !isEmptyVal(cellValue(store, p, row)))
   const title = store.rowTitle(row)
   return (
-    <div className="db-card" role="button" tabIndex={0} draggable={draggable} onDragStart={onDragStart} onClick={onOpen} onKeyDown={(e) => e.key === 'Enter' && onOpen()} data-row={row.id}>
-      {cover !== undefined && <div className="db-card-cover">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="db-card-nocover" />}</div>}
-      <div className="db-card-body">
-        <div className={'db-card-title' + (title ? '' : ' is-empty')}>{title || t('untitled')}</div>
+    <div className="oad-db-card" role="button" tabIndex={0} draggable={draggable} onDragStart={onDragStart} onClick={onOpen} onKeyDown={(e) => e.key === 'Enter' && onOpen()} data-row={row.id}>
+      {cover !== undefined && <div className="oad-db-card-cover">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="oad-db-card-nocover" />}</div>}
+      <div className="oad-db-card-body">
+        <div className={'oad-db-card-title' + (title ? '' : ' oad-is-empty')}>{title || t('untitled')}</div>
         {shown.map((p) => (
-          <div key={p.key} className={'db-card-prop is-' + p.type + (LABELED.has(p.type) ? ' has-label' : '')} title={p.name}>
+          <div key={p.key} className={'oad-db-card-prop oad-is-' + p.type + (LABELED.has(p.type) ? ' oad-has-label' : '')} title={p.name}>
             {LABELED.has(p.type) && <PropLabel p={p} />}
-            <span className="db-card-val">
+            <span className="oad-db-card-val">
               <CellView p={p} row={row} />
             </span>
           </div>
@@ -67,7 +67,7 @@ export function BoardView({ view, result }: VProps) {
   const [local, setLocal] = useState<Record<string, string[]>>({})
   useEffect(() => setLocal({}), [result])
 
-  if (!groupProp) return <div className="db-empty">{t('groupBy')} →</div>
+  if (!groupProp) return <div className="oad-db-empty">{t('groupBy')} →</div>
   const groups: Group[] = result.groups ?? []
   const editable = canWrite && !READONLY.has(groupProp.type)
 
@@ -94,14 +94,14 @@ export function BoardView({ view, result }: VProps) {
   }
 
   return (
-    <div className="db-board">
+    <div className="oad-db-board">
       {groups.map((g) => {
         const ids = local[g.key] ?? g.ids
         const n = limit[g.key] ?? PAGE
         return (
           <div
             key={g.key}
-            className={'db-col' + (over?.col === g.key ? ' is-over' : '')}
+            className={'oad-db-col' + (over?.col === g.key ? ' oad-is-over' : '')}
             onDragOver={(e) => {
               if (!drag) return
               e.preventDefault()
@@ -112,18 +112,18 @@ export function BoardView({ view, result }: VProps) {
               drop(g, over?.col === g.key ? over.before : null)
             }}
           >
-            <div className="db-col-head">
-              {g.key === '' ? <span className="db-group-none">{t('none')}</span> : groupProp.options ? <Pill opt={{ name: g.name, color: (g.color as never) ?? 'default' }} status={groupProp.type === 'status'} /> : <span className="db-group-name">{g.name}</span>}
-              <span className="db-group-count">{ids.length}</span>
+            <div className="oad-db-col-head">
+              {g.key === '' ? <span className="oad-db-group-none">{t('none')}</span> : groupProp.options ? <Pill opt={{ name: g.name, color: (g.color as never) ?? 'default' }} status={groupProp.type === 'status'} /> : <span className="oad-db-group-name">{g.name}</span>}
+              <span className="oad-db-group-count">{ids.length}</span>
             </div>
-            <div className="db-col-cards">
+            <div className="oad-db-col-cards">
               {ids.slice(0, n).map((id) => {
                 const row = store.rows.get(id)
                 if (!row) return null
                 return (
                   <div
                     key={id}
-                    className={'db-card-slot' + (over?.before === id ? ' is-before' : '') + (drag?.id === id ? ' is-dragging' : '')}
+                    className={'oad-db-card-slot' + (over?.before === id ? ' oad-is-before' : '') + (drag?.id === id ? ' oad-is-dragging' : '')}
                     onDragOver={(e) => {
                       if (!drag) return
                       e.preventDefault()
@@ -148,12 +148,12 @@ export function BoardView({ view, result }: VProps) {
                 )
               })}
               {ids.length > n && (
-                <button type="button" className="db-more" onClick={() => setLimit((m) => ({ ...m, [g.key]: n + PAGE }))}>
+                <button type="button" className="oad-db-more" onClick={() => setLimit((m) => ({ ...m, [g.key]: n + PAGE }))}>
                   +{ids.length - n}
                 </button>
               )}
               {canWrite && (
-                <button type="button" className="db-col-add" onClick={() => store.addRow(groupDefaults(store, view, g))}>
+                <button type="button" className="oad-db-col-add" onClick={() => store.addRow(groupDefaults(store, view, g))}>
                   + {t('newRow')}
                 </button>
               )}
@@ -224,7 +224,7 @@ export function CalendarView({ view, result }: VProps) {
     return m
   }, [result, prop, days, store])
 
-  if (!prop) return <div className="db-empty">{t('calendarBy')} →</div>
+  if (!prop) return <div className="oad-db-empty">{t('calendarBy')} →</div>
   const editable = canWrite && prop.type === 'date'
   const today = iso(new Date())
   const step = (n: number) => {
@@ -247,13 +247,13 @@ export function CalendarView({ view, result }: VProps) {
   }).length
 
   return (
-    <div className="db-cal">
-      <div className="db-cal-head">
-        <span className="db-cal-title">
+    <div className="oad-db-cal">
+      <div className="oad-db-cal-head">
+        <span className="oad-db-cal-title">
           {t('monthTitle', { y: cursor.getFullYear(), m: cursor.getMonth() + 1 })}
         </span>
-        <span className="db-cal-nodate">{noDate ? `${t('noDate')} · ${noDate}` : ''}</span>
-        <div className="db-menu-seg db-cal-mode">
+        <span className="oad-db-cal-nodate">{noDate ? `${t('noDate')} · ${noDate}` : ''}</span>
+        <div className="oad-db-menu-seg oad-db-cal-mode">
           <button type="button" aria-pressed={mode === 'month'} onClick={() => setMode('month')}>
             {t('month')}
           </button>
@@ -261,21 +261,21 @@ export function CalendarView({ view, result }: VProps) {
             {t('week')}
           </button>
         </div>
-        <button type="button" className="db-tool" onClick={() => step(-1)} aria-label={t('prev')}>
+        <button type="button" className="oad-db-tool" onClick={() => step(-1)} aria-label={t('prev')}>
           ‹
         </button>
-        <button type="button" className="db-tool" onClick={() => setCursor(new Date(new Date().setHours(0, 0, 0, 0)))}>
+        <button type="button" className="oad-db-tool" onClick={() => setCursor(new Date(new Date().setHours(0, 0, 0, 0)))}>
           {t('today')}
         </button>
-        <button type="button" className="db-tool" onClick={() => step(1)} aria-label={t('next')}>
+        <button type="button" className="oad-db-tool" onClick={() => step(1)} aria-label={t('next')}>
           ›
         </button>
       </div>
-      <div className={'db-cal-grid is-' + mode}>
+      <div className={'oad-db-cal-grid oad-is-' + mode}>
         {t('weekdays')
           .split(',')
           .map((w) => (
-            <div key={w} className="db-cal-wd">
+            <div key={w} className="oad-db-cal-wd">
               {w}
             </div>
           ))}
@@ -286,7 +286,7 @@ export function CalendarView({ view, result }: VProps) {
           return (
             <div
               key={k}
-              className={'db-cal-day' + (d.getMonth() !== cursor.getMonth() && mode === 'month' ? ' is-out' : '') + (k === today ? ' is-today' : '') + (over === k ? ' is-over' : '')}
+              className={'oad-db-cal-day' + (d.getMonth() !== cursor.getMonth() && mode === 'month' ? ' oad-is-out' : '') + (k === today ? ' oad-is-today' : '') + (over === k ? ' oad-is-over' : '')}
               onDragOver={(e) => {
                 if (!drag) return
                 e.preventDefault()
@@ -300,10 +300,10 @@ export function CalendarView({ view, result }: VProps) {
                 setOver(null)
               }}
             >
-              <div className="db-cal-num">
+              <div className="oad-db-cal-num">
                 <span>{d.getDate() === 1 && mode === 'month' ? t('monthDay', { m: d.getMonth() + 1, d: d.getDate() }) : d.getDate()}</span>
                 {canWrite && prop.type === 'date' && (
-                  <button type="button" className="db-cal-add" aria-label={t('newRow')} onClick={() => store.addRow({ ...groupDefaults(store, view), [prop.key]: { start: k } })}>
+                  <button type="button" className="oad-db-cal-add" aria-label={t('newRow')} onClick={() => store.addRow({ ...groupDefaults(store, view), [prop.key]: { start: k } })}>
                     +
                   </button>
                 )}
@@ -312,7 +312,7 @@ export function CalendarView({ view, result }: VProps) {
                 <button
                   key={row.id}
                   type="button"
-                  className={'db-cal-ev' + (drag === row.id ? ' is-dragging' : '')}
+                  className={'oad-db-cal-ev' + (drag === row.id ? ' oad-is-dragging' : '')}
                   draggable={editable}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = 'move'
@@ -326,7 +326,7 @@ export function CalendarView({ view, result }: VProps) {
                   {store.rowTitle(row) || t('untitled')}
                 </button>
               ))}
-              {list.length > max && <span className="db-cal-more">+{list.length - max}</span>}
+              {list.length > max && <span className="oad-db-cal-more">+{list.length - max}</span>}
             </div>
           )
         })}
@@ -399,18 +399,18 @@ export function GalleryView({ view, result, maxHeight }: VProps) {
   const cardH = (view.cover ? (size === 'small' ? 120 : size === 'large' ? 220 : 160) : 0) + 56 + Math.min(4, props.length) * 26
   const rv = useVirtualizer({ count: rowsN + (canWrite ? 1 : 0), getScrollElement: () => box.current, estimateSize: () => cardH + 16, overscan: 3, gap: 16 })
   return (
-    <div className="db-gallery" ref={box} style={maxHeight ? { maxHeight } : undefined}>
+    <div className="oad-db-gallery" ref={box} style={maxHeight ? { maxHeight } : undefined}>
       <div style={{ height: rv.getTotalSize(), position: 'relative' }}>
         {rv.getVirtualItems().map((vi) => {
           if (vi.index === rowsN)
             return (
-              <button key="add" type="button" className="db-gallery-add" style={{ top: vi.start, height: 40 }} onClick={() => store.addRow(groupDefaults(store, view))}>
+              <button key="add" type="button" className="oad-db-gallery-add" style={{ top: vi.start, height: 40 }} onClick={() => store.addRow(groupDefaults(store, view))}>
                 + {t('newRow')}
               </button>
             )
           const ids = result.ids.slice(vi.index * cols, vi.index * cols + cols)
           return (
-            <div key={vi.index} ref={rv.measureElement} data-index={vi.index} className="db-gallery-row" style={{ top: vi.start, gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            <div key={vi.index} ref={rv.measureElement} data-index={vi.index} className="oad-db-gallery-row" style={{ top: vi.start, gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
               {ids.map((id) => {
                 const row = store.rows.get(id)
                 return row ? <GalleryCard key={id} row={row} view={view} props={props} visible /> : null
@@ -430,14 +430,14 @@ export function ListView({ view, result, maxHeight }: VProps) {
   const box = useRef<HTMLDivElement>(null)
   const rv = useVirtualizer({ count: result.ids.length + (canWrite ? 1 : 0), getScrollElement: () => box.current, estimateSize: () => 40, overscan: 10 })
   return (
-    <div className="db-list" ref={box} style={maxHeight ? { maxHeight } : undefined}>
+    <div className="oad-db-list" ref={box} style={maxHeight ? { maxHeight } : undefined}>
       <div style={{ height: rv.getTotalSize(), position: 'relative' }}>
         {rv.getVirtualItems().map((vi) => {
           if (vi.index === result.ids.length)
             return (
-              <button key="add" type="button" className="db-add-row" style={{ top: vi.start, width: '100%' }} onClick={() => store.addRow(groupDefaults(store, view))}>
-                <span className="db-add-in">
-                  <span className="db-add-plus">+</span>
+              <button key="add" type="button" className="oad-db-add-row" style={{ top: vi.start, width: '100%' }} onClick={() => store.addRow(groupDefaults(store, view))}>
+                <span className="oad-db-add-in">
+                  <span className="oad-db-add-plus">+</span>
                   {t('newRow')}
                 </span>
               </button>
@@ -445,14 +445,14 @@ export function ListView({ view, result, maxHeight }: VProps) {
           const row = store.rows.get(result.ids[vi.index])
           if (!row) return null
           return (
-            <button key={row.id} type="button" className="db-list-row" style={{ top: vi.start }} onClick={() => openRow(row.id)}>
-              <span className="db-list-ico">▤</span>
-              <span className={'db-list-title' + (store.rowTitle(row) ? '' : ' is-empty')}>{store.rowTitle(row) || t('untitled')}</span>
-              <span className="db-list-props">
+            <button key={row.id} type="button" className="oad-db-list-row" style={{ top: vi.start }} onClick={() => openRow(row.id)}>
+              <span className="oad-db-list-ico">▤</span>
+              <span className={'oad-db-list-title' + (store.rowTitle(row) ? '' : ' oad-is-empty')}>{store.rowTitle(row) || t('untitled')}</span>
+              <span className="oad-db-list-props">
                 {props.map((p) =>
                   isEmptyVal(cellValue(store, p, row)) ? null : (
-                    <span key={p.key} className="db-list-prop" title={p.name}>
-                      {(p.type === 'number' || p.type === 'formula' || p.type === 'rollup' || p.type === 'checkbox') && <span className="db-list-label">{p.name}</span>}
+                    <span key={p.key} className="oad-db-list-prop" title={p.name}>
+                      {(p.type === 'number' || p.type === 'formula' || p.type === 'rollup' || p.type === 'checkbox') && <span className="oad-db-list-label">{p.name}</span>}
                       <CellView p={p} row={row} />
                     </span>
                   ),

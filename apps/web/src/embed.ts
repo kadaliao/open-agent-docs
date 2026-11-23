@@ -33,7 +33,7 @@ if (EMBED) {
   // 内容高度变了告诉宿主（宿主想让 iframe 跟着内容长高时用）
   let last = 0
   const ro = new ResizeObserver(() => {
-    const el = document.querySelector('.doc, .db-page') as HTMLElement | null
+    const el = document.querySelector('.doc, .oad-db-page') as HTMLElement | null
     const h = el ? Math.ceil(el.getBoundingClientRect().height) : document.documentElement.scrollHeight
     if (Math.abs(h - last) > 2) {
       last = h
@@ -41,7 +41,7 @@ if (EMBED) {
     }
   })
   const watch = () => {
-    const el = document.querySelector('.doc, .db-page')
+    const el = document.querySelector('.doc, .oad-db-page')
     if (el) ro.observe(el)
     else setTimeout(watch, 200)
   }

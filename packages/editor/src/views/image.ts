@@ -44,7 +44,7 @@ export function openLightbox(src: string, alt = '', root: HTMLElement | ShadowRo
   const big = el('img', '', { src: editQuery(src, ['w']), alt, referrerpolicy: 'no-referrer' })
   mask.append(big)
   const close = () => {
-    mask.classList.add('is-closing')
+    mask.classList.add('oad-is-closing')
     setTimeout(() => mask.remove(), 140)
     doc.removeEventListener('keydown', onKey, true)
   }
@@ -70,8 +70,8 @@ export const imageView: NodeViewRenderer = (p) => {
   broken.hidden = true
   const zoom = el('button', 'oad-image-zoom', { type: 'button', 'aria-label': t('zoomIn'), title: t('zoomIn') })
   zoom.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm-1 2h2v2h2v2h-2v2H9v-2H7V9h2z"/></svg>'
-  const left = el('span', 'oad-image-handle is-left', { 'aria-hidden': 'true' })
-  const right = el('span', 'oad-image-handle is-right', { 'aria-hidden': 'true' })
+  const left = el('span', 'oad-image-handle oad-is-left', { 'aria-hidden': 'true' })
+  const right = el('span', 'oad-image-handle oad-is-right', { 'aria-hidden': 'true' })
   frame.append(img, broken, zoom, left, right)
   const caption = el('input', 'oad-image-caption', { spellcheck: 'false', 'aria-label': t('captionPlaceholder') })
   caption.placeholder = t('captionPlaceholder')
@@ -80,7 +80,7 @@ export const imageView: NodeViewRenderer = (p) => {
 
   const applyWidth = (w: number | null) => {
     dom.style.width = w ? `${w}%` : ''
-    dom.classList.toggle('has-width', !!w)
+    dom.classList.toggle('oad-has-width', !!w)
   }
 
   const placeholder = (info: { width?: number; height?: number; blurhash?: string } | null) => {
@@ -125,7 +125,7 @@ export const imageView: NodeViewRenderer = (p) => {
     if (shown !== src) {
       shown = src
       retried = false
-      dom.classList.remove('is-broken', 'is-loaded')
+      dom.classList.remove('oad-is-broken', 'oad-is-loaded')
       broken.hidden = true
       img.hidden = false
       frame.style.backgroundImage = ''
@@ -146,14 +146,14 @@ export const imageView: NodeViewRenderer = (p) => {
     broken.textContent = n.attrs.alt || n.attrs.title || src
     applyWidth(n.attrs.width)
     if (!isFocused(caption)) caption.value = n.attrs.caption ?? ''
-    dom.classList.toggle('has-caption', !!n.attrs.caption)
+    dom.classList.toggle('oad-has-caption', !!n.attrs.caption)
     caption.readOnly = !p.editor.isEditable
     blockAttrs(dom, n)
   }
   const info = (d: Unfurl) => ({ width: d.width ?? d.thumbnail?.width, height: d.height ?? d.thumbnail?.height, blurhash: d.blurhash ?? d.thumbnail?.blurhash })
 
   img.addEventListener('load', () => {
-    dom.classList.add('is-loaded')
+    dom.classList.add('oad-is-loaded')
     frame.style.backgroundImage = ''
   })
   img.addEventListener('error', () => {
@@ -163,7 +163,7 @@ export const imageView: NodeViewRenderer = (p) => {
       show(shown, true)
       return
     }
-    dom.classList.add('is-broken')
+    dom.classList.add('oad-is-broken')
     img.hidden = true
     broken.hidden = false
   })
@@ -182,7 +182,7 @@ export const imageView: NodeViewRenderer = (p) => {
     const startW = dom.getBoundingClientRect().width
     const x0 = e.clientX
     let pct = (startW / parentW) * 100
-    dom.classList.add('is-resizing')
+    dom.classList.add('oad-is-resizing')
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - x0) * (side === 'left' ? -1 : 1) * 2
       pct = Math.max(10, Math.min(100, ((startW + dx) / parentW) * 100))
@@ -191,7 +191,7 @@ export const imageView: NodeViewRenderer = (p) => {
     const up = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
-      dom.classList.remove('is-resizing')
+      dom.classList.remove('oad-is-resizing')
       const w = Math.round(pct)
       setAttr(p, 'width', w >= 100 ? null : w)
     }
@@ -220,8 +220,8 @@ export const imageView: NodeViewRenderer = (p) => {
       sync(n)
       return true
     },
-    selectNode: () => dom.classList.add('is-selected'),
-    deselectNode: () => dom.classList.remove('is-selected'),
+    selectNode: () => dom.classList.add('oad-is-selected'),
+    deselectNode: () => dom.classList.remove('oad-is-selected'),
     stopEvent: (e) => {
       const tg = e.target as HTMLElement
       return tg === caption || tg.closest('.oad-image-handle, .oad-image-zoom') !== null

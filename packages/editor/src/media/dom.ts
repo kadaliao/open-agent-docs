@@ -32,7 +32,7 @@ export function icon(viewBox: string, d: string, cls = '', fill = 'currentColor'
 export function img(src: string | undefined, cls: string, alt = '', extra: Record<string, string> = {}) {
   if (!src) return null
   const i = h('img', { class: cls, src, alt, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', draggable: 'false', ...extra })
-  i.addEventListener('error', () => i.classList.add('is-broken'), { once: true })
+  i.addEventListener('error', () => i.classList.add('oad-is-broken'), { once: true })
   return i
 }
 

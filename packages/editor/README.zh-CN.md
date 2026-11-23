@@ -60,7 +60,8 @@ function Doc({ id, me }) {
 }
 ```
 
-组件里的通用控件（按钮、头像、弹窗）的样式只在 `.oad-root` 里面生效，不会影响宿主页面里同名的 class。
+组件用到的 class、动画名、CSS 变量都带 `oad-` 前缀（只有 ProseMirror 自己的 `ProseMirror-*` 例外），不会碰到宿主页面自己的 class。
+以前的版本用的是 `.composer`、`.thread`、`.btn`、`.db-table` 这类通用名字；宿主样式里改过这些的，要加上前缀（`.composer` → `.oad-composer`，`.is-active` → `.oad-is-active`）。
 
 ## 更多
 

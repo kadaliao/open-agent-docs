@@ -260,9 +260,9 @@ test('10 个视频嵌入的页面：滚动帧率、打开时间', async ({ brows
   const second = stat(await pass())
   results.embedScroll = { firstPass: first, secondPass: second }
   results.embedOpen = { with10Videos: openWith, withoutVideos: openWithout }
-  results.embedScroll = { ...(results.embedScroll as object), cards: await page.locator('.c-video').count() }
+  results.embedScroll = { ...(results.embedScroll as object), cards: await page.locator('.oad-c-video').count() }
   console.log('10 个视频：', results.embedScroll, results.embedOpen)
-  expect(await page.locator('.c-video').count()).toBe(10)
+  expect(await page.locator('.oad-c-video').count()).toBe(10)
   await ctx.close()
 })
 

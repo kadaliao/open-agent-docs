@@ -57,7 +57,7 @@ describe('评论锚点', () => {
     setCommentThreads(eb, [{ id: 't1', anchor }])
     expect(text(eb, threadRange(eb, 't1'))).toBe('要评论的（插）这几个字')
     // 画了底色
-    expect(eb.view.dom.querySelector('.oad-comment')?.textContent).toBe('要评论的（插）这几个字')
+    expect(eb.view.dom.querySelector('.oad-comment-mark')?.textContent).toBe('要评论的（插）这几个字')
 
     // 整段删掉：找不到了
     eb.view.dispatch(eb.state.tr.delete(r.from, r.to + 1))

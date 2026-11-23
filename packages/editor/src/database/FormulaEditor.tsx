@@ -84,16 +84,16 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
   }
 
   return createPortal(
-    <div className="modal-mask oad-root" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal db-formula" role="dialog" aria-label={t('formulaTitle')}>
-        <div className="modal-head">
+    <div className="oad-modal-mask oad-root" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="oad-modal oad-db-formula" role="dialog" aria-label={t('formulaTitle')}>
+        <div className="oad-modal-head">
           <h2>
             {t('formulaTitle')} · {p.name}
           </h2>
         </div>
-        <div className="modal-body">
-          <div className="db-formula-hint">{t('formulaHint')}</div>
-          <div className={'db-formula-box' + ('error' in check ? ' is-error' : '')}>
+        <div className="oad-modal-body">
+          <div className="oad-db-formula-hint">{t('formulaHint')}</div>
+          <div className={'oad-db-formula-box' + ('error' in check ? ' oad-is-error' : '')}>
             <textarea
               ref={ta}
               spellCheck={false}
@@ -123,8 +123,8 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
               }}
             />
             {'error' in check && (
-              <div className="db-formula-err" role="alert">
-                <span className="db-formula-at">
+              <div className="oad-db-formula-err" role="alert">
+                <span className="oad-db-formula-at">
                   {src.slice(Math.max(0, check.at - 12), check.at)}
                   <mark>{src.slice(check.at, check.at + 1) || ' '}</mark>
                   {src.slice(check.at + 1, check.at + 12)}
@@ -132,28 +132,28 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
                 {check.error}
               </div>
             )}
-            {'ok' in check && src.trim() && <div className="db-formula-ok">✓ {t('formulaOk')}</div>}
+            {'ok' in check && src.trim() && <div className="oad-db-formula-ok">✓ {t('formulaOk')}</div>}
           </div>
-          <div className="db-formula-cols">
-            <div className="db-formula-list" role="listbox">
+          <div className="oad-db-formula-cols">
+            <div className="oad-db-formula-list" role="listbox">
               {items.map((it, i) => (
-                <button key={it.kind + it.label} type="button" role="option" aria-selected={i === active} className="db-formula-item" onMouseMove={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => insert(it)}>
-                  {it.kind === 'prop' ? <TypeIcon type={it.type!} /> : <span className="db-fn-ico">ƒ</span>}
-                  <span className="db-formula-label">{it.label}</span>
+                <button key={it.kind + it.label} type="button" role="option" aria-selected={i === active} className="oad-db-formula-item" onMouseMove={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => insert(it)}>
+                  {it.kind === 'prop' ? <TypeIcon type={it.type!} /> : <span className="oad-db-fn-ico">ƒ</span>}
+                  <span className="oad-db-formula-label">{it.label}</span>
                 </button>
               ))}
             </div>
-            <div className="db-formula-side">
+            <div className="oad-db-formula-side">
               {items[active] && (
-                <div className="db-formula-doc">
+                <div className="oad-db-formula-doc">
                   <code>{items[active].kind === 'prop' ? items[active].insert : items[active].hint}</code>
                 </div>
               )}
               {!!preview.length && (
                 <>
-                  <div className="db-menu-label">{t('preview')}</div>
+                  <div className="oad-db-menu-label">{t('preview')}</div>
                   {preview.map((x, i) => (
-                    <div key={i} className="db-formula-prev">
+                    <div key={i} className="oad-db-formula-prev">
                       <span>{x.title}</span>
                       <b>{x.v}</b>
                     </div>
@@ -162,11 +162,11 @@ export function FormulaEditor({ p, onClose }: { p: Prop; onClose: () => void }) 
               )}
             </div>
           </div>
-          <div className="modal-foot">
-            <button type="button" className="btn" onClick={onClose}>
+          <div className="oad-modal-foot">
+            <button type="button" className="oad-btn" onClick={onClose}>
               {t('cancel')}
             </button>
-            <button type="button" className="btn btn-primary" disabled={!('ok' in check)} onClick={save}>
+            <button type="button" className="oad-btn oad-btn-primary" disabled={!('ok' in check)} onClick={save}>
               {t('save')}
             </button>
           </div>

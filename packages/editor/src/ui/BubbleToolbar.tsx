@@ -87,7 +87,7 @@ export function BubbleToolbar({ editor, onComment }: { editor: Editor; onComment
               }
             }}
           />
-          <button type="button" className="oad-btn-primary" onMouseDown={(e) => e.preventDefault()} onClick={applyLink}>
+          <button type="button" className="oad-prompt-btn" onMouseDown={(e) => e.preventDefault()} onClick={applyLink}>
             {t('confirm')}
           </button>
         </span>

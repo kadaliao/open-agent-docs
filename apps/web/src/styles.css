@@ -629,6 +629,12 @@ input {
   overflow-x: hidden;
   scroll-padding-top: 80px;
 }
+/* 库页面：滚动交给库自己（表格横竖都在 .oad-db-page 里滚） */
+.page.is-db .page-scroll {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 .doc {
   max-width: 760px;
   margin: 0 auto;
@@ -799,8 +805,7 @@ input {
   background: var(--side-hover);
   color: var(--oad-fg);
 }
-.topbar-count,
-.seg-count {
+.topbar-count {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
@@ -1299,7 +1304,8 @@ button.me:hover {
     gap: 2px;
   }
   .topbar-btn,
-  .icon-btn {
+  .icon-btn,
+  .oad-icon-btn {
     min-width: 36px;
     height: 36px;
   }
@@ -1319,11 +1325,13 @@ button.me:hover {
   .crumb:not(:last-child) {
     display: none;
   }
-  .modal-mask {
+  .modal-mask,
+  .oad-modal-mask {
     padding: 0;
     place-items: end center;
   }
-  .modal {
+  .modal,
+  .oad-modal {
     max-height: 92vh;
     border-radius: 14px 14px 0 0;
     padding-bottom: env(safe-area-inset-bottom);
@@ -1349,7 +1357,7 @@ button.me:hover {
 .oad-embed .doc {
   padding-top: 28px;
 }
-.oad-embed .db-page-head {
+.oad-embed .oad-db-page-head {
   padding-top: 20px;
 }
 .home-inner .oad-logo {

@@ -29,11 +29,11 @@ test.describe.configure({ mode: 'serial' })
 const WATCH = () => {
   const w = window as any
   const mo = new MutationObserver(() => {
-    if (w.__first === undefined && document.querySelector('.db-tr')) {
+    if (w.__first === undefined && document.querySelector('.oad-db-tr')) {
       w.__first = -1
       requestAnimationFrame(() => (w.__first = performance.now()))
     }
-    if (w.__live === undefined && document.querySelector('.db-page:not(.db-snapshot) .db-tr')) {
+    if (w.__live === undefined && document.querySelector('.oad-db-page:not(.oad-db-snapshot) .oad-db-tr')) {
       w.__live = -1
       requestAnimationFrame(() => {
         w.__live = performance.now()
@@ -53,7 +53,7 @@ async function openTime(page: Page) {
   return page.evaluate(
     (db) => {
       const w = window as any
-      return { first: w.__first as number, rows: w.__live as number, snapshot: !!document.querySelector('.db-snapshot') || w.__first < w.__live - 1, timing: { ...w.__oadDb.get(db).timing } }
+      return { first: w.__first as number, rows: w.__live as number, snapshot: !!document.querySelector('.oad-db-snapshot') || w.__first < w.__live - 1, timing: { ...w.__oadDb.get(db).timing } }
     },
     DB,
   )
@@ -148,7 +148,7 @@ test('打开：有 IndexedDB 缓存', async ({ browser }) => {
           const t0 = performance.now()
           row.click()
           const check = () => {
-            if (document.querySelector(`[data-db="${db}"] .db-tr`)) requestAnimationFrame(() => resolve(performance.now() - t0))
+            if (document.querySelector(`[data-db="${db}"] .oad-db-tr`)) requestAnimationFrame(() => resolve(performance.now() - t0))
             else requestAnimationFrame(check)
           }
           check()
@@ -172,7 +172,7 @@ test('滚动：上下、左右', async ({ browser }) => {
     page.evaluate(
       ({ axis, px, ms }) =>
         new Promise<{ frames: number; seconds: number; fps: number; dropped: number; worst: number }>((resolve) => {
-          const el = document.querySelector('.db-table') as HTMLElement
+          const el = document.querySelector('.oad-db-table') as HTMLElement
           let last = performance.now()
           const t0 = last
           let frames = 0
@@ -263,12 +263,12 @@ test('筛选、排序、分组：改视图到画出来', async ({ browser }) => 
   }
   // 搜索框：打一个字到画出来
   const search: number[] = []
-  await page.locator('.db-tool-icon[aria-label="搜索"]').click()
+  await page.locator('.oad-db-tool-icon[aria-label="搜索"]').click()
   for (let i = 0; i < ROUNDS; i++) {
     const t = await page.evaluate(
       () =>
         new Promise<number>((resolve) => {
-          const el = document.querySelector('.db-search') as HTMLInputElement
+          const el = document.querySelector('.oad-db-search') as HTMLInputElement
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
           const t0 = performance.now()
           setter.call(el, el.value ? '' : '提速')

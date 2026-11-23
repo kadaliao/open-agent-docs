@@ -188,5 +188,5 @@ test('跨域 iframe 里图片能显示（签名地址，不靠 cookie）', async
   const img = f.locator('figure.oad-image img')
   await expect(img).toHaveAttribute('src', /[?&]sig=/, { timeout: 15_000 })
   await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0), { timeout: 15_000 }).toBe(true)
-  await expect(f.locator('figure.oad-image.is-broken')).toHaveCount(0)
+  await expect(f.locator('figure.oad-image.oad-is-broken')).toHaveCount(0)
 })

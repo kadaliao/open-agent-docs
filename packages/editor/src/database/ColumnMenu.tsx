@@ -58,11 +58,11 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
     )
 
   return (
-    <Popover anchor={anchor} onClose={() => (commitName(), onClose())} width={260} className="db-menu">
+    <Popover anchor={anchor} onClose={() => (commitName(), onClose())} width={260} className="oad-db-menu">
       {canWrite && (
         <input
           autoFocus
-          className="db-menu-name"
+          className="oad-db-menu-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -75,12 +75,12 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
         />
       )}
       {sub === 'type' ? (
-        <div className="db-menu-scroll">
+        <div className="oad-db-menu-scroll">
           {(p.type === 'title' ? [] : ADDABLE_TYPES).map((ty) => (
             <button
               key={ty}
               type="button"
-              className={'db-menu-item' + (ty === p.type ? ' is-on' : '')}
+              className={'oad-db-menu-item' + (ty === p.type ? ' oad-is-on' : '')}
               onClick={() => {
                 store.changeType(p.key, ty, defaultsFor(ty, p, store.id, store.schema.props))
                 onClose()
@@ -96,7 +96,7 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
           <button
             key={k}
             type="button"
-            className={'db-menu-item' + ((p.format ?? 'number') === k ? ' is-on' : '')}
+            className={'oad-db-menu-item' + ((p.format ?? 'number') === k ? ' oad-is-on' : '')}
             onClick={() => {
               store.updateProp(p.key, { format: k })
               onClose()
@@ -110,7 +110,7 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
           <button
             key={k}
             type="button"
-            className={'db-menu-item' + ((p.date_format ?? 'iso') === k ? ' is-on' : '')}
+            className={'oad-db-menu-item' + ((p.date_format ?? 'iso') === k ? ' oad-is-on' : '')}
             onClick={() => {
               store.updateProp(p.key, { date_format: k })
               onClose()
@@ -126,81 +126,81 @@ export function ColumnMenu({ p, anchor, view, onView, onClose }: Props) {
       ) : (
         <>
           {canWrite && p.type !== 'title' && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('type')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('type')}>
               <TypeIcon type={p.type} />
               {t('changeType')}
-              <span className="db-menu-aside">{TYPE_NAMES[p.type]} ›</span>
+              <span className="oad-db-menu-aside">{TYPE_NAMES[p.type]} ›</span>
             </button>
           )}
           {canWrite && p.type === 'formula' && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('formula')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('formula')}>
               <TypeIcon type="formula" />
               {t('editFormula')}
             </button>
           )}
           {canWrite && (p.type === 'select' || p.type === 'multi_select' || p.type === 'status') && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('options')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('options')}>
               <TypeIcon type="select" />
               {t('options')}
-              <span className="db-menu-aside">{p.options?.length ?? 0} ›</span>
+              <span className="oad-db-menu-aside">{p.options?.length ?? 0} ›</span>
             </button>
           )}
           {canWrite && (p.type === 'number' || p.type === 'formula' || p.type === 'rollup') && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('format')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('format')}>
               <TypeIcon type="number" />
               {t('format')}
-              <span className="db-menu-aside">{FORMAT_NAMES[p.format ?? 'number']} ›</span>
+              <span className="oad-db-menu-aside">{FORMAT_NAMES[p.format ?? 'number']} ›</span>
             </button>
           )}
           {canWrite && (p.type === 'date' || p.type === 'created_time' || p.type === 'updated_time') && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('datefmt')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('datefmt')}>
               <TypeIcon type="date" />
               {t('dateFormat')}
-              <span className="db-menu-aside">{DATE_FORMAT_NAMES[p.date_format ?? 'iso']} ›</span>
+              <span className="oad-db-menu-aside">{DATE_FORMAT_NAMES[p.date_format ?? 'iso']} ›</span>
             </button>
           )}
           {canWrite && p.type === 'relation' && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('relation')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('relation')}>
               <TypeIcon type="relation" />
               {TYPE_NAMES.relation}
-              <span className="db-menu-aside">›</span>
+              <span className="oad-db-menu-aside">›</span>
             </button>
           )}
           {canWrite && p.type === 'rollup' && (
-            <button type="button" className="db-menu-item" onClick={() => setSub('rollup')}>
+            <button type="button" className="oad-db-menu-item" onClick={() => setSub('rollup')}>
               <TypeIcon type="rollup" />
               {TYPE_NAMES.rollup}
-              <span className="db-menu-aside">›</span>
+              <span className="oad-db-menu-aside">›</span>
             </button>
           )}
-          <div className="db-menu-sep" />
-          <button type="button" className="db-menu-item" onClick={() => sort('asc')}>
+          <div className="oad-db-menu-sep" />
+          <button type="button" className="oad-db-menu-item" onClick={() => sort('asc')}>
             ↑ {t('sortAsc')}
           </button>
-          <button type="button" className="db-menu-item" onClick={() => sort('desc')}>
+          <button type="button" className="oad-db-menu-item" onClick={() => sort('desc')}>
             ↓ {t('sortDesc')}
           </button>
-          <button type="button" className="db-menu-item" onClick={filter}>
+          <button type="button" className="oad-db-menu-item" onClick={filter}>
             ⌕ {t('filter')}
           </button>
           {p.type !== 'title' && (
-            <button type="button" className="db-menu-item" onClick={hide}>
+            <button type="button" className="oad-db-menu-item" onClick={hide}>
               ◌ {t('hide')}
             </button>
           )}
           {canWrite && (
             <>
-              <div className="db-menu-sep" />
-              <button type="button" className="db-menu-item" onClick={() => setSub('insert-left')}>
+              <div className="oad-db-menu-sep" />
+              <button type="button" className="oad-db-menu-item" onClick={() => setSub('insert-left')}>
                 ⇤ {t('insertLeft')}
               </button>
-              <button type="button" className="db-menu-item" onClick={() => setSub('insert-right')}>
+              <button type="button" className="oad-db-menu-item" onClick={() => setSub('insert-right')}>
                 ⇥ {t('insertRight')}
               </button>
               {p.type !== 'title' && (
                 <button
                   type="button"
-                  className="db-menu-item is-danger"
+                  className="oad-db-menu-item oad-is-danger"
                   onClick={() => {
                     if (window.confirm(t('deletePropConfirm', { name: p.name }))) store.deleteProp(p.key)
                     onClose()
@@ -255,11 +255,11 @@ export function AddPropMenu({ anchor, view, onView, onClose, at }: { anchor: Anc
     onView({ order })
   }
   return (
-    <Popover anchor={anchor} onClose={onClose} width={240} className="db-menu" align="right">
-      <input autoFocus className="db-menu-name" value={name} placeholder={t('newProp')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => (e.key === 'Enter' && add('text'), e.stopPropagation())} />
-      <div className="db-menu-scroll">
+    <Popover anchor={anchor} onClose={onClose} width={240} className="oad-db-menu" align="right">
+      <input autoFocus className="oad-db-menu-name" value={name} placeholder={t('newProp')} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => (e.key === 'Enter' && add('text'), e.stopPropagation())} />
+      <div className="oad-db-menu-scroll">
         {ADDABLE_TYPES.map((ty) => (
-          <button key={ty} type="button" className="db-menu-item" onClick={() => add(ty)}>
+          <button key={ty} type="button" className="oad-db-menu-item" onClick={() => add(ty)}>
             <TypeIcon type={ty} />
             {TYPE_NAMES[ty]}
           </button>
@@ -278,27 +278,27 @@ function OptionsMenu({ p, anchor, onClose }: { p: Prop; anchor: Anchor; onClose:
     store.setOptions(p.key, next)
   }
   return (
-    <Popover anchor={anchor} onClose={onClose} width={280} className="db-menu">
-      <div className="db-menu-label">{t('options')}</div>
-      <div className="db-menu-scroll">
+    <Popover anchor={anchor} onClose={onClose} width={280} className="oad-db-menu">
+      <div className="oad-db-menu-label">{t('options')}</div>
+      <div className="oad-db-menu-scroll">
         {opts.map((o, i) => (
-          <div key={o.id} className="db-optedit">
+          <div key={o.id} className="oad-db-optedit">
             {editing === o.id ? (
-              <div className="db-optedit-box">
+              <div className="oad-db-optedit-box">
                 <input
                   autoFocus
-                  className="db-menu-name"
+                  className="oad-db-menu-name"
                   defaultValue={o.name}
                   onBlur={(e) => save(opts.map((x) => (x.id === o.id ? { ...x, name: e.target.value.trim() || x.name } : x)))}
                   onKeyDown={(e) => (e.key === 'Enter' && (e.target as HTMLInputElement).blur(), e.stopPropagation())}
                 />
-                <div className="db-colors">
+                <div className="oad-db-colors">
                   {COLORS.map((c) => (
-                    <button key={c} type="button" title={COLOR_NAMES[c]} className={'db-color c-' + c + (o.color === c ? ' is-on' : '')} onClick={() => save(opts.map((x) => (x.id === o.id ? { ...x, color: c } : x)))} />
+                    <button key={c} type="button" title={COLOR_NAMES[c]} className={'oad-db-color oad-c-' + c + (o.color === c ? ' oad-is-on' : '')} onClick={() => save(opts.map((x) => (x.id === o.id ? { ...x, color: c } : x)))} />
                   ))}
                 </div>
                 {p.type === 'status' && (
-                  <div className="db-menu-seg">
+                  <div className="oad-db-menu-seg">
                     {(['todo', 'doing', 'done'] as const).map((g) => (
                       <button key={g} type="button" aria-pressed={(o.group ?? 'todo') === g} onClick={() => save(opts.map((x) => (x.id === o.id ? { ...x, group: g } : x)))}>
                         {g === 'todo' ? t('statusTodo') : g === 'doing' ? t('statusDoing') : t('statusDone')}
@@ -306,14 +306,14 @@ function OptionsMenu({ p, anchor, onClose }: { p: Prop; anchor: Anchor; onClose:
                     ))}
                   </div>
                 )}
-                <button type="button" className="db-menu-item is-danger" onClick={() => save(opts.filter((x) => x.id !== o.id))}>
+                <button type="button" className="oad-db-menu-item oad-is-danger" onClick={() => save(opts.filter((x) => x.id !== o.id))}>
                   {t('deleteOption')}
                 </button>
               </div>
             ) : (
-              <button type="button" className="db-menu-item" onClick={() => setEditing(o.id)}>
+              <button type="button" className="oad-db-menu-item" onClick={() => setEditing(o.id)}>
                 <Pill opt={o} status={p.type === 'status'} />
-                <span className="db-menu-aside">{i + 1}</span>
+                <span className="oad-db-menu-aside">{i + 1}</span>
               </button>
             )}
           </div>
@@ -321,7 +321,7 @@ function OptionsMenu({ p, anchor, onClose }: { p: Prop; anchor: Anchor; onClose:
       </div>
       <button
         type="button"
-        className="db-menu-item"
+        className="oad-db-menu-item"
         onClick={() => {
           const o: SelectOption = { id: optId(), name: t('optionN', { n: opts.length + 1 }), color: randomColor(opts.length), ...(p.type === 'status' ? { group: 'todo' as const } : {}) }
           save([...opts, o])
@@ -344,10 +344,10 @@ function RelationSettings({ p, onClose }: { p: Prop; onClose: () => void }) {
   const dbs = useDbList()
   return (
     <>
-      <div className="db-menu-label">{TYPE_NAMES.relation}</div>
+      <div className="oad-db-menu-label">{TYPE_NAMES.relation}</div>
       <button
         type="button"
-        className={'db-menu-item' + (p.relation?.db_id === store.id ? ' is-on' : '')}
+        className={'oad-db-menu-item' + (p.relation?.db_id === store.id ? ' oad-is-on' : '')}
         onClick={() => {
           store.updateProp(p.key, { relation: { db_id: store.id } })
           onClose()
@@ -359,7 +359,7 @@ function RelationSettings({ p, onClose }: { p: Prop; onClose: () => void }) {
         <button
           key={d.id}
           type="button"
-          className={'db-menu-item' + (p.relation?.db_id === d.id ? ' is-on' : '')}
+          className={'oad-db-menu-item' + (p.relation?.db_id === d.id ? ' oad-is-on' : '')}
           onClick={() => {
             store.updateProp(p.key, { relation: { db_id: d.id } })
             onClose()
@@ -383,7 +383,7 @@ function RollupSettings({ p, onClose }: { p: Prop; onClose: () => void }) {
   const NAMES: Record<string, string> = { ...TOTAL_NAMES, show_original: getLocale() === 'en' ? 'Show original' : '显示原值', count: TOTAL_NAMES.count, average: TOTAL_NAMES.avg }
   const set = (patch: Partial<NonNullable<Prop['rollup']>>) => store.updateProp(p.key, { rollup: { relation: relKey ?? '', prop: p.rollup?.prop ?? 'title', fn: p.rollup?.fn ?? 'count', ...patch } })
   return (
-    <div className="db-rollup">
+    <div className="oad-db-rollup">
       <label>
         {TYPE_NAMES.relation}
         <select value={relKey} onChange={(e) => set({ relation: e.target.value })}>
@@ -414,7 +414,7 @@ function RollupSettings({ p, onClose }: { p: Prop; onClose: () => void }) {
           ))}
         </select>
       </label>
-      <button type="button" className="btn btn-sm" onClick={onClose}>
+      <button type="button" className="oad-btn oad-btn-sm" onClick={onClose}>
         {t('save')}
       </button>
     </div>

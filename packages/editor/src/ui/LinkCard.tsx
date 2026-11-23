@@ -53,7 +53,7 @@ export function LinkCard({ editor, open }: { editor: Editor; open: (href: string
               }
             }}
           />
-          <button type="button" className="oad-btn-primary" onMouseDown={(e) => e.preventDefault()} onClick={apply}>
+          <button type="button" className="oad-prompt-btn" onMouseDown={(e) => e.preventDefault()} onClick={apply}>
             {t('confirm')}
           </button>
         </span>

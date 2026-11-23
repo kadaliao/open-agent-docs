@@ -44,7 +44,7 @@ export default function TableToolbar({ editor }: { editor: Editor }) {
   return (
     <div className="oad-popover oad-table-bar" style={{ left: pos.left, top: pos.top + 6 }} onMouseDown={(e) => e.preventDefault()}>
       {ACTIONS.map((a) => (
-        <button key={a.key} type="button" className={'oad-table-btn' + (a.danger ? ' is-danger' : '')} onClick={() => a.run(editor)}>
+        <button key={a.key} type="button" className={'oad-table-btn' + (a.danger ? ' oad-is-danger' : '')} onClick={() => a.run(editor)}>
           {t(a.key)}
         </button>
       ))}

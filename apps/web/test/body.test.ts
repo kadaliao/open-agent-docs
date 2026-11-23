@@ -21,6 +21,6 @@ describe('评论正文', () => {
     expect(html).toContain('<code>a&lt;b</code>')
     expect(html).toContain('<a href="https://e.com"')
     expect(html).not.toContain('href="javascript')
-    expect(html).toContain('<span class="mention is-user" data-id="u1">@张三</span>')
+    expect(html).toContain('<span class="oad-mention oad-is-user" data-id="u1">@张三</span>')
   })
 })

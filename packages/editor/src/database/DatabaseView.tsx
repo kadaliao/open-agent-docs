@@ -139,10 +139,10 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
   if (store.status === 'loading' && !store.meta) return <DbSkeleton embedded={embedded} />
   if (store.status === 'error' && !store.meta)
     return (
-      <div className="db-error">
+      <div className="oad-db-error">
         {t('loadFailed')}
-        <span className="muted">{store.error}</span>
-        <button type="button" className="btn btn-sm" onClick={() => location.reload()}>
+        <span className="oad-muted">{store.error}</span>
+        <button type="button" className="oad-btn oad-btn-sm" onClick={() => location.reload()}>
           {t('retry')}
         </button>
       </div>
@@ -156,26 +156,26 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
 
   return (
     <DbContext.Provider value={ctx}>
-      <div ref={box} className={'db oad-root' + (embedded ? ' is-embedded' : '')} data-db={dbId} data-status={store.status}>
+      <div ref={box} className={'oad-db oad-root' + (embedded ? ' oad-is-embedded' : '')} data-db={dbId} data-status={store.status}>
         {embedded && (
           <a
-            className="db-embed-title"
+            className="oad-db-embed-title"
             href={pagePath(dbId)}
             onClick={(e) => {
               e.preventDefault()
               navigate(pagePath(dbId))
             }}
           >
-            <span className="db-embed-ico">▦</span>
+            <span className="oad-db-embed-ico">▦</span>
             {store.meta?.page.title || t('untitled')}
           </a>
         )}
-        <div className="db-bar">
+        <div className="oad-db-bar">
           <ViewTabs views={views} current={shownView} onPick={setVid} embedded={embedded} />
           <Toolbar view={shownView} onView={patchView} search={search} onSearch={setSearch} onNew={newRow} />
         </div>
         <FilterChips view={shownView} onOpen={() => ctx.openFilter?.()} />
-        <div className={'db-view is-' + shownView.type}>
+        <div className={'oad-db-view oad-is-' + shownView.type}>
           {shownView.type === 'table' && <TableView view={shownView} result={shownResult} onView={patchView} maxHeight={embedded ? 420 : undefined} />}
           {shownView.type === 'board' && <BoardView view={shownView} result={shownResult} onView={patchView} />}
           {shownView.type === 'calendar' && <CalendarView view={shownView} result={shownResult} onView={patchView} />}
@@ -183,7 +183,7 @@ export function DatabaseView({ client, dbId, me, ws, canWrite, events, viewId, e
           {shownView.type === 'list' && <ListView view={shownView} result={shownResult} onView={patchView} maxHeight={embedded ? 420 : undefined} />}
         </div>
         {store.error && store.meta && (
-          <div className="db-toast is-error" role="alert">
+          <div className="oad-db-toast oad-is-error" role="alert">
             {store.status === 'cache' ? t('offline') : t('saveFailed') + store.error}
           </div>
         )}
@@ -209,13 +209,13 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
     if (id) onPick(id)
   }
   return (
-    <div className="db-tabs" role="tablist">
+    <div className="oad-db-tabs" role="tablist">
       {views.map((v) =>
         renaming === v.id ? (
           <input
             key={v.id}
             autoFocus
-            className="db-tab-rename"
+            className="oad-db-tab-rename"
             defaultValue={v.name}
             onBlur={(e) => {
               const n = e.target.value.trim()
@@ -233,7 +233,7 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
             type="button"
             role="tab"
             aria-selected={v.id === current.id}
-            className={'db-tab' + (v.id === current.id ? ' is-on' : '')}
+            className={'oad-db-tab' + (v.id === current.id ? ' oad-is-on' : '')}
             onClick={(e) => (v.id === current.id && canWrite ? setMenu({ v, anchor: rectOf(e.currentTarget) }) : onPick(v.id))}
             onDoubleClick={() => canWrite && setRenaming(v.id)}
           >
@@ -243,15 +243,15 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
         ),
       )}
       {canWrite && !embedded && (
-        <button type="button" className="db-tab db-tab-add" aria-label={t('addView')} title={t('addView')} onClick={(e) => setAdding(rectOf(e.currentTarget))}>
+        <button type="button" className="oad-db-tab oad-db-tab-add" aria-label={t('addView')} title={t('addView')} onClick={(e) => setAdding(rectOf(e.currentTarget))}>
           +
         </button>
       )}
       {adding && (
-        <Popover anchor={adding} onClose={() => setAdding(null)} width={200} className="db-menu">
-          <div className="db-menu-label">{t('addView')}</div>
+        <Popover anchor={adding} onClose={() => setAdding(null)} width={200} className="oad-db-menu">
+          <div className="oad-db-menu-label">{t('addView')}</div>
           {(Object.keys(VIEW_NAMES) as ViewType[]).map((ty) => (
-            <button key={ty} type="button" className="db-menu-item" onClick={() => add(ty)}>
+            <button key={ty} type="button" className="oad-db-menu-item" onClick={() => add(ty)}>
               <ViewIcon type={ty} />
               {VIEW_NAMES[ty]}
             </button>
@@ -259,13 +259,13 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
         </Popover>
       )}
       {menu && (
-        <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={200} className="db-menu">
-          <button type="button" className="db-menu-item" onClick={() => (setRenaming(menu.v.id), setMenu(null))}>
+        <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={200} className="oad-db-menu">
+          <button type="button" className="oad-db-menu-item" onClick={() => (setRenaming(menu.v.id), setMenu(null))}>
             ✎ {t('renameView')}
           </button>
           <button
             type="button"
-            className="db-menu-item"
+            className="oad-db-menu-item"
             onClick={async () => {
               setMenu(null)
               const { id: _, ...rest } = menu.v
@@ -278,7 +278,7 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
           {views.length > 1 && (
             <button
               type="button"
-              className="db-menu-item is-danger"
+              className="oad-db-menu-item oad-is-danger"
               onClick={() => {
                 setMenu(null)
                 store.deleteView(menu.v.id)
@@ -296,15 +296,15 @@ function ViewTabs({ views, current, onPick, embedded }: { views: View[]; current
 
 function DbSkeleton({ embedded }: { embedded?: boolean }) {
   return (
-    <div className={'db oad-root db-skeleton' + (embedded ? ' is-embedded' : '')} aria-busy="true">
-      <div className="db-bar">
-        <span className="sk" style={{ width: 160, height: 22 }} />
+    <div className={'oad-db oad-root oad-db-skeleton' + (embedded ? ' oad-is-embedded' : '')} aria-busy="true">
+      <div className="oad-db-bar">
+        <span className="oad-sk" style={{ width: 160, height: 22 }} />
       </div>
       {Array.from({ length: embedded ? 4 : 10 }, (_, i) => (
-        <div key={i} className="sk-row">
-          <span className="sk" style={{ width: '30%' }} />
-          <span className="sk" style={{ width: '18%' }} />
-          <span className="sk" style={{ width: '22%' }} />
+        <div key={i} className="oad-sk-row">
+          <span className="oad-sk" style={{ width: '30%' }} />
+          <span className="oad-sk" style={{ width: '18%' }} />
+          <span className="oad-sk" style={{ width: '22%' }} />
         </div>
       ))}
     </div>
