@@ -5,9 +5,19 @@ import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import type { Transaction } from '@tiptap/pm/state'
 import type { DecorationAttrs } from '@tiptap/pm/view'
-import { redo, undo, yCursorPlugin, ySyncPlugin, ySyncPluginKey, yUndoPlugin, yUndoPluginKey } from 'y-prosemirror'
+import {
+  defaultDeleteFilter,
+  defaultProtectedNodes,
+  redo,
+  undo,
+  yCursorPlugin,
+  ySyncPlugin,
+  ySyncPluginKey,
+  yUndoPlugin,
+  yUndoPluginKey,
+} from 'y-prosemirror'
 import type { Awareness } from 'y-protocols/awareness'
-import type * as Y from 'yjs'
+import * as Y from 'yjs'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -24,11 +34,37 @@ declare module '@tiptap/core' {
 /** 这个事务是不是 Yjs 同步过来的（远端改动、撤销重做） */
 export const isChangeOrigin = (tr: Transaction) => !!tr.getMeta(ySyncPluginKey)
 
-export const OadCollaboration = Extension.create<{ fragment: Y.XmlFragment | null }>({
+/**
+ * 撤销管理器：和 y-prosemirror 默认建的一样，只是插件视图销毁时不真的 destroy。
+ * y-prosemirror 的撤销插件在插件视图销毁时 destroy 撤销管理器，可它还留在插件状态里；Tiptap 每次 registerPlugin / unregisterPlugin
+ * （浮动菜单挂上、摘下）都会重建全部插件视图，之后的改动就不再记进撤销栈，⌘Z 什么也撤不了。
+ * 这里视图销毁时只清掉挂在它上面的监听（新视图会重新挂），编辑器关掉时再真的 destroy。
+ */
+function undoManagerFor(fragment: Y.XmlFragment) {
+  const um = new Y.UndoManager(fragment, {
+    trackedOrigins: new Set([ySyncPluginKey]),
+    deleteFilter: (item) => defaultDeleteFilter(item, defaultProtectedNodes),
+    captureTransaction: (tr) => tr.meta.get('addToHistory') !== false,
+  })
+  const destroy = um.destroy.bind(um)
+  um.destroy = () => {
+    ;(um as unknown as { _observers: Map<string, unknown> })._observers = new Map()
+  }
+  return { um, destroy }
+}
+
+export const OadCollaboration = Extension.create<{ fragment: Y.XmlFragment | null }, { destroyUndo: (() => void) | null }>({
   name: 'collaboration',
   priority: 1000,
   addOptions() {
     return { fragment: null }
+  },
+  addStorage() {
+    return { destroyUndo: null }
+  },
+  onDestroy() {
+    this.storage.destroyUndo?.()
+    this.storage.destroyUndo = null
   },
   addCommands() {
     return {
@@ -62,9 +98,12 @@ export const OadCollaboration = Extension.create<{ fragment: Y.XmlFragment | nul
   addProseMirrorPlugins() {
     const fragment = this.options.fragment
     if (!fragment) throw new Error('OadCollaboration 需要 fragment')
+    this.storage.destroyUndo?.()
+    const { um, destroy } = undoManagerFor(fragment)
+    this.storage.destroyUndo = destroy
     return [
       ySyncPlugin(fragment),
-      yUndoPlugin(),
+      yUndoPlugin({ undoManager: um }),
       // 输入规则（比如 # 变标题）单独成一步撤销
       new Plugin({
         filterTransaction: (tr, state) => {

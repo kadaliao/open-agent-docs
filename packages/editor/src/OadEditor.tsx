@@ -15,6 +15,8 @@ import { PasteMenu } from './ui/PasteMenu'
 import type { SlashStorage } from './extensions/slash'
 import { findCell } from './schema/tables'
 import { BubbleToolbar } from './ui/BubbleToolbar'
+import { LinkCard } from './ui/LinkCard'
+import { openHref } from './extensions/link-open'
 import { SlashMenu } from './ui/SlashMenu'
 import { UrlPrompt, type UrlPromptState } from './ui/UrlPrompt'
 
@@ -45,6 +47,8 @@ export interface OadEditorProps {
   onUnknownAuthor?: (clientId: string) => void
   // 链接解析、上传、Markdown 解析（见 extensions/media.ts）
   media?: Partial<MediaServices>
+  // 打开正文里的链接（⌘ 点、链接卡片上的“打开”、只读时点）：返回 true 表示宿主处理了，否则在新标签页打开
+  onOpenLink?: (href: string) => boolean
 }
 
 export function OadEditor(props: OadEditorProps) {
@@ -68,6 +72,7 @@ export function OadEditor(props: OadEditorProps) {
         onUnknownAuthor: (c) => live.current.onUnknownAuthor?.(c),
         media: () => live.current.media ?? {},
         portalRoot: () => portal.current,
+        openLink: (href) => live.current.onOpenLink?.(href) ?? false,
       }),
     // user 变了走 updateUser，不重建编辑器
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -155,6 +160,7 @@ export function OadEditor(props: OadEditorProps) {
             : undefined
         }
       />
+      <LinkCard editor={editor} open={(href) => openHref(href, (h) => live.current.onOpenLink?.(h) ?? false)} />
       <PasteMenu editor={editor} />
       <BlockMenu editor={editor} />
       {prompt && <UrlPrompt state={prompt} onClose={() => setPrompt(null)} />}

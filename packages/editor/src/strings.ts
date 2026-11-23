@@ -59,6 +59,7 @@ export const zh = {
   confirm: '确定',
   removeLink: '去掉链接',
   openLink: '打开链接',
+  editLink: '改网址',
   // 格式
   bold: '粗体',
   italic: '斜体',
@@ -189,6 +190,7 @@ export const en: EditorStrings = {
   confirm: 'OK',
   removeLink: 'Remove link',
   openLink: 'Open link',
+  editLink: 'Edit link',
   bold: 'Bold',
   italic: 'Italic',
   underline: 'Underline',

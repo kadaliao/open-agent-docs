@@ -859,6 +859,23 @@
   padding: 0 4px;
   border-radius: 3px;
 }
+.oad-link-card {
+  max-width: min(560px, calc(100vw - 24px));
+}
+.oad-link-card-url {
+  min-width: 0;
+  max-width: 300px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--oad-link, var(--oad-accent));
+  font: 13.5px/30px var(--oad-font);
+  text-decoration: none;
+}
+.oad-link-card-url:hover {
+  text-decoration: underline;
+}
 .oad-bubble-link,
 .oad-url-prompt {
   display: flex;

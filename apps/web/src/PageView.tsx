@@ -21,7 +21,7 @@ import { api, ApiError, client, threadAnchor, type Me, type Page, type Version }
 import { Inbox } from './Inbox'
 import { post } from './embed'
 import { getLocale, onLocale, useLocale } from './i18n'
-import { mediaServices, type DbHost } from './media'
+import { internalPage, mediaServices, type DbHost } from './media'
 import { usePeople } from './people'
 import { closePage, dropPreopened, takeConn, type Conn, type Status } from './conn'
 import { SidebarIcon } from './icons'
@@ -460,6 +460,13 @@ function DocPage({ pageId, me, store, canWrite, sidebarCollapsed, onExpandSideba
                 authors={allAuthors}
                 media={services}
                 onUnknownAuthor={loadAuthors}
+                onOpenLink={(href) => {
+                  // 本工作区的页面：在这里打开（带 ?view= 的库视图照样带上）
+                  const p = internalPage(href)
+                  if (!p) return false
+                  navigate(pagePath(p.id) + (p.view ? '?view=' + encodeURIComponent(p.view) : ''))
+                  return true
+                }}
               />
             </div>
           )}

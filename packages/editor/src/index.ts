@@ -17,6 +17,7 @@ export {
   type CommentMark,
 } from './extensions/comments'
 export { OadCaret, OadCollaboration, isChangeOrigin } from './extensions/collaboration'
+export { LinkOpen, openHref, type OpenLink } from './extensions/link-open'
 export * from './schema'
 export { strings, setEditorStrings, setEditorLocale, zh as editorStringsZh, en as editorStringsEn, type EditorStrings } from './strings'
 export { loadKatex } from './views/katex'
